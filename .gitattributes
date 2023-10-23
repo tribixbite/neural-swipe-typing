@@ -1,0 +1,4 @@
+data/*.jsonl filter=lfs diff=lfs merge=lfs -text
+checkpoints/full-character-model/*.ckpt filter=lfs diff=lfs merge=lfs -text
+checkpoints/full_character_model/*.ckpt filter=lfs diff=lfs merge=lfs -text
+data/futo/*.jsonl filter=lfs diff=lfs merge=lfs -text
