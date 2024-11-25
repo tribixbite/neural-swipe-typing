@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from ns_tokenizers import CharLevelTokenizerv2
+from model import EncoderDecoderTransformerLike
 
 
 def _prepare_encoder_input(encoder_in: Union[Tensor, Tuple[Tensor, Tensor]], 
@@ -20,16 +21,14 @@ def _prepare_encoder_input(encoder_in: Union[Tensor, Tuple[Tensor, Tensor]],
     else:
         is_tensor = False
 
-    encoder_in = [el.unsqueeze(0) for el in encoder_in]
+    encoder_in = [el.unsqueeze(0 if batch_first else 1) for el in encoder_in]
     encoder_in = [el.to(device) for el in encoder_in]
 
-    if not batch_first:
-        encoder_in = [el.transpose(0, 1) for el in encoder_in]
     return encoder_in[0] if is_tensor else encoder_in
 
 
 class WordGenerator(ABC):
-    def __init__(self, model: torch.nn.Module, 
+    def __init__(self, model: EncoderDecoderTransformerLike, 
                  tokenizer: CharLevelTokenizerv2, device):
         self.model = model
         self.tokenizer = tokenizer
@@ -37,7 +36,7 @@ class WordGenerator(ABC):
         self.model.to(self.device)
         self.eos_token_id = tokenizer.char_to_idx['<eos>']
     
-    def switch_model(self, model: torch.nn.Module):
+    def switch_model(self, model: EncoderDecoderTransformerLike):
         self.model = model
 
     @abstractmethod
@@ -48,7 +47,7 @@ class WordGenerator(ABC):
 
 
 class WordGeneratorWithVocab(WordGenerator):
-    def __init__(self, model: torch.nn.Module, 
+    def __init__(self, model: EncoderDecoderTransformerLike, 
                  tokenizer: CharLevelTokenizerv2, device,
                  vocab: Optional[List[str]] = None,
                  max_token_id = None) -> None:
@@ -125,26 +124,22 @@ class WordGeneratorWithVocab(WordGenerator):
 class GreedyGenerator(WordGeneratorWithVocab):
     @torch.inference_mode()
     def _generate(self, encoder_in, max_steps_n=35) -> List[Tuple[float, str]]:
+        BATCH_SIZE_DIM = 1
         tokens = [self.tokenizer.char_to_idx['<sos>']]
-        log_prob = 0
+        log_prob = 0.0
         
         encoder_in = _prepare_encoder_input(encoder_in, self.device, False)
-
         encoded = self.model.encode(encoder_in, None)
 
         for _ in range(max_steps_n):
-            
-            dec_in_char_seq = torch.tensor(tokens).reshape(-1, 1).to(self.device)  # (chars_seq_len, batch_size)
-            # word_pad_mask = torch.zeros_like(dec_in_char_seq, dtype=torch.bool, device=self.device).transpose_(0,1)
-            word_pad_mask = None
-            curve_pad_mask = None
-
-            next_tokens_logits = self.model.decode(
-                dec_in_char_seq, encoded, curve_pad_mask, word_pad_mask).transpose_(0, 1)[0, -1]
+            dec_in_char_seq = torch.tensor(tokens).unsqueeze_(BATCH_SIZE_DIM)
+            next_tokens_logits: torch.Tensor = self.model.decode(
+                dec_in_char_seq, encoded, None, None).squeeze_(BATCH_SIZE_DIM)[-1]
             next_tokens_logits = self._mask_out_unallowed_ids(tokens, next_tokens_logits)
             next_tokens_logproba = F.log_softmax(next_tokens_logits)
-            best_next_token = int(next_tokens_logproba.argmax())  # batch_i = 0, decoder_out_onehot_vector_seq_i = -1 
+            best_next_token = int(next_tokens_logproba.argmax())
             log_prob += float(next_tokens_logproba[best_next_token])
+            
             tokens.append(best_next_token)
             if best_next_token == self.eos_token_id:
                 break
@@ -172,8 +167,17 @@ class BeamGenerator(WordGeneratorWithVocab):
         Arguments:
         ----------
         return_hypotheses_n: Optional[int]
-            Число возвращаемых гипотез. Если None, возвращаются все,
-            иначе возвращается `return_hypotheses_n` наиболее вероятных.
+            return_hypotheses_n: Number of best hypotheses to return. If None,
+            returns all found hypotheses.
+
+        Returns:
+        --------
+        List of tuples (score, text), where:
+        - score is the normalized **negative** log probability of the hypothesis
+        - text is the decoded word
+        The list is sorted by score (best hypotheses first) and contains
+        min(return_hypotheses_n, total_hypotheses_found) items if
+        return_hypotheses_n is specified, or all found hypotheses otherwise.
         """
         tokens = [self.tokenizer.char_to_idx['<sos>']]
         initial_length = len(tokens)

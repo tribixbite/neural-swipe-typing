@@ -1,4 +1,4 @@
-# NeuroSwipe
+# Neural glide typing
 
 A transformer neural network for a gesture keyboard that transduces curves swiped across a keyboard into word candidates
 
