@@ -423,8 +423,7 @@ def get_word_char_embedding_model_bigger__v3(d_model: int, n_word_chars: int,
 
 
 def _get_transformer_bigger__v3(input_embedding: nn.Module,
-                                device = None,
-                                n_coord_feats = 6):
+                                device = None,):
     CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
     MAX_OUT_SEQ_LEN = 35  # word_char_tokenizer.max_word_len - 1
 
@@ -434,9 +433,7 @@ def _get_transformer_bigger__v3(input_embedding: nn.Module,
     n_classes = CHAR_VOCAB_SIZE - 2  # <sos> and <pad> are not predicted
 
 
-    key_emb_size = 122
-    n_coord_feats = 6
-    d_model = n_coord_feats + key_emb_size
+    d_model = 128
 
     device = torch.device(
         device
@@ -491,7 +488,7 @@ def get_transformer_bigger_weighted_and_traj__v3(device = None,
         n_keys=n_keys, key_emb_size=key_emb_size, 
         max_len=MAX_CURVES_SEQ_LEN, device = device, dropout=0.1)
     
-    model = _get_transformer_bigger__v3(input_embedding, device, n_coord_feats)
+    model = _get_transformer_bigger__v3(input_embedding, device)
 
     model = _set_state(model, weights_path, device)
 
@@ -514,7 +511,7 @@ def get_transformer_bigger_nearest_and_traj__v3(device = None,
         n_keys=37, key_emb_size=key_emb_size, 
         max_len=299, device = device, dropout=0.1)
     
-    model = _get_transformer_bigger__v3(input_embedding, device, n_coord_feats)
+    model = _get_transformer_bigger__v3(input_embedding, device)
 
     model = _set_state(model, weights_path, device)
 
@@ -563,7 +560,7 @@ def get_transformer_bigger_trainable_gaussian_weights_and_traj__v3(
         max_len=299, device=device, dropout=0.1,
         key_centers=key_centers)
     
-    model = _get_transformer_bigger__v3(input_embedding, device, n_coord_feats)
+    model = _get_transformer_bigger__v3(input_embedding, device)
 
     model = _set_state(model, weights_path, device)
 
