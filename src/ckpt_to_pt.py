@@ -1,3 +1,4 @@
+from typing import Dict, Any
 import argparse
 import os
 import logging
@@ -9,14 +10,14 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-def remove_prefix(text, prefix):
+def remove_prefix(text: str, prefix: str):
     if text.startswith(prefix):
         return text[len(prefix):]
     return text
 
 
-def ckpt_to_torch_state(ckpt):
-    return {remove_prefix(k, 'model.'): v for k, v in ckpt['state_dict'].items()}
+def ckpt_to_torch_state(ckpt: Dict[str, Any], model_prefix: str = 'model.'):
+    return {remove_prefix(k, model_prefix): v for k, v in ckpt['state_dict'].items()}
 
 
 ######################################################################################
@@ -85,41 +86,3 @@ if __name__ == '__main__':
         convert_and_save_file(args.ckpt_path, args.out_path, device)
     else:
         convert_and_save_dir(args.ckpt_path, args.out_path, device)
-
-
-
-
-
-### Alternative script below
-
-# MODEL_NAME = 
-# CPT_PATH = 
-
-# import torch
-
-# from model import MODEL_GETTERS_DICT
-# from pl_module import LitNeuroswipeModel
-
-
-
-# def cross_entropy_with_reshape(pred, target, ignore_index=-100, label_smoothing=0.0):
-#     """
-#     pred - BatchSize x TargetLen x VocabSize
-#     target - BatchSize x TargetLen
-#     """
-#     pred_flat = pred.view(-1, pred.shape[-1])  # BatchSize*TargetLen x VocabSize
-#     target_flat = target.reshape(-1)  # BatchSize*TargetLen
-#     return F.cross_entropy(pred_flat,
-#                            target_flat,
-#                            ignore_index=ignore_index,
-#                            label_smoothing=label_smoothing)
-
-
-# pl_model = LitNeuroswipeModel.load_from_checkpoint(
-#     CPT_PATH, model_name = MODEL_NAME, 
-#     criterion = cross_entropy_with_reshape, 
-#     num_classes = 35)
-
-# model = pl_model.model
-
-# torch.save(model.state_dict(), CPT_PATH + ".pt")
