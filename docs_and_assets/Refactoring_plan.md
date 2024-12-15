@@ -61,11 +61,10 @@ class GreedyGenerator(WordGeneratorWithVocab):
                dec_in_char_seq.squeeze(BATCH_SIZE_DIM).tolist(),
                next_tokens_logits)
            next_tokens_logproba = F.log_softmax(next_tokens_logits)
-           best_next_token = int(next_tokens_logproba.argmax())
+           best_next_token = next_tokens_logproba.argmax()
            log_prob += float(next_tokens_logproba[best_next_token])
           
-           best_next_token_tensor = torch.tensor([[best_next_token]], device=self.device, dtype=torch.int32)
-           dec_in_char_seq = torch.cat([dec_in_char_seq, best_next_token_tensor], dim=0)
+           dec_in_char_seq = torch.cat([dec_in_char_seq, best_next_token.reshape(1,1)], dim=0)
           
            if best_next_token == self.eos_token_id:
                break
@@ -78,6 +77,23 @@ class GreedyGenerator(WordGeneratorWithVocab):
    def generate_word_only(self, encoder_in, max_steps_n=35) -> str:
        return self._generate(encoder_in, max_steps_n)[0][1]
 ```
+
+
+Нюансы имплементации алгоритмов поиска в hugging face, которые стоит рассмотреть / которые было бы здорово перенять:
+* encoder_outputs передается в алгоритм декодирования как параметр (лежит в model_kwargs)
+* алгоритмы поиска получают объект класса StoppingCreteria вместо max_length в качестве параметра
+* алгоритмы поиска получают объект класса LogitsProcessor (если так сделать, у меня будет обычный greedy_search, в котором вызывается logit_processor.process() (вместо маскирования по словарю). logit_processor будет объектом MaskOutImpossibleLogitsLogitsProcessor в моем случае. А по умолчанию – IdentityMapping, который просто возвращает то, что получил
+* алгоритмы поиска возвращают либо только сам результат, либо словарь. Есть аргументы, влияющие на то, что будет в словаре: output_attentions, output_hidden_states, output_scores 
+
+
+Сейчас hugging_face как-то поменялся (кяп, у них одна функция реализует сразу все варианты декодирования)
+
+Если буду делать батчевый BeamSearch, стоит рассмотреть [старый коммит](https://github.com/huggingface/transformers/blob/aa43a765380693cbb0657b3de216886e0a6a674c/src/transformers/generation/utils.py)
+
+
+TODO:
+* [] Убрать WordGeneratorWithVocab, заменить это на LogitsProcessor класс, объект которого передается в алгоритм поиска и вызывается на логитах (там же где сейчас вариант со словарем). Те результат будет тот же, но можно будет легко переключаться между вариантами со словарем и без / с кастомным словарем + будет возможность реализовывать какие-то другие LogitsPrcoessor'ы. Также этот LogitProcessor можно будет удобно использовать при обучении (была гипотеза, что если упростить задачу оптимизации на обучении маскруя невозможные токены, результаты будут лучше). 
+
 
 ## Удаление старого кода:
 Рассмотреть удалнеие:
