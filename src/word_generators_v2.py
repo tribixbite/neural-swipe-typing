@@ -27,6 +27,13 @@ def _prepare_encoder_input(encoder_in: Union[Tensor, Tuple[Tensor, Tensor]],
     return encoder_in[0] if is_tensor else encoder_in
 
 
+def move_encoder_in_to_device(encoder_in: Union[Tensor, Tuple[Tensor, Tensor]], 
+                              device: str) -> Tuple[Tensor, Tensor]:
+    if isinstance(encoder_in, Tensor):
+        return encoder_in.to(device)
+    return tuple(el.to(device) for el in encoder_in)
+
+
 class WordGenerator(ABC):
     def __init__(self, model: EncoderDecoderTransformerLike, 
                  tokenizer: CharLevelTokenizerv2, device):
@@ -254,40 +261,70 @@ class BeamGenerator(WordGeneratorWithVocab):
 
 
 
-# The class below is not finished. It's suposed that we process
-# multiple curves simpultaniously. At each step we check 
-# if all batch out sequences have <eos> token. If true,
-# generation is finished 
+# ! Note ! 
+# GreedyGeneratorBatched Pros:
+# * produces exactly the same results as GreedyGenerator
+# * is more efficient (it's batched :) )
+# GreedyGeneratorBatched Cons:
+# * Doesn't support vocab masking yet
+# * Has a different interface
 class GreedyGeneratorBatched(WordGenerator):    
     @torch.inference_mode()
-    def __call__(self,
-                 xyt,  # (batch_size, curves_seq_len, n_coord_feats)
-                 kb_tokens,  # (batch_size, curves_seq_len)
-                 max_steps_n=35):
-        batch_size, curves_seq_len, n_coord_feats = xyt.shape
-
-        # (batch_size, chars_seq_len)
-        dec_in_char_seq = torch.full((batch_size, 1), self.tokenizer.char_to_idx['<sos>'], dtype=torch.int, device=self.device)
-
-        # We don't have to put everything to device because it's done in prepare_batch.
+    def _generate(self, encoder_in, encoder_in_pad_mask: torch.Tensor, 
+                  max_steps_n=35) -> List[Tuple[float, str]]:
+        # We suppose that BATCH_FIRST is False. Note that setting `BATCH_FIRST`
+        # to True won't be the only step to make the code 
+        # work with a model that expects batch_first data.
+        BATCH_FIRST = False 
+        batch_size_dim = 0 if BATCH_FIRST else 1
+        char_seq_len_dim = 1 if BATCH_FIRST else 0
+        batch_size = encoder_in_pad_mask.size(0)  # mask is always batch_first
+        dec_in_token_ids = torch.full((1, batch_size,), self.tokenizer.char_to_idx['<sos>'],
+                                         device=self.device, dtype=torch.int32)
+        sequence_finish_statuses = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
+        log_probs = torch.zeros(batch_size, device=self.device)
+        eos_token_id = self.tokenizer.char_to_idx['<eos>']
+        pad_token_id = self.tokenizer.char_to_idx['<pad>']
+      
+        encoder_in = move_encoder_in_to_device(encoder_in, self.device)
+        encoder_in_pad_mask.to(self.device)
+        encoded = self.model.encode(encoder_in, encoder_in_pad_mask)
 
         for _ in range(max_steps_n):
-            word_pad_mask = None
-            model_input = (xyt, kb_tokens, dec_in_char_seq, None, word_pad_mask)
-            # model_input = prepare_batch(model_input, self.device)
-            logits = self.model.apply(*model_input).transpose_(0, 1)  # (batch_size, chars_seq_len, vocab_size)
-            best_next_tokens = logits[:, -1].argmax(dim=1)  # (batch_size)
+            # decoder_output.shape = char_seq_len x batch_size x n_tokens
 
-            print(best_next_tokens.shape, dec_in_char_seq.shape)
+            tgt_pad_mask = (dec_in_token_ids == pad_token_id).T
 
-            dec_in_char_seq = torch.cat((dec_in_char_seq, best_next_tokens.unsqueeze(0)), dim=0)
-            kb_tokens.transpose_(0, 1)
-            xyt.transpose_(0,1)
+            next_tokens_logits = self.model.decode(
+                dec_in_token_ids, encoded, encoder_in_pad_mask, tgt_pad_mask)[-1]  # shape = batch_size x n_tokens 
+            
+            # next_tokens_logits = self._mask_out_unallowed_ids(
+            #     dec_in_char_seq.squeeze(BATCH_SIZE_DIM).tolist(),
+            #     next_tokens_logits)
 
-        predictions = [self.tokenizer.decode(dec_in_char_seq[i].tolist()) for i in range(batch_size)]
-        
-        return predictions
+            # ! Note !  We don't really need to perform softmax since argmax would be the same.
+            # It's only needed to return proper log probabilities (that can be used to output probabilities).
+            next_tokens_logproba = F.log_softmax(next_tokens_logits, dim=-1) # shape = batch_size x n_tokens
+            next_tokens = next_tokens_logproba.argmax(dim=-1)  # shape = batch_size
+            
+            # Finished sequences should only be extended by pad tokens.
+            next_tokens = next_tokens * ~sequence_finish_statuses + pad_token_id * sequence_finish_statuses
 
+            # Our model never predict <pad> and actually, pad_oken_id is out of range of model's output.
+            # Thus we need to add log_probs only for unfinishedsequences
+            unfinished_indices = torch.nonzero(~sequence_finish_statuses, as_tuple=True)[0]
+            log_probs[unfinished_indices] += next_tokens_logproba[unfinished_indices, next_tokens[unfinished_indices]]
+
+            dec_in_token_ids = torch.cat([dec_in_token_ids, next_tokens.unsqueeze(char_seq_len_dim)], dim=char_seq_len_dim)
+          
+            sequence_finish_statuses |= next_tokens == eos_token_id
+            if sequence_finish_statuses.all():
+                break
+
+        return dec_in_token_ids, log_probs
+
+    def __call__(self, encoder_in, encoder_in_pad_mask, max_steps_n=35) -> List[Tuple[float, str]]:
+        return self._generate(encoder_in, encoder_in_pad_mask, max_steps_n)
 
 
 
