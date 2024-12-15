@@ -38,6 +38,52 @@ http://wordgesturegan.com/
 
 Не стоит ли сделать фиксированные момент смены  lr для всех экспериментов?
 
+
+## Word generaors refactoring
+
+Есть версия GreedyGenerator (полностью рабочая), где нет списка tokens. Вместо него происходит кокатенация нового токена к `dec_in_char_seq`.
+``` python
+class GreedyGenerator(WordGeneratorWithVocab):
+   @torch.inference_mode()
+   def _generate(self, encoder_in, max_steps_n=35) -> List[Tuple[float, str]]:
+       BATCH_SIZE_DIM = 1
+       dec_in_char_seq = torch.tensor([[self.tokenizer.char_to_idx['<sos>']]],
+                                      device=self.device, dtype=torch.int32)
+       log_prob = 0.0
+      
+       encoder_in = _prepare_encoder_input(encoder_in, self.device, False)
+       encoded = self.model.encode(encoder_in, None)
+
+       for _ in range(max_steps_n):
+           next_tokens_logits = self.model.decode(
+               dec_in_char_seq, encoded, None, None).squeeze_(BATCH_SIZE_DIM)[-1]
+           next_tokens_logits = self._mask_out_unallowed_ids(
+               dec_in_char_seq.squeeze(BATCH_SIZE_DIM).tolist(),
+               next_tokens_logits)
+           next_tokens_logproba = F.log_softmax(next_tokens_logits)
+           best_next_token = int(next_tokens_logproba.argmax())
+           log_prob += float(next_tokens_logproba[best_next_token])
+          
+           best_next_token_tensor = torch.tensor([[best_next_token]], device=self.device, dtype=torch.int32)
+           dec_in_char_seq = torch.cat([dec_in_char_seq, best_next_token_tensor], dim=0)
+          
+           if best_next_token == self.eos_token_id:
+               break
+
+       return [(-log_prob, self.tokenizer.decode(dec_in_char_seq.squeeze_(BATCH_SIZE_DIM)[1:-1].tolist()))]
+
+   def __call__(self, encoder_in, max_steps_n=35) -> List[Tuple[float, str]]:
+       return self._generate(encoder_in, max_steps_n)
+  
+   def generate_word_only(self, encoder_in, max_steps_n=35) -> str:
+       return self._generate(encoder_in, max_steps_n)[0][1]
+```
+
+## Удаление старого кода:
+Рассмотреть удалнеие:
+* ./src/unused
+
+
 # Текущая ситация по рефакторингу
 1. Рефакторинг train.ipynb и predict_v2.py - минимум 40 минут
       * Рефакторинг pl модуля
@@ -47,7 +93,7 @@ http://wordgesturegan.com/
 4. Изучить этот шаблон: https://github.com/ashleve/lightning-hydra-template, принять решение о переходе на него или подобный способ.
       * Так как обучение на каггле, нужно уметь запускаться с последнего чекпойнта
 5. Добавить логирование lr в train.ipynb
-6. Сделать возмодный обучение trainblae_gaussian. Возможные способы:
+6. Сделать возможным обучение trainblae_gaussian. Возможные способы:
       * Воспользоваться готовым отдельным jupyter-notebook'ом
       * Смерджить train.ipynb и train__gaussian.ipynb
       * Написать совершенно новый пайплайн (см пункт выше)
@@ -428,7 +474,9 @@ predictions_dict будет поучаться с помощью функции 
 * Все, что многопоточное (Predictor._predict_raw_mp и CurveDataset._get_data_mp) работает только в скриптах. В jupyter notebook'ах - нет. Кажется, проблема в использовани concurrent.futures. Возможно, все наладится, если исопльзовать модуль multiprocessing.
 
 
-
+# Ideas
+* Была идея обучить отдельный encoder-decoder трансформер на датасете из таргетных слов и greedy-предсказаний исправлять ошибки-"опечатки" основной модели
+* Для unittest'ов можно написать скрипт, который генерирует фейковый датасет (массивы с координатами содержат сслучайные int'ы из диапозона, слово - случайный набор букв и тд)
 
 
 #  Раздел "не наступай на грабли"
