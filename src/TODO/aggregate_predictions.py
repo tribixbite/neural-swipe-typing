@@ -5,6 +5,7 @@ import pickle
 import copy
 import json
 
+from delete_duplicates_stable import delete_duplicates_stable
 # Without this import pickle.load won't be able to load predictions.
 from predict_v2 import Prediction
 
@@ -288,19 +289,6 @@ def merge_sorted_preds(model_preds_list: List[List[List[Tuple[float, str]]]]
                                                    key = lambda x: x[0])
         merged_preds.append(merged_preds_line)
     return merged_preds
-
-
-def delete_duplicates_stable(lst: Iterable) -> list:
-    """
-    Deletes duplicates from a list. Maintains the order of elements.
-    """
-    new_lst = []
-    new_lst_set = set()
-    for el in lst:
-        if el not in new_lst_set:
-            new_lst.append(el)
-            new_lst_set.add(el)
-    return new_lst
 
 
 def aggregate_preds_raw_weighted(raw_preds_list: List[List[List[str]]],
