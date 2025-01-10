@@ -130,11 +130,13 @@ The training is done in [train.ipynb](src/train.ipynb)
 
 
 ## Yandex cup 2023 results
-
 * [task](./docs_and_assets/yandex_cup/task/task.md)
 * [submission reproduction](./docs_and_assets/yandex_cup/submission_reproduciton_instrucitons.md). 
 * [leaderboard](./docs_and_assets/yandex_cup/leaderboard.md)
 
+
+# Documentation
+A WIP documentation can be found [here](./docs_and_assets/documentation.md). It doesn't contain much information yet, will be updated. Please refer to docstrings in the code for now
 
 
 ## Thank you for your attention
