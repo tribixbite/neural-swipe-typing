@@ -112,7 +112,7 @@ class NearestKeyLookup:
             pickle.dump(state, f)
         
     @classmethod
-    def load_state(cls, path: str):
+    def from_state_dict(cls, path: str):
         with open(path, 'rb') as f:
             state = pickle.load(f)
         obj = cls.__new__(cls)
@@ -154,7 +154,7 @@ class ExtendedNearestKeyLookup(NearestKeyLookup):
         return state
     
     @classmethod
-    def load_state(cls, path: str):
+    def from_state_dict(cls, path: str):
         with open(path, 'rb') as f:
             state = pickle.load(f)
         obj = cls.__new__(cls)
