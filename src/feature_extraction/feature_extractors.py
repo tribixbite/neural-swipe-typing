@@ -34,12 +34,12 @@ from torch import Tensor
 import numpy as np
 from tqdm.auto import tqdm
 
-from nearest_key_lookup import NearestKeyLookup, ExtendedNearestKeyLookup
-from distances_lookup import DistancesLookup
+from .nearest_key_lookup import NearestKeyLookup, ExtendedNearestKeyLookup
+from .distances_lookup import DistancesLookup
 from ns_tokenizers import KeyboardTokenizerv1, CharLevelTokenizerv2
 from ns_tokenizers import ALL_CYRILLIC_LETTERS_ALPHABET_ORD
 from dataset import RawDatasetEl 
-from grid_processing_utils import get_gname_to_wh, get_kb_label, get_grid
+from data_obtaining_and_preprocessing.grid_processing_utils import get_gname_to_wh, get_kb_label, get_grid
 
 
 DEFAULT_ALLOWED_KEYS = ALL_CYRILLIC_LETTERS_ALPHABET_ORD
