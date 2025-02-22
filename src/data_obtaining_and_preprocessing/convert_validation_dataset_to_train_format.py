@@ -9,9 +9,6 @@ def validation_dataset_to_train_format(dataset_path: str,
                                        ref_path: str, 
                                        out_path: str, 
                                        total: int) -> None:
-    if os.path.exists(out_path):
-        raise ValueError(f"File {out_path} already exists!")
-    
     is_inplace = (os.path.abspath(dataset_path) == os.path.abspath(out_path))
     temp_out_path = out_path + '.tmp' if is_inplace else out_path
 
