@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 from data_analysis.get_segments import get_segments
 from raw_keyboard_utils import get_kb_key_center, distance, get_key_centers
@@ -54,10 +54,11 @@ def n_segments_is_correct(tgt_word, segments):
 def over_two_points_in_each_segment(tgt_word: str,
                                     x: List[int],
                                     y: List[int],
-                                    label2key: dict) -> bool:
+                                    label2key: dict,
+                                    absent_chars_on_keyboard: Tuple = ()) -> bool:
     threshold_len = 2
 
-    key_centers = get_key_centers(tgt_word, label2key)
+    key_centers = get_key_centers(tgt_word, label2key, absent_chars_on_keyboard)
     segments = get_segments(key_centers, x, y)
 
     if not n_segments_is_correct(tgt_word, segments):
