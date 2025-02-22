@@ -6,7 +6,7 @@ import requests
 from tqdm import tqdm
 
 
-UNZIP_PATH = './data/data'
+UNZIP_PATH = '../data/data'
 CHUNK_SIZE = 4096
 
 
