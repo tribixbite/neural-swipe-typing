@@ -1,6 +1,6 @@
 from typing import List, Tuple
 
-from raw_keyboard_utils import distance
+from grid_processing_utils import distance
 
 
 def get_segments(
@@ -9,22 +9,20 @@ def get_segments(
     y_coords: List[int],
     ) -> List[List[Tuple[int, int]]]:
     """
-    Isolates swipe sections corresponding to user targeting of individual keys.
+    Partitions the swipe into segments aligned with key transitions in the target word
 
     "SEGMENTS" algorithm from the "Modeling Gesture Typing Movements" paper 
-    (https://doi.org/10.1080/07370024.2016.1215922).
+    (https://doi.org/10.1080/07370024.2016.1215922).    
+    
 
-    `segments[i]` corresponds to a portion of the swipe where 
-    the user is targeting a `reduced_target_word[i]` character on the keyboard.
-    Reduced target word is the target word with duplicate characters removed.
+    `segments[i]` is a partition of the swipe that relates to the i-th 
+    charracter in the target word (after collapsing consecutive duplicates).
 
-    Algorithm:
-    1. Trim first/last two points from gesture
-    2. Iterate over keys corresponding to target word characters. 
-       For each key, collect points moving toward current key until closer to next key.
-       When closer to next key, the segment is complete. Move to next key and repeat.
-       Duplicate keys are skipped.
-    3. Reattach trimmed points to first/last segments.
+    
+    In this alorithm consecutve points of the swipe belong to current key until
+    1. Movement brings the gesture closer to the next key AND
+    2. The gesture is no longer approaching the current key
+    
 
     Arguments:
     ----------

@@ -1,8 +1,17 @@
 from typing import List, Tuple, Dict
+import json
+import copy
+
 
 def get_label_to_key_map(kb_keys: dict,
-                         substitutions: dict = None) -> dict:
+                         substitutions: dict = None,
+                         copy_keys: bool = True) -> Dict[str, dict]:
     """
+    Given a list of keys in kb_keys returns a dict where keys are labels
+    and values are keys. If a label is absent in kb_keys, the function
+    uses a label from substitutions dict instead. If there is no such
+    label in substitutions, the function prints a warning.
+
     Arguments:
     ----------
     substitutions: dict
@@ -10,6 +19,9 @@ def get_label_to_key_map(kb_keys: dict,
         and values being labels that should be used instead. 
         For example, {'ъ': 'ь', 'ё': 'е'}. If there is no 'ё' in grid,
         users swipes over 'е' instead.
+    copy_keys: bool
+        If True, the values in the returned dict are deepcopies of the
+        keys in kb_keys. If False, the values are the keys themselves.
     """
     if substitutions is None:
         substitutions = {'ъ': 'ь', 'ё': 'е'}
@@ -18,10 +30,12 @@ def get_label_to_key_map(kb_keys: dict,
     for key in kb_keys:
         if 'label' not in key:
             continue
-        # Since i don't plan editing keys, I don't do keys.copy().
-        label2key[key['label']] = key
+        label2key[key['label']] = key if not copy_keys else copy.deepcopy(key)
     for potentially_missing_label in substitutions.keys():
         if potentially_missing_label not in label2key:
+            if not potentially_missing_label in substitutions:
+                print(f"Warning: Character '{potentially_missing_label}' not found in label2key")
+                continue
             label2key[potentially_missing_label] = (
                 label2key[substitutions[potentially_missing_label]])
     return label2key
@@ -58,3 +72,33 @@ def get_kb_key_center(hitbox: Dict[str, int]) -> Tuple[float, float]:
 
 def distance(x1, y1, x2, y2) -> float:
     return ((x2 - x1)**2 + (y2 - y1)**2)**0.5
+
+
+
+
+def get_wh(grid: dict) -> tuple:
+    return grid['width'], grid['height']
+
+def get_gname_to_wh(gname_to_grid: Dict[str, dict]):
+    return {gname: get_wh(grid)
+            for gname, grid in gname_to_grid.items()}
+
+def get_kb_label(key: dict) -> str:
+    if 'label' in key:
+        return key['label']
+    if 'action' in key:
+        return key['action']
+    raise ValueError("Key has no label or action property")
+
+def get_grid(grid_name: str, grids_path: str) -> dict:
+    with open(grids_path, "r", encoding="utf-8") as f:
+        return json.load(f)[grid_name]
+    
+def get_grid_name_to_grid(grid_name_to_grid__path: str, 
+                          allowed_gnames = ("default", "extra")) -> dict:
+    # In case there will be more grids in "grid_name_to_grid.json"
+    grid_name_to_grid = {
+        grid_name: get_grid(grid_name, grid_name_to_grid__path)
+        for grid_name in allowed_gnames
+    }
+    return grid_name_to_grid
