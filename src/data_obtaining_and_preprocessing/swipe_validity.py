@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
 from data_analysis.get_segments import get_segments
-from raw_keyboard_utils import get_kb_key_center, distance, get_key_centers
+from grid_processing_utils import get_kb_key_center, distance, get_key_centers
 
 
 def monotoniacally_increases(time: List[int]) -> bool:

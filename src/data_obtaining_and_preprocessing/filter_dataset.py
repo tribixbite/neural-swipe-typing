@@ -8,7 +8,7 @@ from data_obtaining_and_preprocessing.swipe_validity import (
     points_not_too_far, 
     over_two_points_in_each_segment
 )
-from raw_keyboard_utils import (
+from grid_processing_utils import (
     get_label_to_key_map,
     get_kb_key_center,
     distance

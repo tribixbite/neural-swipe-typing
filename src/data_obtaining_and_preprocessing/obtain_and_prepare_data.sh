@@ -3,16 +3,16 @@
 python data_obtaining_and_preprocessing/download_original_data.py
 
 python data_obtaining_and_preprocessing/separate_grid.py \
-    --input_dir ../data/data \
+    --input_dir ../data/data_original \
     --output_dir ../data/data_separated_grid
 
 python data_obtaining_and_preprocessing/convert_validation_dataset_to_train_format.py \
     --dataset_path ../data/data_separated_grid/valid.jsonl \
-    --ref_path ../data/data/valid.ref \
+    --ref_path ../data/data_original/valid.ref \
     --out_path ../data/data_separated_grid/valid.jsonl \
     --total 10000
 
-cp ../data/data/voc.txt ../data/data_separated_grid/voc.txt
+cp ../data/data_original/voc.txt ../data/data_separated_grid/voc.txt
 
 python data_obtaining_and_preprocessing/fix_grids.py \
     -i ../data/data_separated_grid/gridname_to_grid.json \
