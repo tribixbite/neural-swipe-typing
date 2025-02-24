@@ -15,6 +15,9 @@ class LogitProcessor(ABC):
 
 
 class VocabularyLogitProcessor(LogitProcessor):
+    """
+    Mask out the tokens that can't follow the generated prefix.
+    """
     def __init__(self, tokenizer: CharLevelTokenizerv2, 
                  vocab: List[str], max_token_id: int) -> None:
         """
