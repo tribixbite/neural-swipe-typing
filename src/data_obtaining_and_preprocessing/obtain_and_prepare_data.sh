@@ -21,5 +21,7 @@ python data_obtaining_and_preprocessing/fix_grids.py \
 python data_obtaining_and_preprocessing/filter_dataset.py \
     --dataset_path ../data/data_preprocessed/train.jsonl \
     --grids_path ../data/data_preprocessed/gridname_to_grid.json \
-    --output_path ../data/data_preprocessed/train.jsonl \
+    --output_path ../data/data_preprocessed/train_filtered.jsonl \
     --log_dir ../data/errors_in_original_data_swipes
+
+rm train_filtered.jsonl
