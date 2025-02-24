@@ -30,7 +30,7 @@ cp ./data/data/voc.txt ./data/data_preprocessed/voc.txt
 В качестве альтернативы можно скачать результаты работы скрипта `./src/separate_grid.py` c [гугл диска](https://drive.google.com/drive/folders/1rRBUKUC0D6eZBJqT9qKs5fKQLl-gboej?usp=sharing). в `./data/data_preprocessed `. Это можно сделать, запустив скрипт ниже:
 
 ```shell
-python ./src/downloaders/download_dataset_separated_grid.py
+python ./src/downloaders/download_dataset_preprocessed.py
 ```
 
 5. Загрузить веса моделей, используемых в последней посылке из [гугл диска](https://drive.google.com/drive/folders/1-iFPYCcRYy-tEu14Ry6xU6SMMf3eCjn6?usp=sharing) в папку [./results/final_submission_models/](./data/trained_models_for_final_submit/). Это можно сделать, запустив скрипт ниже:
