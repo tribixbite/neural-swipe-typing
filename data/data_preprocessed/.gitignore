@@ -14,9 +14,8 @@
 /train__extra_only__errors_list.pkl
 /valid.jsonl
 /valid.ref
-/valid__in_train_format.jsonl
-/valid__in_train_format__default_only.jsonl
-/valid__in_train_format__extra_only.jsonl
+/valid__default_only.jsonl
+/valid__extra_only.jsonl
 /voc.txt
 /word_tokenizer.pkl
 /val_pred_2023_11_07__02_25_25.pkl
