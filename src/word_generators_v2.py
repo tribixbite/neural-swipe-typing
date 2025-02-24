@@ -1,7 +1,6 @@
-from typing import List, Tuple, Set, Dict, Optional, Union
+from typing import List, Tuple, Optional, Union
 from abc import ABC, abstractmethod
 import heapq
-from collections import defaultdict
 
 import torch
 import torch.nn.functional as F
@@ -9,7 +8,7 @@ from torch import Tensor
 
 from ns_tokenizers import CharLevelTokenizerv2
 from model import EncoderDecoderTransformerLike
-from logit_processors import LogitProcessor, VocabularyLogitProcessor
+from logit_processors import LogitProcessor
 
 
 def _prepare_encoder_input(encoder_in: Union[Tensor, Tuple[Tensor, Tensor]], 
@@ -73,7 +72,7 @@ class GreedyGenerator(WordGenerator):
             if self.logit_processor:
                 next_tokens_logits = self.logit_processor.process(
                     next_tokens_logits, tokens)
-            next_tokens_logproba = F.log_softmax(next_tokens_logits)
+            next_tokens_logproba = F.log_softmax(next_tokens_logits, dim=-1)
             best_next_token = int(next_tokens_logproba.argmax())
             log_prob += float(next_tokens_logproba[best_next_token])
             
@@ -146,8 +145,8 @@ class BeamGenerator(WordGenerator):
                 dec_in_char_seq, encoded, curve_pad_mask, word_pad_mask).transpose_(0, 1)[0, -1]
             if self.logit_processor:
                 next_tokens_logits = self.logit_processor.process(
-                    next_tokens_logits, tokens)
-            next_tokens_logproba = F.log_softmax(next_tokens_logits)
+                    next_tokens_logits, cur_partial_hypothesis)
+            next_tokens_logproba = F.log_softmax(next_tokens_logits, dim=-1)
             topk_continuations = next_tokens_logproba.topk(beamsize)
 
             for token_score, token_idx in zip(topk_continuations.values, topk_continuations.indices):
