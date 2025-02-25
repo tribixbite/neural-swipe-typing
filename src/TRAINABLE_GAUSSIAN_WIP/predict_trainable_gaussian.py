@@ -1,3 +1,5 @@
+import sys; import os; sys.path.append(os.path.abspath('./src'))
+
 # ! Если use_vocab_for_generation == True 
 # многопоточность почему-то сильно медленнее, чем выполнение в главном потоке.
 # Поэтому num_workers должно быть равно 0 (это запуск без многопоточности).
