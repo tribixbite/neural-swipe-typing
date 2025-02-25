@@ -50,19 +50,30 @@ pip install -r requirements.txt
 
 
 
-## Yandex cup dataset
+## Yandex Cup Dataset: Obtaining and Preparation
 
-To obtain and prepare the dataset run
+To acquire and prepare the Yandex Cup dataset, follow the steps below:
+
+### Option 1: Obtain and Preprocess the Dataset from Scratch
 
 ```sh
 cd src
 bash ./data_obtaining_and_preprocessing/obtain_and_prepare_data.sh
 ```
 
-<!--
-TODO:
-* Add and downloading prepared dataset as an alternative
--->
+> [!Note]  
+> The pipeline takes approximately **7 hours** to complete on the tested machine.
+
+
+### Option 2: Download the Preprocessed Dataset (Recommended)
+
+If you prefer to skip the lengthy preprocessing steps, you can directly download the preprocessed dataset:
+
+```sh
+cd src
+python ./data_obtaining_and_preprocessing/download_dataset_preprocessed.py
+```
+
 
 
 ## Workflow Overview
