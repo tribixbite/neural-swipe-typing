@@ -62,7 +62,7 @@ bash ./data_obtaining_and_preprocessing/obtain_and_prepare_data.sh
 ```
 
 > [!Note]  
-> The pipeline takes approximately **7 hours** to complete on the tested machine.
+> The pipeline takes approximately **6 hours** to complete on the tested machine.
 
 
 ### Option 2: Download the Preprocessed Dataset (Recommended)

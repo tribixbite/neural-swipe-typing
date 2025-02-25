@@ -5,6 +5,7 @@
 /test_default_predictions.txt
 /test__default_only.jsonl
 /test__extra_only.jsonl
+/train.jsonl
 /train_filtered.jsonl
 /train__default_only.jsonl
 /train__default_only_no_errors__2023_10_31__03_26_16.jsonl
