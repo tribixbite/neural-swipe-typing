@@ -62,7 +62,7 @@ bash ./data_obtaining_and_preprocessing/obtain_and_prepare_data.sh
 ```
 
 > [!Note]  
-> The pipeline takes approximately **7 hours** to complete on the tested machine.
+> The pipeline takes approximately **6 hours** to complete on the tested machine.
 
 
 ### Option 2: Download the Preprocessed Dataset (Recommended)
@@ -130,6 +130,12 @@ The training is done in [train.ipynb](src/train.ipynb)
 [word_generation_demo.ipynb](src/word_generation_demo.ipynb) serves as an example on how to predict via a trained model.
 
 [predict_v2.py](src/predict_v2.py) is used to obtain word candidates for a whole dataset and pickle them
+
+predict_v2.py usage example:
+
+```
+python3.10 src/predict_v2.py --config configs/config__my_weighted_features.json --num-workers 0
+```
 
 > [!WARNING]  
 > If the decoding algorithm in `predict_v2.py` script utilizes a vocabulary for masking (if `use_vocab_for_generation: true` in the config), it is necessary to disable multiprocessing by passing the command-line argument `--num-workers 0` to the script. Otherwise, the prediction will take a long time. It's a bug that will be fixed
