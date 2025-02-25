@@ -131,6 +131,12 @@ The training is done in [train.ipynb](src/train.ipynb)
 
 [predict_v2.py](src/predict_v2.py) is used to obtain word candidates for a whole dataset and pickle them
 
+predict_v2.py usage example:
+
+```
+python3.10 src/predict_v2.py --config configs/config__my_weighted_features.json --num-workers 0
+```
+
 > [!WARNING]  
 > If the decoding algorithm in `predict_v2.py` script utilizes a vocabulary for masking (if `use_vocab_for_generation: true` in the config), it is necessary to disable multiprocessing by passing the command-line argument `--num-workers 0` to the script. Otherwise, the prediction will take a long time. It's a bug that will be fixed
 

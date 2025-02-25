@@ -3,7 +3,7 @@
     {
         "model_params": 
         [
-            
+            ["default", "v3_weighted_and_traj_transformer_bigger", "weighted_transformer_bigger-default--epoch=1-val_loss=0.51-val_word_level_accuracy=0.81.pt"]
         ],
         "out_path": "./results/predictions/val/my_weighted_features",
         "csv_path": "",
