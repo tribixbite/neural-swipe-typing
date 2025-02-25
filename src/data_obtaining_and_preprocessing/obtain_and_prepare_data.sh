@@ -18,7 +18,7 @@ python data_obtaining_and_preprocessing/fix_grids.py \
     -i ../data/data_preprocessed/gridname_to_grid.json \
     -o ../data/data_preprocessed/gridname_to_grid__fixed.json
 
-python data_obtaining_and_preprocessing/filter_dataset.py \
+python -m data_obtaining_and_preprocessing.filter_dataset \
     --dataset_path ../data/data_preprocessed/train.jsonl \
     --grids_path ../data/data_preprocessed/gridname_to_grid.json \
     --output_path ../data/data_preprocessed/train_filtered.jsonl \
