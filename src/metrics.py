@@ -1,25 +1,29 @@
 from typing import Collection, List
+from warnings import warn
 
 import torch
-from aggregate_predictions import delete_duplicates_stable
+from utils.delete_duplicates_stable import delete_duplicates_stable
 
 def get_mmr(preds_list: Collection[Collection[str]], ref: Collection[str]) -> float:
     # Works properly if has duplicates or n_line_preds < 4
+    if len(preds_list) != len(ref):
+        warn("Prediction and target lengths not equal: " \
+             f"`len(preds_list)` = {len(preds_list)}, `len(ref)` = {len(ref)}")
 
-    MRR = 0
+    mrr = 0
     
     for preds, target in zip(preds_list, ref):
         preds = delete_duplicates_stable(preds)
         weights = [1, 0.1, 0.09, 0.08]
 
-        line_MRR = sum(weight * (pred == target)
+        line_mrr = sum(weight * (pred == target)
                        for weight, pred in zip(weights, preds))
 
-        MRR += line_MRR
+        mrr += line_mrr
     
-    MRR /= len(preds_list)
+    mrr /= len(ref)
 
-    return MRR
+    return mrr
 
 
 def get_accuracy(preds_list: List[str], ref: List[str]) -> float:

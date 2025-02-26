@@ -1,3 +1,7 @@
+* Посмотреть, что будет если обучить на датасете без фильтрации. Оценить, как фильтрация повлияла на качество
+* Заменить в train “dvc pull” → “скачивание из google drive”
+
+
 
 # How we swipe dataset
 
@@ -38,6 +42,68 @@ http://wordgesturegan.com/
 
 Не стоит ли сделать фиксированные момент смены  lr для всех экспериментов?
 
+
+## Word generaors refactoring
+
+Есть версия GreedyGenerator (полностью рабочая), где нет списка tokens. Вместо него происходит кокатенация нового токена к `dec_in_char_seq`.
+``` python
+class GreedyGenerator(WordGeneratorWithVocab):
+   @torch.inference_mode()
+   def _generate(self, encoder_in, max_steps_n=35) -> List[Tuple[float, str]]:
+       BATCH_SIZE_DIM = 1
+       dec_in_char_seq = torch.tensor([[self.tokenizer.char_to_idx['<sos>']]],
+                                      device=self.device, dtype=torch.int32)
+       log_prob = 0.0
+      
+       encoder_in = _prepare_encoder_input(encoder_in, self.device, False)
+       encoded = self.model.encode(encoder_in, None)
+
+       for _ in range(max_steps_n):
+           next_tokens_logits = self.model.decode(
+               dec_in_char_seq, encoded, None, None).squeeze_(BATCH_SIZE_DIM)[-1]
+           next_tokens_logits = self._mask_out_unallowed_ids(
+               dec_in_char_seq.squeeze(BATCH_SIZE_DIM).tolist(),
+               next_tokens_logits)
+           next_tokens_logproba = F.log_softmax(next_tokens_logits)
+           best_next_token = next_tokens_logproba.argmax()
+           log_prob += float(next_tokens_logproba[best_next_token])
+          
+           dec_in_char_seq = torch.cat([dec_in_char_seq, best_next_token.reshape(1,1)], dim=0)
+          
+           if best_next_token == self.eos_token_id:
+               break
+
+       return [(-log_prob, self.tokenizer.decode(dec_in_char_seq.squeeze_(BATCH_SIZE_DIM)[1:-1].tolist()))]
+
+   def __call__(self, encoder_in, max_steps_n=35) -> List[Tuple[float, str]]:
+       return self._generate(encoder_in, max_steps_n)
+  
+   def generate_word_only(self, encoder_in, max_steps_n=35) -> str:
+       return self._generate(encoder_in, max_steps_n)[0][1]
+```
+
+
+Нюансы имплементации алгоритмов поиска в hugging face, которые стоит рассмотреть / которые было бы здорово перенять:
+* encoder_outputs передается в алгоритм декодирования как параметр (лежит в model_kwargs)
+* алгоритмы поиска получают объект класса StoppingCreteria вместо max_length в качестве параметра
+* алгоритмы поиска получают объект класса LogitsProcessor (если так сделать, у меня будет обычный greedy_search, в котором вызывается logit_processor.process() (вместо маскирования по словарю). logit_processor будет объектом MaskOutImpossibleLogitsLogitsProcessor в моем случае. А по умолчанию – IdentityMapping, который просто возвращает то, что получил
+* алгоритмы поиска возвращают либо только сам результат, либо словарь. Есть аргументы, влияющие на то, что будет в словаре: output_attentions, output_hidden_states, output_scores 
+
+
+Сейчас hugging_face как-то поменялся (кяп, у них одна функция реализует сразу все варианты декодирования)
+
+Если буду делать батчевый BeamSearch, стоит рассмотреть [старый коммит](https://github.com/huggingface/transformers/blob/aa43a765380693cbb0657b3de216886e0a6a674c/src/transformers/generation/utils.py)
+
+
+TODO:
+* [] Убрать WordGeneratorWithVocab, заменить это на LogitsProcessor класс, объект которого передается в алгоритм поиска и вызывается на логитах (там же где сейчас вариант со словарем). Те результат будет тот же, но можно будет легко переключаться между вариантами со словарем и без / с кастомным словарем + будет возможность реализовывать какие-то другие LogitsPrcoessor'ы. Также этот LogitProcessor можно будет удобно использовать при обучении (была гипотеза, что если упростить задачу оптимизации на обучении маскруя невозможные токены, результаты будут лучше). 
+
+
+## Удаление старого кода:
+Рассмотреть удалнеие:
+* ./src/unused
+
+
 # Текущая ситация по рефакторингу
 1. Рефакторинг train.ipynb и predict_v2.py - минимум 40 минут
       * Рефакторинг pl модуля
@@ -47,7 +113,7 @@ http://wordgesturegan.com/
 4. Изучить этот шаблон: https://github.com/ashleve/lightning-hydra-template, принять решение о переходе на него или подобный способ.
       * Так как обучение на каггле, нужно уметь запускаться с последнего чекпойнта
 5. Добавить логирование lr в train.ipynb
-6. Сделать возмодный обучение trainblae_gaussian. Возможные способы:
+6. Сделать возможным обучение trainblae_gaussian. Возможные способы:
       * Воспользоваться готовым отдельным jupyter-notebook'ом
       * Смерджить train.ipynb и train__gaussian.ipynb
       * Написать совершенно новый пайплайн (см пункт выше)
@@ -428,7 +494,13 @@ predictions_dict будет поучаться с помощью функции 
 * Все, что многопоточное (Predictor._predict_raw_mp и CurveDataset._get_data_mp) работает только в скриптах. В jupyter notebook'ах - нет. Кажется, проблема в использовани concurrent.futures. Возможно, все наладится, если исопльзовать модуль multiprocessing.
 
 
+# Ideas
+* Была идея обучить отдельный encoder-decoder трансформер на датасете из таргетных слов и greedy-предсказаний исправлять ошибки-"опечатки" основной модели
+* Для unittest'ов можно написать скрипт, который генерирует фейковый датасет (массивы с координатами содержат сслучайные int'ы из диапозона, слово - случайный набор букв и тд)
 
+# Идеи из оффициального бейзлайна Яндекса:
+1. Рассматривать в качестве кандидатов только слова, начинающиеся на ту букву, с которой начался свайп
+2. Использовать dtw из tslearn.metrics
 
 
 #  Раздел "не наступай на грабли"

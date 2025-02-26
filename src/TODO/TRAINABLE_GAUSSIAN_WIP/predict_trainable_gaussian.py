@@ -41,6 +41,11 @@
 # Лучше это будет буквально id, сохраненный где-то
 # в отдельном файле / базе данных.
 
+KB_X_SCALER = lambda x: x/1080
+KB_Y_SCALER = lambda x: x/667
+GRID_NAME = "default"
+DATA_ROOT = "./data/data_preprocessed"
+
 
 
 from typing import Iterable, List, Tuple, Dict, Optional, Any
@@ -61,9 +66,9 @@ from concurrent.futures import ProcessPoolExecutor
 from model import MODEL_GETTERS_DICT
 from ns_tokenizers import CharLevelTokenizerv2, KeyboardTokenizerv1
 from dataset import CurveDataset, CurveDatasetSubset
-from word_generators_v2 import GENERATOR_CTORS_DICT, WordGenerator
-from feature_extraction.feature_extractors import get_val_transform, weights_function_v1
-from logit_processors import VocabularyLogitProcessor
+from word_generators_v2 import GENERATOR_CTORS_DICT
+from feature_extractors import get_val_transform, weights_function_v1
+from grid_processing_utils import get_grid
 
 
 RawPredictionType = List[List[Tuple[float, str]]]
@@ -108,6 +113,8 @@ class Predictor:
     model and decoding algorithm useful later for predictions aggregation.
     """
 
+    
+
     def __init__(self,
                  model_architecture_name: str,
                  model_weights_path: str,
@@ -142,21 +149,38 @@ class Predictor:
 
         print(n_coord_feats)
 
-        model = model_getter(DEVICE, model_weights_path, n_coord_feats=n_coord_feats)
+
+
+
+
+        kb_tokenizer=KeyboardTokenizerv1()
+
+        kb_centers_tensor, kb_centers_dict = get_kb_centers_tensor(
+            grid_path = os.path.join(DATA_ROOT, "gridname_to_grid.json"),
+            grid_name=GRID_NAME,
+            kb_tokenizer=kb_tokenizer,
+            kb_x_scaler = KB_X_SCALER,
+            kb_y_scaler = KB_Y_SCALER
+        )
+
+
+
+
+        model = model_getter(DEVICE, model_weights_path, n_coord_feats=n_coord_feats, key_centers=kb_centers_tensor)
         self.word_char_tokenizer = CharLevelTokenizerv2(config['voc_path'])
 
         self.use_vocab_for_generation = use_vocab_for_generation
 
-        logit_processor = None
+        word_generator_init_kwargs = {}
         if use_vocab_for_generation:
-            logit_processor = VocabularyLogitProcessor(
-                tokenizer=self.word_char_tokenizer, 
-                vocab=get_vocab(config['voc_path']), 
-                max_token_id=n_classes - 1)
+            word_generator_init_kwargs = {
+                'vocab': get_vocab(config['voc_path']),
+                'max_token_id': n_classes - 1
+            }
 
         self.word_generator = word_generator_ctor(
             model, self.word_char_tokenizer, DEVICE, 
-            logit_processor)
+            **word_generator_init_kwargs)
         
         self.generator_call_kwargs = generator_call_kwargs
 
@@ -309,7 +333,9 @@ def get_gridname_to_dataset(config) -> Dict[str, Dataset]:
         include_accelerations=config['include_accelerations'],
         ds_paths_list=[config['data_path']],
         dist_weights_func=weights_function_v1,
-        totals = [10_000]
+        totals = [10_000],
+        kb_x_scaler = KB_X_SCALER,
+        kb_y_scaler = KB_Y_SCALER
     )
 
     print("Creating dataset...")
@@ -341,6 +367,78 @@ def parse_args() -> argparse.Namespace:
     p.add_argument('--config', type=str)
     args = p.parse_args()
     return args 
+
+
+
+
+
+
+
+
+from typing import Dict, Tuple
+def get_key_center(hitbox: Dict[str, int]) -> Tuple[float, float]:
+    x = hitbox['x'] + hitbox['w'] / 2
+    y = hitbox['y'] + hitbox['h'] / 2
+    return x, y
+    
+
+def get_id_to_kb_centers_list(kb_tokenizer, keys):
+    kb_centers_dict = dict()
+    for key in keys:
+        if 'label' not in key:
+            continue
+        if key['label'] not in kb_tokenizer.t2i:
+            continue
+        key_id = kb_tokenizer.t2i[key['label']]
+        kb_centers_dict[key_id] = get_key_center(key['hitbox'])
+    
+    for t, i in kb_tokenizer.t2i.items():
+        if i not in kb_centers_dict:
+            kb_centers_dict[i] = (-1, -1)
+
+    return kb_centers_dict
+    
+
+
+def dict_to_sorted_list(d):
+    return [v for k, v in sorted(d.items())]
+
+
+from typing import Callable
+def get_kb_centers_tensor(grid_path: str,
+                          grid_name: str,
+                          kb_tokenizer: KeyboardTokenizerv1,
+                          kb_x_scaler: Callable, 
+                          kb_y_scaler: Callable):
+    grid = get_grid(grid_name, grid_path)
+    keys = grid['keys']
+
+
+    kb_tokenizer = KeyboardTokenizerv1()
+    # legacy thing
+    assert len(kb_tokenizer.t2i) == len(kb_tokenizer.i2t)
+    if len(kb_tokenizer.t2i) != 37:
+        kb_tokenizer.i2t.append('<extra>')
+        kb_tokenizer.t2i['<extra>'] = len(kb_tokenizer.i2t) - 1
+    assert len(kb_tokenizer.t2i) == 37
+
+
+    kb_centers_dict = get_id_to_kb_centers_list(kb_tokenizer, keys)
+    kb_centers_sorted_lst = dict_to_sorted_list(kb_centers_dict)
+    kb_centers_tensor = torch.tensor(kb_centers_sorted_lst).float()
+    mask = kb_centers_tensor == -1
+    kb_centers_tensor[:, 0].apply_(kb_x_scaler)
+    kb_centers_tensor[:, 1].apply_(kb_y_scaler)
+    kb_centers_tensor = kb_centers_tensor.masked_fill(mask, -1)
+
+    return kb_centers_tensor, kb_centers_dict
+
+
+
+
+
+
+
 
 
 

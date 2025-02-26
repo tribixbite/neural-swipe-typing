@@ -1,4 +1,4 @@
-# NeuroSwipe
+# Neural glide typing
 
 A transformer neural network for a gesture keyboard that transduces curves swiped across a keyboard into word candidates
 
@@ -28,9 +28,8 @@ Try out a live demo with a trained model from the competition through this [web 
 
 ## Report
 
-Access a brief research report [here](docs_and_assets/report/report.md), which includes:
+**Access a brief research report [here](docs_and_assets/report/report.md)**, which includes:
 
-It contains:
 * Overview of existing research
 * Description of the developed method for constructing swipe point embeddings
 * Comparative analysis and results
@@ -50,23 +49,30 @@ pip install -r requirements.txt
 * The training was conducted in kaggle using Tesla P100
 
 
-<!--
 
-## Yandex cup dataset
+## Yandex Cup Dataset: Obtaining and Preparation
 
+To acquire and prepare the Yandex Cup dataset, follow the steps below:
 
-**TODO: Fill the instructions to obtain the dataset**
-
--->
-
-
-<!-- 
+### Option 1: Obtain and Preprocess the Dataset from Scratch
 
 ```sh
-python ./src/downloaders/download_dataset_separated_grid.py
-``` 
+cd src
+bash ./data_obtaining_and_preprocessing/obtain_and_prepare_data.sh
+```
 
--->
+> [!Note]  
+> The pipeline takes approximately **6 hours** to complete on the tested machine.
+
+
+### Option 2: Download the Preprocessed Dataset (Recommended)
+
+If you prefer to skip the lengthy preprocessing steps, you can directly download the preprocessed dataset:
+
+```sh
+cd src
+python ./data_obtaining_and_preprocessing/download_dataset_preprocessed.py
+```
 
 
 
@@ -75,7 +81,7 @@ python ./src/downloaders/download_dataset_separated_grid.py
 A trained model is defined not only by its class and weights but also by the dataset transformation used during training.
 
 
-All current models are instances of `model.EncoderDecoderTransformerLike` objects and consist of the following components:
+All current models are instances of `model.EncoderDecoderTransformerLike` and consist of the following components:
 * Swipe point embedder
 * Word component token embedder (currently char-level)
 * Encoder
@@ -83,10 +89,10 @@ All current models are instances of `model.EncoderDecoderTransformerLike` object
 
 Transforms extract features from the raw dataset, converting each dataset item from the format `(x, y, t, grid_name, tgt_word)` to `(encoder_input, decoder_input), decoder_output`.
 
-After collating the dataset, the format becomes `(packed_model_in, dec_out)`, where `packed_model_in` is `(enc_in, dec_in, swipe_pad_mask, word_pad_mask)`. `packed_model_in` is passed to the model via unpacking (`model(*packed_model_in)`).
+After collating the dataset, the format becomes `(packed_model_in, dec_out)`, where `packed_model_in` is `(encoder_input, decoder_input, swipe_pad_mask, word_pad_mask)`. `packed_model_in` is passed to the model via unpacking (`model(*packed_model_in)`).
 
-* `enc_in` is passed as the only argument to swipe_point_embedder’s forward. It can be a single object or a tuple of objects
-* `dec_in` are tokenized target words
+* `encoder_input` is passed as the only argument to swipe_point_embedder’s forward. The type depends on which swipe point embedding layer you use. It can be a single object, a tuple of objects
+* `decoder_input` and `decoder_output` are `tokenized_target_word[1:]` and `tokenized_target_word[:-1]` correspondingly.
 
 
 A trained swipe decoding method is defined by
@@ -99,12 +105,7 @@ A trained swipe decoding method is defined by
 
 ## Your Custom Dataset
 
-To train on a custom dataset you should provide a pytorch `Dataset` class child. Each element of the dataset should be a tuple: `(x, y, t, grid_name, tgt_word)`. These raw features won't be used but there are transforms defined in `feature_extractors.py` corresponding to every type of `swipe point embedding layer` that extract the needed features. You can apply these transforms in your dataset's `__init__` method or in `__get_item__` / `__iter__`.
-
-All the features end up in this format: `(encoder_input, decoder_input), decoder_output`.
-
-* `decoder_input` and `decoder_output` are `tokenized_target_word[1:]` and `tokenized_target_word[:-1]` correspondingly.
-* `encoder_input` are features for swipe_point_embedding layer and depend on which SPE layer you use
+Your custom dataset must have items of format: `tuple(x, y, t, grid_name, tgt_word)`. These raw features won't be used but there are transforms defined in `feature_extractors.py` corresponding to every type of `swipe point embedding layer` that extract the needed features. You can apply these transforms in your dataset's `__init__` method or in `__get_item__` / `__iter__`. The data formats after transform and after collation are described above
 
 You also need to add your keyboard layout to `grid_name_to_grid.json`
 
@@ -130,17 +131,25 @@ The training is done in [train.ipynb](src/train.ipynb)
 
 [predict_v2.py](src/predict_v2.py) is used to obtain word candidates for a whole dataset and pickle them
 
+predict_v2.py usage example:
+
+```
+python3.10 src/predict_v2.py --config configs/config__my_weighted_features.json --num-workers 0
+```
+
 > [!WARNING]  
 > If the decoding algorithm in `predict_v2.py` script utilizes a vocabulary for masking (if `use_vocab_for_generation: true` in the config), it is necessary to disable multiprocessing by passing the command-line argument `--num-workers 0` to the script. Otherwise, the prediction will take a long time. It's a bug that will be fixed
 
 
 
 ## Yandex cup 2023 results
-
 * [task](./docs_and_assets/yandex_cup/task/task.md)
 * [submission reproduction](./docs_and_assets/yandex_cup/submission_reproduciton_instrucitons.md). 
 * [leaderboard](./docs_and_assets/yandex_cup/leaderboard.md)
 
+
+# Documentation
+A WIP documentation can be found [here](./docs_and_assets/documentation.md). It doesn't contain much information yet, will be updated. Please refer to docstrings in the code for now
 
 
 ## Thank you for your attention
