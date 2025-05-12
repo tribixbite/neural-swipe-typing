@@ -1,4 +1,4 @@
-from typing import List, Iterable, Protocol
+from typing import List, Protocol
 
 from torch import Tensor
 
@@ -18,7 +18,7 @@ class MultiFeatureExtractor:
     def __init__(self, extractors: List[SwipeFeatureExtractor]) -> None:
         self.extractors = extractors
 
-    def __call__(self, x: Iterable[int], y: Iterable[int], t: Iterable[int]) -> List[Tensor]:
+    def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
         aggregated_features: List[Tensor] = []
         for extractor in self.extractors:
             aggregated_features.extend(extractor(x, y, t))
