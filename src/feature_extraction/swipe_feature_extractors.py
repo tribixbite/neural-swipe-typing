@@ -1,4 +1,4 @@
-from typing import List, Protocol
+from typing import List, Tuple, Protocol
 from collections.abc import Callable
 
 import torch
