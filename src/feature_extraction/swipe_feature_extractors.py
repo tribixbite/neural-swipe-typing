@@ -1,5 +1,7 @@
 from typing import List, Protocol
+from collections.abc import Callable
 
+import torch
 from torch import Tensor
 
 from .nearest_key_lookup import NearestKeyLookup
@@ -27,16 +29,101 @@ class MultiFeatureExtractor:
 
 class TrajectoryFeatureExtractor:
     """
-    Extracts trajectory features such as x, y, t and cordinate derivatives.
+    Extracts trajectory features such as x, y, dt and coordinate derivatives.
     """
-
-    def __init__(self, 
-                 include_time: bool,     # !!!! time should be normalized I guess. Or replaced with dt
+    def __init__(self,
+                 include_dt: bool,
                  include_velocities: bool,
                  include_accelerations: bool,
-                 normalization: ???
+                 coordinate_normalizer: Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]],
+                 dt_normalizer: Callable[[Tensor], Tensor] = lambda x: x,
+                 velocities_normalizer: Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]] = lambda x: x,
+                 accelerations_normalizer: Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]] = lambda x: x,
                  ) -> None:
-        pass
+        """
+        Arguments:
+        ----------
+        include_dt: bool
+            If True, includes time since prev point (dt) as a feature.
+        include_velocities : bool
+            If True, includes dx/dt and dy/dt as features.
+        include_accelerations : bool
+            If True, includes d²x/dt² and d²y/dt² as features.
+        coordinate_normalizer : Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]]
+            Callable to normalize x and y coordinates.
+        dt_normalizer : Callable[[Tensor], Tensor], optional
+            Callable to normalize dt. Defaults to identity function.
+        velocities_normalizer : Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]], optional
+            Callable to normalize dx/dt and dy/dt. Defaults to identity function.
+        accelerations_normalizer : Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]], optional
+            Callable to normalize d²x/dt² and d²y/dt². Defaults to identity function.
+        """
+        self.include_dt = include_dt
+        self.include_velocities = include_velocities
+        self.include_accelerations = include_accelerations
+        self.coordinate_normalizer = coordinate_normalizer
+        self.dt_normalizer = dt_normalizer
+        self.velocities_normalizer = velocities_normalizer
+        self.accelerations_normalizer = accelerations_normalizer
+
+    def _get_central_difference_derivative(x: Tensor, t: Tensor) -> Tensor:
+        """
+        Calculates dx/dt for a list of x coordinates and a list of t coordinates.
+
+        Arguments:
+        ----------
+        X : Tensor
+            x (position) coordinates.
+        T : Tensor
+            T[i] = time (ms) from swipe start corresponding to X[i].
+
+        Example:
+        --------
+        x0 x1 x2 x3
+        t0 t1 t2 t3
+        dx_dt = [0, (x2 - x0)/(t2 - t0), (x3 - x1)/(t3 - t1), 0]
+        """
+        dx_dt = torch.zeros_like(x)
+        dx_dt[1:len(x)-1] = (x[2:len(x)] - x[:len(x)-2]) / (t[2:len(x)] - t[:len(x)-2])
+        return dx_dt
+
+    def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        """
+        Returns:
+        --------
+        List[Tensor]: 
+            A list containing a single tensor of shape (seq_len, num_features)
+            containing the trajectory features.
+        """
+        x_norm, y_norm = self.coordinate_normalizer(x, y)
+
+        traj_feats_lst = [x_norm, y_norm]
+
+        if self.include_dt:
+            dt_normalized = self.dt_normalizer(t[1:] - t[:-1])
+            traj_feats_lst.append(dt_normalized)
+
+        is_velocities_needed = (self.include_velocities or self.include_accelerations)
+
+        if is_velocities_needed:
+            dx_dt = self._get_central_difference_derivative(x, t)
+            dy_dt = self._get_central_difference_derivative(y, t)
+
+        if self.include_velocities:
+            traj_feats_lst.extend(self.velocities_normalizer(dx_dt, dy_dt))
+
+        if self.include_accelerations:
+            d2x_dt2 = self._get_central_difference_derivative(dx_dt, t)
+            d2y_dt2 = self._get_central_difference_derivative(dy_dt, t)
+            traj_feats_lst.extend(self.accelerations_normalizer(d2x_dt2, d2y_dt2))
+        
+        traj_feats = torch.cat(
+            [feat.reshape(-1, 1) for feat in traj_feats_lst],
+            dim=1
+        )
+
+        return [traj_feats]
+
 
 
 class NearestKeyFeatureExtractor:
@@ -48,8 +135,7 @@ class KeyDistancesFeatureExtractor:
     """
     Extracts the distances from each point to every key on the keyboard.
     """
-    def __init__(self, distances_lookup: DistancesLookup,
-                 normalization: ???) -> None:
+    def __init__(self, distances_lookup: DistancesLookup) -> None:
         pass
 
 
