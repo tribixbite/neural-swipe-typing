@@ -6,6 +6,7 @@ from torch import Tensor
 
 from .nearest_key_lookup import NearestKeyLookup
 from .distances_lookup import DistancesLookup
+from ns_tokenizers import KeyboardTokenizerv1
 
 
 class SwipeFeatureExtractor(Protocol):
@@ -125,10 +126,17 @@ class TrajectoryFeatureExtractor:
         return [traj_feats]
 
 
-
 class NearestKeyFeatureExtractor:
-    def __init__(self, nearest_key_lookup: NearestKeyLookup):
-        pass
+    def __init__(self, nearest_key_lookup: NearestKeyLookup, 
+                 keyboard_tokenizer: KeyboardTokenizerv1) -> None:
+        self.nearest_key_lookup = nearest_key_lookup
+        self.keyboard_tokenizer = keyboard_tokenizer
+
+    def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        kb_labels = [self.nearest_key_lookup(int(x_el), int(y_el)) 
+                        for x_el, y_el in zip(x, y)]
+        kb_tokens = [self.keyboard_tokenizer.get_token(label) for label in kb_labels]
+        return [torch.tensor(kb_tokens, dtype=torch.int32)]
 
 
 class KeyDistancesFeatureExtractor:
@@ -136,8 +144,38 @@ class KeyDistancesFeatureExtractor:
     Extracts the distances from each point to every key on the keyboard.
     """
     def __init__(self, distances_lookup: DistancesLookup) -> None:
-        pass
+        self.distances_lookup = distances_lookup
+
+    def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        distances = self.distances_lookup.get_distances_for_full_swipe_using_map(x, y)
+        return [torch.tensor(distances, dtype=torch.float32)]
 
 
 class KeyWeightsFeatureExtractor:
-    pass
+    def __init__(self, 
+                 distances_lookup: DistancesLookup,
+                 half_key_diag: float,
+                 weights_function: Callable,) -> None:
+        """
+        Arguments:
+        ----------
+        distances_lookup : DistancesLookup
+            An instance of DistancesLookup to get distances to all keys for each point.
+        half_key_diag : float
+            Half of the diagonal of the key hitbox.
+        weights_function : Callable
+            A function to calculate weights based on distances.
+        """
+        self.distances_lookup = distances_lookup
+        self.half_key_diag = half_key_diag
+        self.weights_function = weights_function
+        
+    def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        distances = self.distances_lookup.get_distances_for_full_swipe_using_map(x, y)
+        mask = (distances < 0)
+        distances.masked_fill_(mask=mask, value = float('inf'))
+        distances_scaled = distances / self.half_key_diag
+        weights = self.weights_function(distances_scaled)
+        weights.masked_fill_(mask=mask, value=0)
+        return [torch.tensor(weights, dtype=torch.float32)]
+    
