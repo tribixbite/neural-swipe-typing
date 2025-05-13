@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List
 
 from .swipe_feature_extractors import (SwipeFeatureExtractor, 
                                        MultiFeatureExtractor,

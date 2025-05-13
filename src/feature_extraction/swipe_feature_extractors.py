@@ -67,7 +67,7 @@ class TrajectoryFeatureExtractor:
         self.velocities_normalizer = velocities_normalizer
         self.accelerations_normalizer = accelerations_normalizer
 
-    def _get_central_difference_derivative(x: Tensor, t: Tensor) -> Tensor:
+    def _get_central_difference_derivative(self, x: Tensor, t: Tensor) -> Tensor:
         """
         Calculates dx/dt for a list of x coordinates and a list of t coordinates.
 
@@ -101,8 +101,9 @@ class TrajectoryFeatureExtractor:
         traj_feats_lst = [x_norm, y_norm]
 
         if self.include_dt:
-            dt_normalized = self.dt_normalizer(t[1:] - t[:-1])
-            traj_feats_lst.append(dt_normalized)
+            dt_from_prev  = torch.zeros_like(t)
+            dt_from_prev [1:] = self.dt_normalizer(t[1:] - t[:-1])
+            traj_feats_lst.append(dt_from_prev)
 
         is_velocities_needed = (self.include_velocities or self.include_accelerations)
 
@@ -148,7 +149,8 @@ class KeyDistancesFeatureExtractor:
 
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
         distances = self.distances_lookup.get_distances_for_full_swipe_using_map(x, y)
-        return [torch.tensor(distances, dtype=torch.float32)]
+        distances = torch.from_numpy(distances).to(dtype=torch.float32)
+        return [distances]
 
 
 class KeyWeightsFeatureExtractor:
@@ -172,10 +174,11 @@ class KeyWeightsFeatureExtractor:
         
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
         distances = self.distances_lookup.get_distances_for_full_swipe_using_map(x, y)
+        distances = torch.from_numpy(distances).to(dtype=torch.float32)
         mask = (distances < 0)
         distances.masked_fill_(mask=mask, value = float('inf'))
         distances_scaled = distances / self.half_key_diag
         weights = self.weights_function(distances_scaled)
         weights.masked_fill_(mask=mask, value=0)
-        return [torch.tensor(weights, dtype=torch.float32)]
+        return [weights]
     
