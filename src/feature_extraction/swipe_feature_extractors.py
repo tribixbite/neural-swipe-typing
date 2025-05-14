@@ -7,6 +7,7 @@ from torch import Tensor
 from .nearest_key_lookup import NearestKeyLookup
 from .distances_lookup import DistancesLookup
 from ns_tokenizers import KeyboardTokenizerv1
+from .feature_extraction_utils import cast_to_dtype_with_warning
 
 
 class SwipeFeatureExtractor(Protocol):
@@ -96,13 +97,15 @@ class TrajectoryFeatureExtractor:
             A list containing a single tensor of shape (seq_len, num_features)
             containing the trajectory features.
         """
+        x, y, t = cast_to_dtype_with_warning([x, y, t], torch.float32)
+
         x_norm, y_norm = self.coordinate_normalizer(x, y)
 
         traj_feats_lst = [x_norm, y_norm]
 
         if self.include_dt:
             dt_from_prev  = torch.zeros_like(t)
-            dt_from_prev [1:] = self.dt_normalizer(t[1:] - t[:-1])
+            dt_from_prev[1:] = self.dt_normalizer(t[1:] - t[:-1])
             traj_feats_lst.append(dt_from_prev)
 
         is_velocities_needed = (self.include_velocities or self.include_accelerations)
@@ -134,6 +137,7 @@ class NearestKeyFeatureExtractor:
         self.keyboard_tokenizer = keyboard_tokenizer
 
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        x, y = cast_to_dtype_with_warning([x, y], torch.int32)
         kb_labels = [self.nearest_key_lookup(int(x_el), int(y_el)) 
                         for x_el, y_el in zip(x, y)]
         kb_tokens = [self.keyboard_tokenizer.get_token(label) for label in kb_labels]
@@ -148,6 +152,7 @@ class KeyDistancesFeatureExtractor:
         self.distances_lookup = distances_lookup
 
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        x, y = cast_to_dtype_with_warning([x, y], torch.int32)
         distances = self.distances_lookup.get_distances_for_full_swipe_using_map(x, y)
         distances = torch.from_numpy(distances).to(dtype=torch.float32)
         return [distances]
@@ -173,6 +178,7 @@ class KeyWeightsFeatureExtractor:
         self.weights_function = weights_function
         
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        x, y = cast_to_dtype_with_warning([x, y], torch.int32)
         distances = self.distances_lookup.get_distances_for_full_swipe_using_map(x, y)
         distances = torch.from_numpy(distances).to(dtype=torch.float32)
         mask = (distances < 0)
