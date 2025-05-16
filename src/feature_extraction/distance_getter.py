@@ -93,7 +93,7 @@ class DistanceGetter:
                     [hb['x'] + hb['w'] / 2, hb['y'] + hb['h'] / 2],
                     device=self.device
                 )
-            present_tokens.add(token)
+                present_tokens.add(token)
 
         mask = torch.ones((max_token_id + 1,), dtype=torch.bool, device=self.device)
         mask[torch.tensor(list(present_tokens), device=self.device)] = False
