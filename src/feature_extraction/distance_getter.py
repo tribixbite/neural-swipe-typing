@@ -82,16 +82,23 @@ class DistanceGetter:
                              dtype=torch.float32,
                              device=self.device)
 
+        present_tokens = set()
+
         for key in self.grid['keys']:
             label = get_kb_label(key)
             token = self.tokenizer.get_token(label)
-            if token <= max_token_id:
+            if token in self.token_ids:
                 hb = key['hitbox']
                 centers[token] = torch.tensor(
                     [hb['x'] + hb['w'] / 2, hb['y'] + hb['h'] / 2],
                     device=self.device
                 )
-        return centers
+            present_tokens.add(token)
+
+        mask = torch.ones((max_token_id + 1,), dtype=torch.bool, device=self.device)
+        mask[torch.tensor(list(present_tokens), device=self.device)] = False
+
+        return centers, mask
 
     def __call__(self, coords: Tensor) -> Tensor:
         """
