@@ -31,7 +31,7 @@ def compute_pairwise_squared_distances(dots: Tensor, centers: Tensor) -> Tensor:
     dots_exp = dots.unsqueeze(-2)
     # (K, 2) -> (1, 1, ..., 1, K, 2)
     centers_exp = centers.view(*([1] * (dots.dim() - 1)), *centers.shape) 
-    return ((dots_exp - centers_exp) ** 2).sum(dim=-1)
+    return torch.sqrt(torch.pow((centers_exp - dots_exp), 2).sum(dim=-1))
 
 
 class DistanceGetter:
