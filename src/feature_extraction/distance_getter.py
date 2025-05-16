@@ -44,7 +44,7 @@ class DistanceGetter:
                  grid: dict,
                  tokenizer,
                  key_labels_of_interest: Optional[Set[str]] = None,
-                 missing_distance_val: float = -1.0,
+                 missing_distance_val: float = float('inf'),
                  device: torch.device = torch.device("cpu")):
         """
         Arguments:
@@ -53,7 +53,7 @@ class DistanceGetter:
         key_labels_of_interest: Optional[Set[str]]
         missing_distance_val: float
             Value to fill for distances to keys that are not present in the grid.
-            Defaults to -1 because it's easy to spot since all distances are positive.
+            Defaults to +inf.
         """
         self.grid = grid
         self.tokenizer = tokenizer
