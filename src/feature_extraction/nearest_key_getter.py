@@ -12,7 +12,7 @@ class NearestKeyGetter:
                  key_labels: Optional[Set[str]] = None,
                  ) -> None:
         self.distance_getter = DistanceGetter(grid, tokenizer, key_labels, 
-                                              fill_missing_distance_val=float('inf'))
+                                              missing_distance_val=float('inf'))
 
     def __call__(self, coords: Tensor) -> Tensor:
         return self.distance_getter(coords).argmin(dim=1).view(-1, 1)
