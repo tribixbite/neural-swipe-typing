@@ -1,4 +1,4 @@
-from typing import List, Tuple, Protocol
+from typing import List, Tuple, Protocol, Optional
 from collections.abc import Callable
 
 import torch
@@ -7,7 +7,6 @@ from torch import Tensor
 from .nearest_key_lookup import NearestKeyLookup
 from .distances_lookup import DistancesLookup
 from ns_tokenizers import KeyboardTokenizerv1
-from .feature_extraction_utils import cast_to_dtype_with_warning
 
 
 class SwipeFeatureExtractor(Protocol):
@@ -97,8 +96,6 @@ class TrajectoryFeatureExtractor:
             A list containing a single tensor of shape (seq_len, num_features)
             containing the trajectory features.
         """
-        x, y, t = cast_to_dtype_with_warning([x, y, t], torch.float32)
-
         x_norm, y_norm = self.coordinate_normalizer(x, y)
 
         traj_feats_lst = [x_norm, y_norm]
@@ -130,6 +127,31 @@ class TrajectoryFeatureExtractor:
         return [traj_feats]
 
 
+class CoordinateFunctionFeatureExtractor:
+    def __init__(self,
+                 value_fn: Callable[[Tensor, Tensor], Tensor],
+                 cast_dtype: Optional[torch.dtype] = None
+                 ) -> None:
+        """
+        Arguments:
+        ----------
+        value_fn: Callable[[Tensor, Tensor], Tensor]
+            Function accepting Tensor (N, 2) of (x, y)
+            and returning (N, feature_size).
+        cast_dtype: Optional[torch.dtype]:
+            Dtype that x and y are casted to before applying value_fn.
+            Primer use: cast to integer if value_fn is an instance of GridLookup.
+        """
+        self.value_fn = value_fn
+        self.cast_dtype = cast_dtype
+
+    def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        if self.cast_dtype is not None:
+            x, y = x.to(dtype=self.cast_dtype), y.to(dtype=self.cast_dtype)
+        features = self.value_fn(x, y)
+        return [features]
+
+
 class NearestKeyFeatureExtractor:
     def __init__(self, nearest_key_lookup: NearestKeyLookup, 
                  keyboard_tokenizer: KeyboardTokenizerv1) -> None:
@@ -137,7 +159,6 @@ class NearestKeyFeatureExtractor:
         self.keyboard_tokenizer = keyboard_tokenizer
 
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
-        x, y = cast_to_dtype_with_warning([x, y], torch.int32)
         kb_labels = [self.nearest_key_lookup(int(x_el), int(y_el)) 
                         for x_el, y_el in zip(x, y)]
         kb_tokens = [self.keyboard_tokenizer.get_token(label) for label in kb_labels]
@@ -152,7 +173,6 @@ class KeyDistancesFeatureExtractor:
         self.distances_lookup = distances_lookup
 
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
-        x, y = cast_to_dtype_with_warning([x, y], torch.int32)
         distances = self.distances_lookup.get_distances_for_full_swipe_using_map(x, y)
         distances = torch.from_numpy(distances).to(dtype=torch.float32)
         return [distances]
@@ -178,7 +198,6 @@ class KeyWeightsFeatureExtractor:
         self.weights_function = weights_function
         
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
-        x, y = cast_to_dtype_with_warning([x, y], torch.int32)
         distances = self.distances_lookup.get_distances_for_full_swipe_using_map(x, y)
         distances = torch.from_numpy(distances).to(dtype=torch.float32)
         mask = (distances < 0)
