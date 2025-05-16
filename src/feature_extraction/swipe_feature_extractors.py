@@ -129,13 +129,13 @@ class TrajectoryFeatureExtractor:
 
 class CoordinateFunctionFeatureExtractor:
     def __init__(self,
-                 value_fn: Callable[[Tensor, Tensor], Tensor],
+                 value_fn: Callable[[Tensor], Tensor],
                  cast_dtype: Optional[torch.dtype] = None
                  ) -> None:
         """
         Arguments:
         ----------
-        value_fn: Callable[[Tensor, Tensor], Tensor]
+        value_fn: Callable[[TTensor], Tensor]
             Function accepting Tensor (N, 2) of (x, y)
             and returning (N, feature_size).
         cast_dtype: Optional[torch.dtype]:
@@ -146,9 +146,11 @@ class CoordinateFunctionFeatureExtractor:
         self.cast_dtype = cast_dtype
 
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
+        coords = torch.stack([x, y], dim=-1)
+        
         if self.cast_dtype is not None:
-            x, y = x.to(dtype=self.cast_dtype), y.to(dtype=self.cast_dtype)
-        features = self.value_fn(x, y)
+            coords = coords.to(dtype=self.cast_dtype)
+        features = self.value_fn(coords)
         return [features]
 
 
