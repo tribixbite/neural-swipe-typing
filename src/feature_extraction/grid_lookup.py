@@ -55,10 +55,12 @@ class GridLookup:
 
         return features.view(self.grid_width, self.grid_height, self.feature_size)
 
-    def __call__(self, x: Tensor, y: Tensor) -> Tensor:
-        if not is_integer_tensor(x) or not is_integer_tensor(y):
-            raise ValueError(f"x and y must be integer tensors, " \
-                             "got types x: {x.dtype} and y: {y.dtype}")
+    def __call__(self, coords: Tensor) -> Tensor:
+        if not is_integer_tensor(coords):
+            raise ValueError("coords must be an integer tensor, " \
+                             f"got {coords.dtype}")
+        
+        x, y = coords.unbind(dim=-1)
 
         in_bounds = (x >= 0) & (x < self.grid_width) & (y >= 0) & (y < self.grid_height)
         output = torch.empty((x.size(0), self.feature_size), dtype=self.lookup_tensor.dtype)
