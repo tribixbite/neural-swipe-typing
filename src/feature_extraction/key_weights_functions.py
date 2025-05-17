@@ -67,4 +67,3 @@ def weights_function_sigmoid_normalized_v1(distances: Tensor,
     sigmoidal_weights = torch.nn.functional.sigmoid(sigmoid_input)
     weights = sigmoidal_weights / sigmoidal_weights.sum(dim=1, keepdim=True)
     return weights
-
