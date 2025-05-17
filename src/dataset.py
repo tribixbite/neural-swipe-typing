@@ -207,12 +207,10 @@ class CollateFn:
         """
         decoder_inputs, decoder_outputs = [], []
 
-        num_encoder_features = len(batch[0][0])
+        num_encoder_features = len(batch[0][0][0])
         encoder_inputs = [[] for _ in range(num_encoder_features)]
 
-        for row in batch:
-            (enc_in, dec_in), dec_out = row
-
+        for (enc_in, dec_in), dec_out in batch:
             for feature, features_list in zip(enc_in, encoder_inputs):
                 features_list.append(feature)
 
