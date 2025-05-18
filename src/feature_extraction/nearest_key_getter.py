@@ -15,4 +15,4 @@ class NearestKeyGetter:
                                               missing_distance_val=float('inf'))
 
     def __call__(self, coords: Tensor) -> Tensor:
-        return self.distance_getter(coords).argmin(dim=1).view(-1, 1)
+        return self.distance_getter(coords).argmin(dim=1)
