@@ -6,7 +6,7 @@ from torch import Tensor
 from grid_processing_utils import get_kb_label
 
 
-def compute_pairwise_squared_distances(dots: Tensor, centers: Tensor) -> Tensor:
+def compute_pairwise_distances(dots: Tensor, centers: Tensor) -> Tensor:
     """
     Arguments:
     ----------
@@ -19,7 +19,7 @@ def compute_pairwise_squared_distances(dots: Tensor, centers: Tensor) -> Tensor:
     --------
     Tensor
         Distance tensor. Distance tensor.shape = (*DOT_DIMS, K).
-        Squared euclidean distance is used.
+        euclidean distance is used.
     
     Example:
     --------
@@ -114,6 +114,6 @@ class DistanceGetter:
             where K is the (max token id + 1) among key_labels_of_interest.
         """
         coords = coords.to(dtype=torch.float32, device=self.device)
-        dists = compute_pairwise_squared_distances(coords, self.centers)  # (N, K)
+        dists = compute_pairwise_distances(coords, self.centers)  # (N, K)
         dists[:, self.mask] = self.missing_distance_val
         return dists
