@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Optional
+from typing import Tuple
 
 import torch
 from torch import Tensor
@@ -14,8 +14,7 @@ class GridLookup:
         self,
         grid_width: int,
         grid_height: int,
-        value_fn: Callable[[Tensor, Tensor], Tensor],
-        feature_size: Optional[int] = None,
+        value_fn: Callable[[Tensor], Tensor],
     ):
         """
         Arguments:
@@ -24,23 +23,22 @@ class GridLookup:
             Keyboard grid width.
         grid_height: int
             Keyboard grid height.
-        feature_size: int
-            Number of features per coordinate (x, y).
-            Defaults to value_fn([[0, 0]]).shape[1].
-        value_fn: Callable[[Tensor, Tensoe], Tensor]
+        value_fn: Callable[[Tensor], Tensor]
             Function accepting Tensor (N, 2) of (x, y)
-            and returning (N, feature_size).
+            and returning either (N,) or (N, feature_size).
         """
         self.grid_width = grid_width
         self.grid_height = grid_height
         self.value_fn = value_fn
-        self.feature_size = feature_size or self._get_feature_size()
+        self.feature_size, self.output_has_feature_dim = self._get_feature_properties()
         self.lookup_tensor = self._build_lookup_tensor()
 
-    def _get_feature_size(self) -> int:
+    def _get_feature_properties(self) -> Tuple[int, bool]:
         sample_coords = torch.zeros((1, 2), dtype=torch.int32)
-        out_shape = self.value_fn(sample_coords).shape
-        return out_shape[1] if len(out_shape) == 2 else 1
+        features = self.value_fn(sample_coords)
+        if features.dim() == 1:
+            return 1, False
+        return features.shape[1], True
     
     def _build_lookup_tensor(self) -> Tensor:
         coords = torch.stack(torch.meshgrid(
@@ -49,7 +47,10 @@ class GridLookup:
             indexing='ij'
         ), dim=-1).reshape(-1, 2)  # shape (W*H, 2)
 
-        features = self.value_fn(coords)  # shape (W*H, F)
+        features = self.value_fn(coords)
+        if not self.output_has_feature_dim:
+            features = features.unsqueeze(-1)
+            
         assert features.shape == (coords.size(0), self.feature_size), \
             f"Expected ({coords.size(0)}, {self.feature_size}), got {features.shape}"
 
@@ -73,5 +74,8 @@ class GridLookup:
         if (~in_bounds).any():
             coords_oob = torch.cat(x[~in_bounds], y[~in_bounds])
             output[~in_bounds] = self.value_fn(coords_oob)
+
+        if not self.output_has_feature_dim:
+            output = output.squeeze(-1)
 
         return output
