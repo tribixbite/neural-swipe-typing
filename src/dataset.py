@@ -38,7 +38,6 @@ class SwipeDataset(Dataset):
 
     def __init__(self,
                  data_path: str,
-                 store_gnames: bool,
                  word_tokenizer: CharLevelTokenizerv2,
                  grid_name_to_swipe_feature_extractor: Dict[str, SwipeFeatureExtractor],
                  total: Optional[int] = None):
@@ -59,29 +58,22 @@ class SwipeDataset(Dataset):
                 - y (List[int]): y coordinates of the swipe trajectory.
                 - t (List[int]): time (in ms) from the beginning of the swipe.
                 - grid_name (str): name of the keyboard grid.
-        store_gnames: bool
-            If True, stores grid names in self.grid_name_list.
         total: Optional[int]
             Number of dataset elements. Is used only for progress bar.
         """
         self.data_list = self._get_data(
-            data_path, store_gnames, total=total)
+            data_path, total=total)
         self.word_tokenizer = word_tokenizer
         self.grid_name_to_swipe_feature_extractor = grid_name_to_swipe_feature_extractor
         
     def _get_data(self,
                   data_path: str,
-                  set_gnames: bool,
                   transform: Optional[Callable] = None,
                   total: Optional[int] = None) -> List[RawDatasetEl]:
         data_list = []
-        if set_gnames:
-            self.grid_name_list = []
         with open(data_path, "r", encoding="utf-8") as json_file:
             for line in tqdm(json_file, total = total):
                 data_el = self._get_data_from_json_line(line)
-                if set_gnames:
-                    self.grid_name_list.append(data_el[3])
                 if transform is not None:
                     data_el = transform(data_el)
                 data_list.append(data_el)
@@ -120,22 +112,12 @@ class SwipeDataset(Dataset):
                        data_list: list, 
                        word_tokenizer: CharLevelTokenizerv2,
                        grid_name_to_swipe_feature_extractor: Dict[str, SwipeFeatureExtractor],
-                       grid_name_list: Optional[List[str]] = None,
-                       ):
-        if grid_name_list:
-            if len(grid_name_list) != len(data_list):
-                raise ValueError(
-                    f"grid_name_list length {len(grid_name_list)} " \
-                    f"doesn't match data_list length {len(data_list)}")
-        
+                       ):        
         obj = cls.__new__(cls)
 
         obj.data_list = data_list
         obj.grid_name_to_swipe_feature_extractor = grid_name_to_swipe_feature_extractor
         obj.word_tokenizer = word_tokenizer
-
-        if grid_name_list:
-            obj.grid_name_list = grid_name_list
 
         return obj
 
@@ -143,19 +125,13 @@ class SwipeDataset(Dataset):
 
 class SwipeDatasetSubset:
     def __init__(self, dataset: SwipeDataset, grid_name: str):
-        assert hasattr(dataset, 'grid_name_list'), \
-            "Dataset doesn't have grid_name_list property. " \
-            "To fix this create the dataset with store_gnames=True"
-        # ! Maybe check dataset.grid_name_list is Iterable
-        assert dataset.grid_name_list is not None
-        assert len(dataset) == len(dataset.grid_name_list)
-        
+        self.grid_name_list = [el[3] for el in dataset]
         self.dataset = dataset
         self.grid_name = grid_name
         self.grid_idxs = self._get_grid_idxs()
     
     def _get_grid_idxs(self):
-        return [i for i, gname in enumerate(self.dataset.grid_name_list)
+        return [i for i, gname in enumerate(self.grid_name_list)
                 if gname == self.grid_name]
     
     def __len__(self):
