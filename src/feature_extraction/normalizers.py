@@ -1,9 +1,8 @@
 import torch
 
-class IdentityNormalizer:
-    def __call__(self, x: torch.Tensor) -> torch.Tensor:
-        return x
 
+def identity_function(x: torch.Tensor) -> torch.Tensor:
+    return x
 
 class MeanStdNormalizer:
     def __init__(self, mean: float, std: float):

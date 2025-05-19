@@ -4,6 +4,8 @@ from collections.abc import Callable
 import torch
 from torch import Tensor
 
+from .normalizers import identity_function
+
 
 class SwipeFeatureExtractor(Protocol):
     def __call__(self, x: Tensor, y: Tensor, t: Tensor) -> List[Tensor]:
@@ -32,10 +34,13 @@ class TrajectoryFeatureExtractor:
                  include_dt: bool,
                  include_velocities: bool,
                  include_accelerations: bool,
-                 coordinate_normalizer: Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]],
-                 dt_normalizer: Callable[[Tensor], Tensor] = lambda x: x,
-                 velocities_normalizer: Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]] = lambda x: x,
-                 accelerations_normalizer: Callable[[Tensor, Tensor], Tuple[Tensor, Tensor]] = lambda x: x,
+                 x_normalizer: Callable[[Tensor], Tensor],
+                 y_normalizer: Callable[[Tensor], Tensor],
+                 dt_normalizer: Callable[[Tensor], Tensor] = identity_function,
+                 velocity_x_normalizer: Callable[[Tensor], Tensor] = identity_function,
+                 velocity_y_normalizer: Callable[[Tensor], Tensor] = identity_function,
+                 acceleration_x_normalizer: Callable[[Tensor], Tensor] = identity_function,
+                 acceleration_y_normalizer: Callable[[Tensor], Tensor] = identity_function,
                  ) -> None:
         """
         Arguments:
@@ -58,10 +63,13 @@ class TrajectoryFeatureExtractor:
         self.include_dt = include_dt
         self.include_velocities = include_velocities
         self.include_accelerations = include_accelerations
-        self.coordinate_normalizer = coordinate_normalizer
+        self.x_normalizer = x_normalizer
+        self.y_normalizer = y_normalizer
         self.dt_normalizer = dt_normalizer
-        self.velocities_normalizer = velocities_normalizer
-        self.accelerations_normalizer = accelerations_normalizer
+        self.velocity_x_normalizer = velocity_x_normalizer
+        self.velocity_y_normalizer = velocity_y_normalizer
+        self.acceleration_x_normalizer = acceleration_x_normalizer
+        self.acceleration_y_normalizer = acceleration_y_normalizer
 
     def _get_central_difference_derivative(self, x: Tensor, t: Tensor) -> Tensor:
         """
@@ -92,7 +100,7 @@ class TrajectoryFeatureExtractor:
             A list containing a single tensor of shape (seq_len, num_features)
             containing the trajectory features.
         """
-        x_norm, y_norm = self.coordinate_normalizer(x, y)
+        x_norm, y_norm = self.x_normalizer(x), self.y_normalizer(y)
 
         traj_feats_lst = [x_norm, y_norm]
 
@@ -108,12 +116,18 @@ class TrajectoryFeatureExtractor:
             dy_dt = self._get_central_difference_derivative(y, t)
 
         if self.include_velocities:
-            traj_feats_lst.extend(self.velocities_normalizer(dx_dt, dy_dt))
+            traj_feats_lst.extend([
+                self.velocity_x_normalizer(dx_dt),
+                self.velocity_y_normalizer(dy_dt)
+            ])
 
         if self.include_accelerations:
             d2x_dt2 = self._get_central_difference_derivative(dx_dt, t)
             d2y_dt2 = self._get_central_difference_derivative(dy_dt, t)
-            traj_feats_lst.extend(self.accelerations_normalizer(d2x_dt2, d2y_dt2))
+            traj_feats_lst.extend([
+                self.acceleration_x_normalizer(d2x_dt2),
+                self.acceleration_y_normalizer(d2y_dt2)
+            ])
         
         traj_feats = torch.cat(
             [feat.reshape(-1, 1) for feat in traj_feats_lst],
