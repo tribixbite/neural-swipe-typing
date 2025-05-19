@@ -131,7 +131,7 @@ class CoordinateFunctionFeatureExtractor:
         """
         Arguments:
         ----------
-        value_fn: Callable[[TTensor], Tensor]
+        value_fn: Callable[[Tensor], Tensor]
             Function accepting Tensor (N, 2) of (x, y)
             and returning (N, feature_size).
         cast_dtype: Optional[torch.dtype]:
