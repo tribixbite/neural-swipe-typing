@@ -17,6 +17,7 @@ STAT_KEYS = ["dt", "velocity_x", "velocity_y", "acceleration_x", "acceleration_y
 class OnlineMeanStd:
     """
     Online mean and standard deviation calculator.
+
     Given a tensor updates the mean and variance using parallel
     algorithm (a generalization of Welford's algorithm).
     """
@@ -31,10 +32,8 @@ class OnlineMeanStd:
         if m == 0:
             return
 
-        sum_x = x.sum().item()
-        mean_batch = sum_x / m
-        sum_x_sq = (x ** 2).sum().item()
-        M2_batch = sum_x_sq - (sum_x ** 2) / m
+        mean_batch = x.mean().item()
+        M2_batch = ((x - mean_batch)**2).sum().item()
 
         if self.n == 0:
             self.n = m
@@ -48,7 +47,7 @@ class OnlineMeanStd:
             self.n = new_n
 
     def get_statistics(self):
-        variance = self.M2 / (self.n - 1) if self.n > 1 else 0.0
+        variance = self.M2 / (self.n) if self.n > 1 else 0.0
         return {"mean": self.mean, "std": variance ** 0.5}
 
 
