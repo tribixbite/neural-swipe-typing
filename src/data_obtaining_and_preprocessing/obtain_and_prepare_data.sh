@@ -24,4 +24,10 @@ python -m data_obtaining_and_preprocessing.filter_dataset \
     --output_path ../data/data_preprocessed/train_filtered.jsonl \
     --log_dir ../data/errors_in_original_data_swipes
 
-rm train_filtered.jsonl
+rm ../data/data_preprocessed/train.jsonl
+
+python -m data_obtaining_and_preprocessing.calculate_statistics \
+    --train_data_path ../data/data_preprocessed/train_filtered.jsonl \
+    --voc ../data/data_preprocessed/voc.txt \
+    --output_json ../data/data_preprocessed/trajectory_features_statistics.json \
+    --total 6000000
