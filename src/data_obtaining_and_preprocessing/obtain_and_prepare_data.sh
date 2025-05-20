@@ -26,7 +26,7 @@ python -m data_obtaining_and_preprocessing.filter_dataset \
 
 rm ../data/data_preprocessed/train.jsonl
 
-python -m data_obtaining_and_preprocessing.calculate_statistics \
+python -m data_obtaining_and_preprocessing.compute_trajectory_features_statistics \
     --train_data_path ../data/data_preprocessed/train_filtered.jsonl \
     --voc ../data/data_preprocessed/voc.txt \
     --output_json ../data/data_preprocessed/trajectory_features_statistics.json \
