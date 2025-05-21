@@ -41,7 +41,8 @@ def compute_bounding_box(grid: Dict, labels_of_interest: Set[str]) -> Dict:
             y_max = max(y_max, current_y_max)
     
     if not found:
-        raise ValueError("No keys of interest were present in the grid")
+        return None
+    
     return {
         'x_min': x_min,
         'y_min': y_min,
@@ -72,11 +73,9 @@ def main():
     output = {}
     for grid_name, grid in grids.items():
         bbox = compute_bounding_box(grid, labels_of_interest)
-        if bbox is not None:
-            output[grid_name] = bbox
-        else:
-            print(f"Warning: No keys with labels {labels_of_interest} found in grid '{grid_name}'.")
-
+        if bbox is None:
+            raise ValueError(f"No keys of interest were present in the grid {grid_name}")
+        output[grid_name] = bbox
     with open(args.output_json, 'w', encoding='utf-8') as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
