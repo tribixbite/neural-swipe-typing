@@ -6,16 +6,18 @@ from torch import Tensor
 
 from .distance_getter import DistanceGetter
 from grid_processing_utils import get_avg_half_key_diag
+from ns_tokenizers import KeyboardTokenizer
+
 
 class KeyWeightsGetter:
     def __init__(self,
                  grid: dict,
-                 tokenizer,
+                 tokenizer: KeyboardTokenizer,
                  weights_function: Callable,
-                 key_labels_of_interest: Optional[Set[str]] = None,
                  missing_value_weight: float = 0.0,
                 ) -> None:
-        self.distance_getter = DistanceGetter(grid, tokenizer, key_labels_of_interest)
+        key_labels_of_interest = tokenizer.get_all_non_special_tokens()
+        self.distance_getter = DistanceGetter(grid, tokenizer)
         self.half_key_diag = get_avg_half_key_diag(grid, key_labels_of_interest)
         self.missing_value_weight = missing_value_weight
         self.weights_function = weights_function

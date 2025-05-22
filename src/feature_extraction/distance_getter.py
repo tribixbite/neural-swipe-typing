@@ -4,6 +4,7 @@ import torch
 from torch import Tensor
 
 from grid_processing_utils import get_kb_label
+from ns_tokenizers import KeyboardTokenizer
 
 
 def compute_pairwise_distances(dots: Tensor, centers: Tensor) -> Tensor:
@@ -42,8 +43,7 @@ class DistanceGetter:
 
     def __init__(self,
                  grid: dict,
-                 tokenizer,
-                 key_labels_of_interest: Optional[Set[str]] = None,
+                 tokenizer: KeyboardTokenizer,
                  missing_distance_val: float = float('inf'),
                  device: torch.device = torch.device("cpu")):
         """
@@ -55,20 +55,13 @@ class DistanceGetter:
             Value to fill for distances to keys that are not present in the grid.
             Defaults to +inf.
         """
-        self.grid = grid
-        self.tokenizer = tokenizer
         self.device = device
         self.missing_distance_val = missing_distance_val
+        self.centers, self.mask = self._get_centers(grid, tokenizer) 
 
-        self.key_labels_of_interest = key_labels_of_interest or self._get_all_key_labels()
-
-        self.token_ids = [self.tokenizer.get_token(lbl) for lbl in self.key_labels_of_interest]
-        self.centers, self.mask = self._get_centers() 
-
-    def _get_all_key_labels(self) -> Set[str]:
-        return set(get_kb_label(k) for k in self.grid['keys'])
-
-    def _get_centers(self) -> Tuple[Tensor, Tensor]:
+    def _get_centers(self, grid: dict, 
+                     tokenizer: KeyboardTokenizer
+                     ) -> Tuple[Tensor, Tensor]:
         """
         Returns:
         --------
@@ -77,17 +70,19 @@ class DistanceGetter:
         mask: 
             BoolTensor of shape (vocab_size,) — True where center is missing
         """
-        max_token_id = max(self.token_ids)
+        known_non_special_token_ids = tokenizer.get_all_non_special_token_ids()
+        
+        max_token_id = max(known_non_special_token_ids)
         centers = torch.empty((max_token_id + 1, 2),
                              dtype=torch.float32,
                              device=self.device)
 
         present_tokens = set()
 
-        for key in self.grid['keys']:
+        for key in grid['keys']:
             label = get_kb_label(key)
-            token = self.tokenizer.get_token(label)
-            if token in self.token_ids:
+            token = tokenizer.get_token(label)
+            if token in known_non_special_token_ids:
                 hb = key['hitbox']
                 centers[token] = torch.tensor(
                     [hb['x'] + hb['w'] / 2, hb['y'] + hb['h'] / 2],
