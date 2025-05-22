@@ -125,7 +125,7 @@ class SwipeDataset(Dataset):
 
 class SwipeDatasetSubset:
     def __init__(self, dataset: SwipeDataset, grid_name: str):
-        self.grid_name_list = [el[3] for el in dataset]
+        self.grid_name_list = [el[3] for el in dataset.data_list]
         self.dataset = dataset
         self.grid_name = grid_name
         self.grid_idxs = self._get_grid_idxs()
