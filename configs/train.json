@@ -1,0 +1,26 @@
+{
+    "grid_name": "default",
+    "grids_path": "./data/data_preprocessed/gridname_to_grid.json",
+    "trajectory_features_statistics_path": "./data/data_preprocessed/trajectory_features_statistics.json",
+    "bounding_boxes_path": "./data/data_preprocessed/key_bounding_boxes.json",
+    "keyboard_tokenizer_path": "./tokenizers/keyboard/ru.json",
+    "swipe_feature_extractor_factory_config_path": "./configs/feature_extractor/traj_and_nearest.json",
+    "dataset_paths": {
+        "train": "./data/data_preprocessed/train_filtered.jsonl",
+        "val": "./data/data_preprocessed/valid.jsonl"
+    },
+    "dataloader_num_workers": 0,
+    "train_batch_size": 32,
+    "val_batch_size": 32,
+    "vocab_path": "./data/data_preprocessed/voc.txt",
+    "train_total": 5591814,
+    "val_total": 10000,
+    "seed": 42,
+    "early_stopping": {
+        "enabled": true,
+        "patience": 30
+    },
+    "path_to_continue_checkpoint": null,
+    "model_name": "v3_nearest_and_traj_transformer_bigger",
+    "label_smoothing": 0.045
+}
