@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import argparse
+from typing import List
 
 import torch
 from lightning import Trainer
@@ -19,6 +20,7 @@ from feature_extraction.swipe_feature_extractor_factory import swipe_feature_ext
 from feature_extraction.swipe_feature_extractors import MultiFeatureExtractor, TrajectoryFeatureExtractor
 from pl_module import LitNeuroswipeModel
 from train_utils import CrossEntropyLossWithReshape
+from train_utils import EmptyCudaCacheCallback
 
 
 log = logging.getLogger(__name__)
@@ -67,6 +69,41 @@ def get_lr_scheduler(optimizer):
     return torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, patience=20, factor=0.5, verbose=True)
 
+
+
+def get_callbacks(train_config) -> List[Callback]:
+    grid_name = train_config["grid_name"]
+    ckpt_filename = (f'{train_config["model_name"]}-{grid_name}--' 
+                     + '{epoch}-{val_loss:.3f}-{val_word_level_accuracy:.3f}')
+
+    model_checkpoint_top = ModelCheckpoint(
+        monitor='val_loss', mode = 'min', save_top_k=10,
+        dirpath='checkpoints/top_10', filename=ckpt_filename)
+
+    model_checkpoint_on_epoch_end = ModelCheckpoint(
+        save_on_train_epoch_end = True, dirpath='checkpoints/epoch_end/',
+        save_top_k=-1,
+        filename=ckpt_filename)
+    
+    # When num workers > 0, there's a RAM drain issue:
+    # See: https://github.com/pytorch/pytorch/issues/13246.
+    # emptying cuda cache is a workaround.
+    # However, it doesn't seem to work with pytorch lightning,
+    # (the callback doesn't solve an issue, but is kept as a reminder)
+    callbacks = [
+        model_checkpoint_top, 
+        model_checkpoint_on_epoch_end,
+        EmptyCudaCacheCallback()
+    ]
+    
+    if train_config["early_stopping"]["enabled"]:
+        early_stopping_cb = EarlyStopping(
+            monitor='val_loss', mode = 'min', 
+            patience=train_config["early_stopping"]["patience"])
+        callbacks.append(early_stopping_cb)
+    
+    return callbacks
+    
     
 
 def main(train_config: dict) -> None:
@@ -145,35 +182,7 @@ def main(train_config: dict) -> None:
     
 
 
-    callbacks = []
-
-    if train_config["early_stopping"]["enabled"]:
-        early_stopping_cb = EarlyStopping(
-            monitor='val_loss', mode = 'min', 
-            patience=train_config["early_stopping"]["patience"])
-        callbacks.append(early_stopping_cb)
-    
-    # add epmty_cuda_cache_cb
-    
-    
-    ckpt_filename = (f'{train_config["model_name"]}-{grid_name}--' 
-                     + '{epoch}-{val_loss:.3f}-{val_word_level_accuracy:.3f}')
-
-    model_checkpoint_top = ModelCheckpoint(
-        monitor='val_loss', mode = 'min', save_top_k=10,
-        dirpath='checkpoints/top_10', filename=ckpt_filename)
-
-    model_checkpoint_on_epoch_end = ModelCheckpoint(
-        save_on_train_epoch_end = True, dirpath='checkpoints/epoch_end/',
-        save_top_k=-1,
-        filename=ckpt_filename)
-    
-    checkpoint_callbacks = [
-        model_checkpoint_top, 
-        model_checkpoint_on_epoch_end
-    ]
-    
-    callbacks = callbacks + checkpoint_callbacks
+    callbacks = get_callbacks(train_config)
 
 
     criterion = CrossEntropyLossWithReshape(
