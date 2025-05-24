@@ -87,7 +87,7 @@ class SwipeDataset(Dataset):
     def _get_decoder_in_and_out(self, tgt_word: str
                                 ) -> Tuple[Tensor, Tensor]:
         tgt_token_seq: List[int] = self.word_tokenizer.encode(tgt_word)
-        tgt_token_seq = torch.tensor(tgt_token_seq, dtype=torch.int32)
+        tgt_token_seq = torch.tensor(tgt_token_seq, dtype=torch.int64)
         decoder_in = tgt_token_seq[:-1]
         decoder_out = tgt_token_seq[1:]
         return decoder_in, decoder_out
