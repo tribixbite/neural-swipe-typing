@@ -72,8 +72,11 @@ class GridLookup:
             output[in_bounds] = self.lookup_tensor[x_ib, y_ib]
 
         if (~in_bounds).any():
-            coords_oob = torch.cat(x[~in_bounds], y[~in_bounds])
-            output[~in_bounds] = self.value_fn(coords_oob)
+            coords_oob = torch.stack((x[~in_bounds], y[~in_bounds]), dim=1)
+            values_oob = self.value_fn(coords_oob)
+            if not self.output_has_feature_dim:
+                values_oob.unsqueeze_(-1)
+            output[~in_bounds] = values_oob
 
         if not self.output_has_feature_dim:
             output = output.squeeze(-1)
