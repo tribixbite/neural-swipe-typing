@@ -207,7 +207,7 @@ def main(train_config: dict) -> None:
     #     limit_train_batches = 400,  # for validating code before actual training
         log_every_n_steps = 100,
         num_sanity_val_steps=0,
-        accelerator = 'cpu',
+        accelerator = 'gpu',
         # max_epochs=100,
         callbacks=callbacks,
         logger=tb_logger,
