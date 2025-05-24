@@ -67,7 +67,7 @@ def get_n_traj_feats(feature_extractor: MultiFeatureExtractor) -> int:
 
 def get_lr_scheduler(optimizer):
     return torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=20, factor=0.5, verbose=True)
+        optimizer, patience=20, factor=0.5)
 
 
 

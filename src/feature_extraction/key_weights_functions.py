@@ -24,7 +24,7 @@ class WeightsFnV1:
         self.scale = scale
 
     def __call__(self, distances: Tensor) -> Tensor:
-        """
+        r"""
         Arguments:
         ----------
         distances: Tensor
@@ -80,10 +80,6 @@ class WeightsFunctionSigmoidNormalizedV1:
             for i-th swipe dot and each of keyboard keys. It's supposed
             that distances are measured in half_key_diagonals 
             (distances = raw_distances / half_key_diagonal)
-        
-        $$f(x) = \frac{1}{1+e^{\frac{s \cdot x}{key\_radius} - b}}$$
-        b = bias = 4
-        s = scale = 1.8
         """
         #! It may be a good idea to move division by half_key_diag outside
         # this function.  The division is just a scaling of distances
