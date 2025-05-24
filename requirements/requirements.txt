@@ -1,0 +1,6 @@
+torch==2.7.0
+tqdm==4.67.1
+numpy==2.2.6
+pandas==2.2.3  # for evaluate.py only
+lightning==2.5.1.post0  # for training only
+tensorboard==2.19.0  # for training only
