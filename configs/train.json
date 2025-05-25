@@ -9,9 +9,9 @@
         "train": "./data/data_preprocessed/valid.jsonl",
         "val": "./data/data_preprocessed/valid.jsonl"
     },
-    "dataloader_num_workers": 0,
-    "train_batch_size": 32,
-    "val_batch_size": 32,
+    "dataloader_num_workers": 4,
+    "train_batch_size": 256,
+    "val_batch_size": 512,
     "vocab_path": "./data/data_preprocessed/voc.txt",
     "train_total": 5591814,
     "val_total": 10000,
