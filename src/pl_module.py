@@ -68,6 +68,14 @@ class LitNeuroswipeModel(LightningModule):
 
         return optimizers_configuration
 
+    def on_train_epoch_start(self):
+        optimizer = self.optimizers()
+        lr = optimizer.param_groups[0]['lr']
+        self.log('lr', lr, on_step=False, on_epoch=True, logger=True)
+        # It's supposed that there's only one param group. 
+        # Alternative:
+        # for i, group in enumerate(optimizer.param_groups):
+        # self.log(f'lr_group_{i}', group['lr'], on_step=False, on_epoch=True, logger=True)
 
     def training_step(self, batch, batch_idx):
         batch_x, batch_y = batch
