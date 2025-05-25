@@ -75,6 +75,18 @@ def create_lr_scheduler_ctor(scheduler_type: str, scheduler_params: dict):
     return get_lr_scheduler
     
 
+def create_optimizer_ctor(optimizer_type: str, optimizer_params: dict):
+    def get_optimizer(model_parameters):
+        if optimizer_type == "Adam":
+            return torch.optim.Adam(model_parameters, **optimizer_params)
+        elif optimizer_type == "AdamW":
+            return torch.optim.AdamW(model_parameters, **optimizer_params)
+        elif optimizer_type == "SGD":
+            return torch.optim.SGD(model_parameters, **optimizer_params)
+        else:
+            raise ValueError(f"Unknown optimizer type: {optimizer_type}")
+    return get_optimizer
+
 
 
 def get_callbacks(train_config) -> List[Callback]:
@@ -201,6 +213,11 @@ def main(train_config: dict) -> None:
         train_config["lr_scheduler"]["params"]
     )
 
+    optimizer_ctor = create_optimizer_ctor(
+        train_config["optimizer"]["type"],
+        train_config["optimizer"]["params"]
+    )
+
     pl_model = LitNeuroswipeModel(
         model_name = train_config["model_name"],
         n_coord_feats=get_n_traj_feats(feature_extractor),
@@ -208,8 +225,7 @@ def main(train_config: dict) -> None:
         word_pad_idx = word_pad_idx,
         num_classes = 35,  # = len(char_tokenizer.idx_to_char) - len(['<pad>', '<unk>']) = 37 - 2
         train_batch_size = train_config["train_batch_size"],
-        optim_kwargs = dict(lr=1e-4, weight_decay=0),
-        optimizer_ctor=torch.optim.Adam, 
+        optimizer_ctor=optimizer_ctor, 
         lr_scheduler_ctor=lr_scheduler_ctor, 
     )
 

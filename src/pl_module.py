@@ -24,15 +24,13 @@ class LitNeuroswipeModel(LightningModule):
                  criterion: torch.nn.Module,
                  word_pad_idx: int,
                  num_classes: int,
+                 optimizer_ctor,
                  train_batch_size: int = None,  # to be able to know batch size from checkpoint
-                 optim_kwargs = None,
-                 optimizer_ctor=None, lr_scheduler_ctor=None,
+                 lr_scheduler_ctor=None,
                  ) -> None:
         super().__init__()
 
         self.save_hyperparameters(ignore = ["criterion", 'lr_scheduler_ctor', 'optimizer_ctor'])
-
-        self.optim_kwargs = optim_kwargs or dict(lr=1e-4, weight_decay=0)
 
         self.model_name = model_name
         self.train_batch_size = train_batch_size
@@ -57,7 +55,7 @@ class LitNeuroswipeModel(LightningModule):
         return self.model.forward(encoder_in, y, encoder_in_pad_mask, y_pad_mask)
 
     def configure_optimizers(self):
-        optimizer = self.optimizer_ctor(self.parameters(), **self.optim_kwargs)
+        optimizer = self.optimizer_ctor(self.parameters())
 
         optimizers_configuration = {'optimizer': optimizer}
 
