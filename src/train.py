@@ -65,9 +65,15 @@ def get_n_traj_feats(feature_extractor: MultiFeatureExtractor) -> int:
                     
 
 
-def get_lr_scheduler(optimizer):
-    return torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=20, factor=0.5)
+def create_lr_scheduler_ctor(scheduler_type: str, scheduler_params: dict):
+    def get_lr_scheduler(optimizer):
+        if scheduler_type == "ReduceLROnPlateau":
+            return torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, **scheduler_params)
+        else:
+            raise ValueError(f"Unknown lr_scheduler type: {scheduler_type}")
+    return get_lr_scheduler
+    
 
 
 
@@ -190,6 +196,10 @@ def main(train_config: dict) -> None:
         label_smoothing=train_config.get("label_smoothing", 0.0))
     
 
+    lr_scheduler_ctor=create_lr_scheduler_ctor(
+        train_config["lr_scheduler"]["type"],
+        train_config["lr_scheduler"]["params"]
+    )
 
     pl_model = LitNeuroswipeModel(
         model_name = train_config["model_name"],
@@ -200,7 +210,7 @@ def main(train_config: dict) -> None:
         train_batch_size = train_config["train_batch_size"],
         optim_kwargs = dict(lr=1e-4, weight_decay=0),
         optimizer_ctor=torch.optim.Adam, 
-        lr_scheduler_ctor=get_lr_scheduler, 
+        lr_scheduler_ctor=lr_scheduler_ctor, 
     )
 
     trainer = Trainer(

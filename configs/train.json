@@ -6,7 +6,7 @@
     "keyboard_tokenizer_path": "./tokenizers/keyboard/ru.json",
     "swipe_feature_extractor_factory_config_path": "./configs/feature_extractor/traj_and_nearest.json",
     "dataset_paths": {
-        "train": "./data/data_preprocessed/train_filtered.jsonl",
+        "train": "./data/data_preprocessed/valid.jsonl",
         "val": "./data/data_preprocessed/valid.jsonl"
     },
     "dataloader_num_workers": 0,
@@ -19,6 +19,13 @@
     "early_stopping": {
         "enabled": true,
         "patience": 30
+    },
+    "lr_scheduler": {
+        "type": "ReduceLROnPlateau",
+        "params": {
+            "factor": 0.5,
+            "patience": 8
+        }
     },
     "path_to_continue_checkpoint": null,
     "model_name": "v3_nearest_and_traj_transformer_bigger",

@@ -15,9 +15,11 @@ from feature_extraction.normalizers import (
     MeanStdNormalizer,
 )
 from feature_extraction.grid_lookup import GridLookup
-from feature_extraction.key_weights_functions import (WeightsFnV1,
-                                                      WeightsFunctionV1Softmax,  
-                                                      WeightsFunctionSigmoidNormalizedV1)
+from feature_extraction.key_weights_functions import (
+    WeightsFnV1,
+    WeightsFunctionV1Softmax,  
+    WeightsFunctionSigmoidNormalizedV1
+)
 
 
 KEY_WEIGHTS_FUNCTIONS = {
