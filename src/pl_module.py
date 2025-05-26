@@ -38,7 +38,7 @@ class LitNeuroswipeModel(LightningModule):
         self.optimizer_ctor = optimizer_ctor
         self.lr_scheduler_ctor = lr_scheduler_ctor
 
-        self.model = MODEL_GETTERS_DICT[model_name](n_coord_feats=n_coord_feats)
+        self.model: torch.nn.Module = MODEL_GETTERS_DICT[model_name](n_coord_feats=n_coord_feats)
         self.criterion = criterion
         self.word_pad_idx = word_pad_idx
 
