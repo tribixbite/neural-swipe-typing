@@ -216,15 +216,20 @@ class CollateFn:
         encoder_in_el = encoder_inputs_padded[0]
         max_curve_len = encoder_in_el.shape[1] if self.batch_first else encoder_in_el.shape[0]
         encoder_inputs_single_feature_no_pad = encoder_inputs[0]
-        encoder_lens = torch.tensor([len(x) for x in encoder_inputs_single_feature_no_pad])
+        encoder_input_lengths = torch.tensor(
+            [len(x) for x in encoder_inputs_single_feature_no_pad])
 
-        # Берем матрицу c len(encoder_lens) строками вида
-        # [0, 1, ... , max_curve_len - 1].  Каждый элемент i-ой строки
-        # сравниваем с длиной i-ой траектории.  Получится матрица, где True
-        # только на позициях, больших, чем длина соответствующей траектории.
-        # (batch_size, max_curve_len)
+        batch_size = encoder_input_lengths.shape[0]
+
+        # Create mask where True indicates positions beyond a 
+        # corresponding trajectory length.
+        # 1. Create index sequences [0,1,…max_curve_len-1] 
+        #    for each batch element.
+        # 2. Compare each index of each batch element 
+        #    with the length of the corresponding trajectory.
+        # Shape: (batch_size, max_curve_len)
         swipe_pad_mask = torch.arange(max_curve_len).expand(
-            len(encoder_lens), max_curve_len) >= encoder_lens.unsqueeze(1)
+            batch_size, max_curve_len) >= encoder_input_lengths.unsqueeze(1)
         
 
         transformer_in = (encoder_inputs_padded, 
