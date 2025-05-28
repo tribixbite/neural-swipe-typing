@@ -11,6 +11,7 @@ from tqdm.auto import tqdm
 from predict_v2 import Prediction
 from metrics import get_mmr, get_accuracy
 
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument('--config', type=str)
@@ -86,29 +87,19 @@ def save_results(prediction_with_meta: Prediction,
             df_line.to_csv(out_path, mode='a', header=False, index=False)
 
 
-def list_files_recursive(dir_path: str, f_paths: List[str]):
-    for entry in os.listdir(dir_path):
-        full_path = os.path.join(dir_path, entry)
-        if os.path.isdir(full_path):
-            list_files_recursive(full_path, f_paths)
-        else:
-            f_paths.append(full_path)
 
-
-def list_files_recursive_for_list(all_paths: str, f_paths: List[str]):
-    for path in all_paths:
-        if os.path.isdir(path):
-            all_paths_in_this_dir = []
-            list_files_recursive(path, all_paths_in_this_dir)
-            f_paths.extend(all_paths_in_this_dir)
-        else:
-            f_paths.append(path)
-    
-
-def get_prediction_paths(config) -> List[str]:
-    paths = []
-    list_files_recursive_for_list(config['prediction_paths'], paths)
-    return paths
+def find_prediction_files(prediction_paths: List[str]) -> List[str]:
+    """Recursively finds all prediction files from the configured paths."""
+    prediction_file_paths = []
+    for path_str in prediction_paths:
+        if os.path.isfile(path_str):
+            prediction_file_paths.append(path_str)
+        elif os.path.isdir(path_str):
+            for root, _, files in os.walk(path_str):
+                for file in files:
+                    prediction_file_paths.append(os.path.join(root, file))
+    return prediction_file_paths
+                    
 
 
 
@@ -133,6 +124,6 @@ def evaluate_path(prediction_path, config) -> None:
 
 if __name__ == "__main__":
     config = get_config()
-    prediction_paths = get_prediction_paths(config)
-    for prediction_path in tqdm(prediction_paths):
+    prediction_file_paths = find_prediction_files(config['prediction_paths'])
+    for prediction_path in tqdm(prediction_file_paths):
         evaluate_path(prediction_path, config)
