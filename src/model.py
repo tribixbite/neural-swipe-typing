@@ -348,12 +348,11 @@ class EncoderDecoderTransformerLike(nn.Module):
 ################################################################################
 
 
-def get_transformer_encoder_backbone_bigger__v3() -> nn.TransformerEncoder:
+def get_transformer_encoder_backbone_bigger__v3(dropout = 0.1) -> nn.TransformerEncoder:
     d_model = 128
     num_encoder_layers = 4
     num_heads_encoder = 4
     dim_feedforward = 128
-    dropout = 0.1
     activation = F.relu
 
     encoder_norm = nn.LayerNorm(d_model, eps=1e-5, bias=True)
@@ -375,12 +374,11 @@ def get_transformer_encoder_backbone_bigger__v3() -> nn.TransformerEncoder:
     return encoder
 
 
-def get_transformer_decoder_backbone_bigger__v3() -> nn.TransformerDecoder:
+def get_transformer_decoder_backbone_bigger__v3(dropout = 0.1) -> nn.TransformerDecoder:
     d_model = 128
     num_decoder_layers = 4
     num_heads_decoder = 4
     dim_feedforward = 128
-    dropout = 0.1
     activation = F.relu
 
     decoder_norm = nn.LayerNorm(d_model, eps=1e-5, bias=True)
@@ -423,7 +421,9 @@ def get_word_char_embedding_model_bigger__v3(d_model: int, n_word_chars: int,
 
 
 def _get_transformer_bigger__v3(input_embedding: nn.Module,
-                                device = None,):
+                                device = None,
+                                backbone_dropout=0.1,
+                                embedder_dropout=0.1):
     CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
     MAX_OUT_SEQ_LEN = 35  # word_char_tokenizer.max_word_len - 1
 
@@ -442,14 +442,14 @@ def _get_transformer_bigger__v3(input_embedding: nn.Module,
 
     word_char_embedding_model = get_word_char_embedding_model_bigger__v3(
         d_model, n_word_chars, max_out_seq_len=MAX_OUT_SEQ_LEN,
-        dropout=0.1, device=device)
+        dropout=embedder_dropout, device=device)
 
 
     out = nn.Linear(d_model, n_classes, device = device)
 
 
-    encoder = get_transformer_encoder_backbone_bigger__v3()
-    decoder = get_transformer_decoder_backbone_bigger__v3()
+    encoder = get_transformer_encoder_backbone_bigger__v3(dropout=backbone_dropout)
+    decoder = get_transformer_decoder_backbone_bigger__v3(dropout=backbone_dropout)
 
 
     return EncoderDecoderTransformerLike(
