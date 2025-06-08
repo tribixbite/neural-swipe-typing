@@ -134,7 +134,7 @@ class NearestEmbeddingWithPos(nn.Module):
 
 class SeparateTrajAndWEightedEmbeddingWithPos(nn.Module):
     # Separate in a sense that we don't apply a linear layer to mix the layers
-    def __init__(self, n_keys, key_emb_size, max_len, device, dropout = 0.1) -> None:
+    def __init__(self, n_keys, key_emb_size, max_len, device, dropout = 0.2) -> None:
         super().__init__()
         self.weighted_sum_emb = WeightsSumEmbeddingWithPos(n_keys, key_emb_size, max_len, device)
         self.dropout = nn.Dropout(dropout)
@@ -149,7 +149,7 @@ class SeparateTrajAndWEightedEmbeddingWithPos(nn.Module):
 
 class SeparateTrajAndNearestEmbeddingWithPos(nn.Module):
     # Separate in a sense that we don't apply a linear layer to mix the layers
-    def __init__(self, n_keys, key_emb_size, max_len, device, dropout = 0.1) -> None:
+    def __init__(self, n_keys, key_emb_size, max_len, device, dropout = 0.2) -> None:
         super().__init__()
         self.key_emb = NearestEmbeddingWithPos(
             n_keys, key_emb_size, max_len, device, dropout)
@@ -264,7 +264,7 @@ class KeyboardKeyNormalDistributions(nn.Module):
 
 class SeparateTrajAndTrainableWeightedEmbeddingWithPos(nn.Module):
     # Separate in a sense that we don't apply a linear layer to mix the layers
-    def __init__(self, n_keys, key_emb_size, max_len, device, dropout = 0.1,
+    def __init__(self, n_keys, key_emb_size, max_len, device, dropout = 0.2,
                  key_centers: Optional[torch.Tensor] = None) -> None:
         super().__init__()
         self.weights_getter = KeyboardKeyNormalDistributions(n_keys, key_centers)
@@ -348,7 +348,7 @@ class EncoderDecoderTransformerLike(nn.Module):
 ################################################################################
 
 
-def get_transformer_encoder_backbone_bigger__v3(dropout = 0.1) -> nn.TransformerEncoder:
+def get_transformer_encoder_backbone_bigger__v3(dropout = 0.2) -> nn.TransformerEncoder:
     d_model = 128
     num_encoder_layers = 4
     num_heads_encoder = 4
@@ -374,7 +374,7 @@ def get_transformer_encoder_backbone_bigger__v3(dropout = 0.1) -> nn.Transformer
     return encoder
 
 
-def get_transformer_decoder_backbone_bigger__v3(dropout = 0.1) -> nn.TransformerDecoder:
+def get_transformer_decoder_backbone_bigger__v3(dropout = 0.2) -> nn.TransformerDecoder:
     d_model = 128
     num_decoder_layers = 4
     num_heads_decoder = 4
@@ -403,10 +403,10 @@ def get_transformer_decoder_backbone_bigger__v3(dropout = 0.1) -> nn.Transformer
 
 def get_word_char_embedding_model_bigger__v3(d_model: int, n_word_chars: int, 
                                              max_out_seq_len: int=35, 
-                                             dropout: float=0.1,
+                                             dropout: float=0.2,
                                              device=None) -> nn.Module:
     word_char_embedding = nn.Embedding(n_word_chars, d_model)
-    dropout = 0.1
+    dropout = 0.2
     word_char_emb_dropout = nn.Dropout(dropout)
     word_char_pos_encoder = PositionalEncoding(d_model, max_out_seq_len, device=device)
 
@@ -422,8 +422,8 @@ def get_word_char_embedding_model_bigger__v3(d_model: int, n_word_chars: int,
 
 def _get_transformer_bigger__v3(input_embedding: nn.Module,
                                 device = None,
-                                backbone_dropout=0.1,
-                                embedder_dropout=0.1):
+                                backbone_dropout=0.2,
+                                embedder_dropout=0.2):
     CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
     MAX_OUT_SEQ_LEN = 35  # word_char_tokenizer.max_word_len - 1
 
@@ -470,7 +470,8 @@ def _set_state(model, weights_path, device):
 
 def get_transformer_bigger_weighted_and_traj__v3(device = None, 
                                                  weights_path = None,
-                                                 n_coord_feats = 6) -> EncoderDecoderTransformerLike:
+                                                 n_coord_feats = 6,
+                                                 ) -> EncoderDecoderTransformerLike:
     CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
     MAX_CURVES_SEQ_LEN = 299
     # Actually, n_keys != n_word_chars. n_keys = 36.
@@ -486,7 +487,7 @@ def get_transformer_bigger_weighted_and_traj__v3(device = None,
 
     input_embedding = SeparateTrajAndWEightedEmbeddingWithPos(
         n_keys=n_keys, key_emb_size=key_emb_size, 
-        max_len=MAX_CURVES_SEQ_LEN, device = device, dropout=0.1)
+        max_len=MAX_CURVES_SEQ_LEN, device = device, dropout=0.2)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
 
@@ -509,7 +510,7 @@ def get_transformer_bigger_nearest_and_traj__v3(device = None,
 
     input_embedding = SeparateTrajAndNearestEmbeddingWithPos(
         n_keys=37, key_emb_size=key_emb_size, 
-        max_len=299, device = device, dropout=0.1)
+        max_len=299, device = device, dropout=0.2)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
 
@@ -532,7 +533,7 @@ def get_transformer_bigger_nearest_only__v3(device = None,
     d_model = 128
 
     input_embedding = NearestEmbeddingWithPos(
-        n_elements=37, dim=d_model, max_len=299, device=device, dropout=0.1)
+        n_elements=37, dim=d_model, max_len=299, device=device, dropout=0.2)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
 
@@ -557,7 +558,7 @@ def get_transformer_bigger_trainable_gaussian_weights_and_traj__v3(
 
     input_embedding = SeparateTrajAndTrainableWeightedEmbeddingWithPos(
         n_keys=37, key_emb_size=key_emb_size,
-        max_len=299, device=device, dropout=0.1,
+        max_len=299, device=device, dropout=0.2,
         key_centers=key_centers)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
@@ -599,7 +600,7 @@ class SwipeCurveTransformerEncoderv1(nn.Module):
                  num_layers: int,
                  num_heads_first: int,
                  num_heads_other: int,
-                 dropout: float = 0.1,
+                 dropout: float = 0.2,
                  device = None):
         """
         Arguments:
@@ -797,9 +798,9 @@ def get_m1_model(device = None, weights_path = None):
         num_heads_encoder_1=4,
         num_heads_encoder_2=4,
         num_heads_decoder=4,
-        dropout=0.1,
-        char_embedding_dropout=0.1,
-        key_embedding_dropout=0.1,
+        dropout=0.2,
+        char_embedding_dropout=0.2,
+        key_embedding_dropout=0.2,
         max_out_seq_len=MAX_OUT_SEQ_LEN,
         max_curves_seq_len=MAX_CURVES_SEQ_LEN,
     device = device)
@@ -832,9 +833,9 @@ def get_m1_bigger_model(device = None, weights_path = None):
         num_heads_encoder_1=4,
         num_heads_encoder_2=4,
         num_heads_decoder=4,
-        dropout=0.1,
-        char_embedding_dropout=0.1,
-        key_embedding_dropout=0.1,
+        dropout=0.2,
+        char_embedding_dropout=0.2,
+        key_embedding_dropout=0.2,
         max_out_seq_len=MAX_OUT_SEQ_LEN,
         max_curves_seq_len=MAX_CURVES_SEQ_LEN,
         device = device)
@@ -867,9 +868,9 @@ def get_m1_smaller_model(device = None, weights_path = None):
         num_heads_encoder_1=4,
         num_heads_encoder_2=4,
         num_heads_decoder=4,
-        dropout=0.1,
-        char_embedding_dropout=0.1,
-        key_embedding_dropout=0.1,
+        dropout=0.2,
+        char_embedding_dropout=0.2,
+        key_embedding_dropout=0.2,
         max_out_seq_len=MAX_OUT_SEQ_LEN,
         max_curves_seq_len=MAX_CURVES_SEQ_LEN,
         device = device)
