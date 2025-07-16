@@ -11,24 +11,19 @@ The primary difference between models is in the swipe point embedder.
 
 
 from typing import Optional, Union
+import json  # for type annotations
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from modules.positional_encodings import SinusoidalPositionalEncoding
-from modules.swipe_point_embedders import (NearestEmbeddingWithPos, 
-                                           SeparateTrajAndWEightedEmbeddingWithPos, 
-                                           SeparateTrajAndNearestEmbeddingWithPos,
-                                           SeparateTrajAndTrainableWeightedEmbeddingWithPos)
+from modules.swipe_point_embedder_factory import swipe_point_embedder_factory
 
 
 D_MODEL_V1 = 128
 
 
-################################################################################
-##################            Transformer Interface           ##################
-################################################################################
 
 def _get_mask(max_seq_len: int):
     """
@@ -87,11 +82,10 @@ class EncoderDecoderTransformerLike(nn.Module):
 
 
 ################################################################################
-#################                Model Getters                 #################
-################################################################################
 
 
-def get_transformer_encoder_backbone_bigger__v3() -> nn.TransformerEncoder:
+
+def get_transformer_encoder_backbone__vn1() -> nn.TransformerEncoder:
     
     num_encoder_layers = 4
     num_heads_encoder = 4
@@ -118,7 +112,7 @@ def get_transformer_encoder_backbone_bigger__v3() -> nn.TransformerEncoder:
     return encoder
 
 
-def get_transformer_decoder_backbone_bigger__v3() -> nn.TransformerDecoder:
+def get_transformer_decoder_backbone__vn1() -> nn.TransformerDecoder:
     
     num_decoder_layers = 4
     num_heads_decoder = 4
@@ -146,7 +140,7 @@ def get_transformer_decoder_backbone_bigger__v3() -> nn.TransformerDecoder:
                                                 
 
 
-def get_word_char_embedder_bigger__v3(d_model: int, 
+def get_word_char_embedder__vn1(d_model: int, 
                                       n_word_chars: int, 
                                       max_out_seq_len: int=35, 
                                       dropout: float=0.1,
@@ -176,14 +170,14 @@ def _get_device(device: Optional[Union[torch.device, str]] = None) -> torch.devi
     )
 
 
-def _get_transformer_bigger__v3(input_embedding: nn.Module,
-                                n_classes: int,
-                                n_word_tokens: int,
-                                max_out_seq_len: int,
-                                device = None,):
+def _get_transformer__vn1(input_embedding: nn.Module,
+                            n_classes: int,
+                            n_word_tokens: int,
+                            max_out_seq_len: int,
+                            device = None,):
     device = _get_device(device)
 
-    word_char_embedding_model = get_word_char_embedder_bigger__v3(
+    word_char_embedding_model = get_word_char_embedder__vn1(
         D_MODEL_V1, n_word_tokens, max_out_seq_len=max_out_seq_len,
         dropout=0.1, device=device)
 
@@ -191,8 +185,8 @@ def _get_transformer_bigger__v3(input_embedding: nn.Module,
     out = nn.Linear(D_MODEL_V1, n_classes, device = device)
 
 
-    encoder = get_transformer_encoder_backbone_bigger__v3()
-    decoder = get_transformer_decoder_backbone_bigger__v3()
+    encoder = get_transformer_encoder_backbone__vn1()
+    decoder = get_transformer_decoder_backbone__vn1()
 
 
     return EncoderDecoderTransformerLike(
@@ -218,115 +212,12 @@ def _set_state(model: nn.Module,
 
 
 
-def get_transformer_bigger_weighted_and_traj__v3(n_keys: int,
-                                                 n_coord_feats: int,
-                                                 n_classes: int,
-                                                 n_word_tokens: int,
-                                                 max_out_seq_len: int,
-                                                 max_curve_seq_len: int,
-                                                 weights_path = None,
-                                                 device: Optional[Union[torch.device, str]] = None,
-                                                 ) -> EncoderDecoderTransformerLike:
-    key_emb_size = D_MODEL_V1 - n_coord_feats
-
-    device = _get_device(device)
-
-    input_embedding = SeparateTrajAndWEightedEmbeddingWithPos(
-        n_keys=n_keys, key_emb_size=key_emb_size, 
-        max_len=max_curve_seq_len, device = device, dropout=0.1)
-
-    model = _get_transformer_bigger__v3(
-        input_embedding, n_classes, n_word_tokens, max_out_seq_len, device)
-
-    model = _set_state(model, weights_path, device)
-    return model
-
-
-
-
-def get_transformer_bigger_nearest_and_traj__v3(n_keys: int,
-                                                 n_coord_feats: int,
-                                                 n_classes: int,
-                                                 n_word_tokens: int,
-                                                 max_out_seq_len: int,
-                                                 max_curve_seq_len: int,
-                                                 weights_path = None,
-                                                 device: Optional[Union[torch.device, str]] = None,
-                                                 ) -> EncoderDecoderTransformerLike:
-    device = _get_device(device)
-    
-    key_emb_size = D_MODEL_V1 - n_coord_feats
-
-    input_embedding = SeparateTrajAndNearestEmbeddingWithPos(
-        n_keys=n_keys, key_emb_size=key_emb_size, 
-        max_len=max_curve_seq_len, device = device, dropout=0.1)
-    
-    model = _get_transformer_bigger__v3(
-        input_embedding, n_classes, n_word_tokens, max_out_seq_len, device)
-
-    model = _set_state(model, weights_path, device)
-    return model
-
-
-
-
-
-def get_transformer_bigger_nearest_only__v3(n_keys: int,
-                                            n_coord_feats: int,
+def get_transformer__from_spe_config__vn1(spe_config: json,
                                             n_classes: int,
                                             n_word_tokens: int,
                                             max_out_seq_len: int,
-                                            max_curve_seq_len: int,
-                                            weights_path = None,
                                             device: Optional[Union[torch.device, str]] = None,
                                             ) -> EncoderDecoderTransformerLike:
-    assert n_coord_feats == 0, f"n_coord_feats is {n_coord_feats}, but should be 0"
-    device = _get_device(device)
-
-    input_embedding = NearestEmbeddingWithPos(
-        n_elements=n_keys, dim=D_MODEL_V1, max_len=max_curve_seq_len, 
-        device=device, dropout=0.1)
-
-    model = _get_transformer_bigger__v3(
-        input_embedding, n_classes, n_word_tokens, max_out_seq_len, device)
-    
-    model = _set_state(model, weights_path, device)
-    return model
-
-
-
-def get_transformer_bigger_trainable_gaussian_weights_and_traj__v3(
-                                                n_keys: int,
-                                                n_coord_feats: int,
-                                                n_classes: int,
-                                                n_word_tokens: int,
-                                                max_out_seq_len: int,
-                                                max_curve_seq_len: int,
-                                                weights_path = None,
-                                                device: Optional[Union[torch.device, str]] = None,
-                                                key_centers: Optional[torch.Tensor] = None
-                                                ) -> EncoderDecoderTransformerLike:
-    device = _get_device(device)
-    
-    key_emb_size = D_MODEL_V1 - n_coord_feats
-
-    input_embedding = SeparateTrajAndTrainableWeightedEmbeddingWithPos(
-        n_keys=n_keys, key_emb_size=key_emb_size,
-        max_len=max_curve_seq_len, device=device, dropout=0.1,
-        key_centers=key_centers)
-
-    model = _get_transformer_bigger__v3(
-        input_embedding, n_classes, n_word_tokens, max_out_seq_len, device)
-    
-    model = _set_state(model, weights_path, device)
-    return model
-
-
-
-MODEL_GETTERS_DICT = {
-    "v3_weighted_and_traj_transformer_bigger": get_transformer_bigger_weighted_and_traj__v3,
-    "v3_nearest_and_traj_transformer_bigger": get_transformer_bigger_nearest_and_traj__v3,
-    "v3_nearest_only_transformer_bigger": get_transformer_bigger_nearest_only__v3,
-
-    "v3_trainable_gaussian_weights_and_traj_transformer_bigger": get_transformer_bigger_trainable_gaussian_weights_and_traj__v3,
-}
+    input_embedding = swipe_point_embedder_factory(spe_config)
+    return _set_state(_get_transformer__vn1(
+        input_embedding, n_classes, n_word_tokens, max_out_seq_len, device))
