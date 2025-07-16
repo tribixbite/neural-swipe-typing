@@ -1,4 +1,5 @@
 {
+    "num_classes": 35,
     "grid_name": "default",
     "grids_path": "./data/data_preprocessed/gridname_to_grid.json",
     "trajectory_features_statistics_path": "./data/data_preprocessed/trajectory_features_statistics.json",

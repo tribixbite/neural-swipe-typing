@@ -2,7 +2,6 @@ import sys; import os; sys.path.insert(1, os.path.join(os.getcwd(), "src"))
 
 
 import json
-import logging
 import os
 import argparse
 from typing import List
@@ -23,15 +22,13 @@ from train_utils import CrossEntropyLossWithReshape
 from train_utils import EmptyCudaCacheCallback
 
 
-log = logging.getLogger(__name__)
-
 LOG_DIR = "lightning_logs/"
 
 
 def read_json(path: str):
     with open(path, "r", encoding="utf-8") as f:
         obj = json.load(f)  
-    return obj  
+    return obj
 
 
 def parse_args() -> argparse.Namespace:
@@ -125,6 +122,7 @@ def get_callbacks(train_config) -> List[Callback]:
     
 
 def main(train_config: dict) -> None:
+    # Read components from config
     grid_name = train_config["grid_name"]
     trajectory_features_statistics = read_json(train_config["trajectory_features_statistics_path"])        
     bounding_boxes = read_json(train_config["bounding_boxes_path"])
@@ -138,14 +136,19 @@ def main(train_config: dict) -> None:
     default_experiment_name = f"{train_config['model_name']}__{grid_name}__{feature_extractor_name}__bs_{train_config['train_batch_size']}/seed_{train_config['seed']}"
     experiment_name = train_config.get("experiment_name", default_experiment_name)
     word_pad_idx = word_tokenizer.char_to_idx['<pad>']
-    
-    path_to_continue_checkpoint = None 
+
+    # Assertions
+    # num_classes is usually equal to num_tokens - 2 (subtracting <pad> and <unk>)
+    assert 1 <= train_config["num_classes"] <= len(word_tokenizer.char_to_idx), \
+        "num_classes should be between 1 and the number of tokens in the vocabulary"
+
+
+    path_to_continue_checkpoint = None
     if train_config.get("path_to_continue_checkpoint", None):
         path_to_continue_checkpoint = train_config["path_to_continue_checkpoint"]
 
 
     seed_everything(train_config["seed"])
-
 
 
     feature_extractor = swipe_feature_extractor_factory(
@@ -155,7 +158,6 @@ def main(train_config: dict) -> None:
     grid_name_to_swipe_feature_extractor = {
         grid_name: feature_extractor
     }
-
 
 
     train_dataset_full = SwipeDataset(
@@ -223,7 +225,7 @@ def main(train_config: dict) -> None:
         n_coord_feats=get_n_traj_feats(feature_extractor),
         criterion = criterion, 
         word_pad_idx = word_pad_idx,
-        num_classes = 35,  # = len(char_tokenizer.idx_to_char) - len(['<pad>', '<unk>']) = 37 - 2
+        num_classes = train_config["num_classes"],
         train_batch_size = train_config["train_batch_size"],
         optimizer_ctor=optimizer_ctor, 
         lr_scheduler_ctor=lr_scheduler_ctor, 
