@@ -109,11 +109,9 @@ def evaluate_path(prediction_path, config) -> None:
     data_split = prediction_with_meta.dataset_split
     dataset_path = config['data_split__to__path'][data_split]
     labels = get_labels_from_ds_path(dataset_path, 
-                                        prediction_with_meta.grid_name)
-    mmr = get_mmr(cut_inner_lists_to_four(preds), 
-                    labels)
-    accuracy = get_accuracy(leave_one_pred_per_curve(preds),
-                            labels)
+                                     prediction_with_meta.grid_name)
+    mmr = get_mmr(cut_inner_lists_to_four(preds), labels)
+    accuracy = get_accuracy(leave_one_pred_per_curve(preds), labels)
     metrics = {
         'mmr': mmr,
         'accuracy': accuracy
