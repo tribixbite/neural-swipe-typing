@@ -141,10 +141,10 @@ def get_transformer_decoder_backbone__vn1() -> nn.TransformerDecoder:
 
 
 def get_word_char_embedder__vn1(d_model: int, 
-                                      n_word_chars: int, 
-                                      max_out_seq_len: int=35, 
-                                      dropout: float=0.1,
-                                      device=None) -> nn.Module:
+                                n_word_chars: int, 
+                                max_out_seq_len: int=35, 
+                                dropout: float=0.1,
+                                device=None) -> nn.Module:
     word_char_embedding = nn.Embedding(n_word_chars, d_model)
     dropout = 0.1
     word_char_emb_dropout = nn.Dropout(dropout)
@@ -171,23 +171,20 @@ def _get_device(device: Optional[Union[torch.device, str]] = None) -> torch.devi
 
 
 def _get_transformer__vn1(input_embedding: nn.Module,
-                            n_classes: int,
-                            n_word_tokens: int,
-                            max_out_seq_len: int,
-                            device = None,):
+                          n_classes: int,
+                          n_word_tokens: int,
+                          max_out_seq_len: int,
+                          device = None,):
     device = _get_device(device)
 
     word_char_embedding_model = get_word_char_embedder__vn1(
         D_MODEL_V1, n_word_tokens, max_out_seq_len=max_out_seq_len,
         dropout=0.1, device=device)
 
-
     out = nn.Linear(D_MODEL_V1, n_classes, device = device)
-
 
     encoder = get_transformer_encoder_backbone__vn1()
     decoder = get_transformer_decoder_backbone__vn1()
-
 
     return EncoderDecoderTransformerLike(
         input_embedding, word_char_embedding_model, encoder, decoder, out
@@ -213,11 +210,11 @@ def _set_state(model: nn.Module,
 
 
 def get_transformer__from_spe_config__vn1(spe_config: json,
-                                            n_classes: int,
-                                            n_word_tokens: int,
-                                            max_out_seq_len: int,
-                                            device: Optional[Union[torch.device, str]] = None,
-                                            ) -> EncoderDecoderTransformerLike:
+                                          n_classes: int,
+                                          n_word_tokens: int,
+                                          max_out_seq_len: int,
+                                          device: Optional[Union[torch.device, str]] = None,
+                                          ) -> EncoderDecoderTransformerLike:
     input_embedding = swipe_point_embedder_factory(spe_config)
     return _set_state(_get_transformer__vn1(
         input_embedding, n_classes, n_word_tokens, max_out_seq_len, device))
