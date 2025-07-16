@@ -146,15 +146,15 @@ def get_transformer_decoder_backbone_bigger__v3() -> nn.TransformerDecoder:
                                                 
 
 
-def get_word_char_embedder_bigger__v3(D_MODEL_V1: int, 
+def get_word_char_embedder_bigger__v3(d_model: int, 
                                       n_word_chars: int, 
                                       max_out_seq_len: int=35, 
                                       dropout: float=0.1,
                                       device=None) -> nn.Module:
-    word_char_embedding = nn.Embedding(n_word_chars, D_MODEL_V1)
+    word_char_embedding = nn.Embedding(n_word_chars, d_model)
     dropout = 0.1
     word_char_emb_dropout = nn.Dropout(dropout)
-    word_char_pos_encoder = SinusoidalPositionalEncoding(D_MODEL_V1, max_out_seq_len, device=device)
+    word_char_pos_encoder = SinusoidalPositionalEncoding(d_model, max_out_seq_len, device=device)
 
     word_char_embedding_model = nn.Sequential(
         word_char_embedding,
