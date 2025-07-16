@@ -11,40 +11,13 @@ The primary difference between models is in the swipe point embedder.
 
 
 from typing import Callable, Optional, Tuple
-import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from modules.positional_encodings import SinusoidalPositionalEncoding
 
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, max_len: int, device, dropout: float = 0.0):
-        super().__init__()
-        self.dropout = nn.Dropout(p=dropout)
-
-        position = torch.arange(max_len).unsqueeze(1)
-        # ```d_model // 2``` elements
-        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
-        pe = torch.zeros(max_len, 1, d_model)
-        pe[:, 0, 0::2] = torch.sin(position * div_term)
-        if d_model % 2 == 0:
-            pe[:, 0, 1::2] = torch.cos(position * div_term)
-        else:
-            pe[:, 0, 1::2] = torch.cos(position * div_term[:-1])
-        pe = pe.to(device=device)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Arguments:
-        ----------
-        x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
-        """
-        x = x + self.pe[:x.size(0)]
-        return self.dropout(x)
-    
 
 
 ##############################################################################
@@ -102,7 +75,7 @@ class WeightedSumEmbedding(nn.Module):
 class WeightsSumEmbeddingWithPos(WeightedSumEmbedding):
     def __init__(self, n_elements, dim, max_len, device) -> None:
         super().__init__(n_elements, dim)
-        self.pos_encoder = PositionalEncoding(dim, max_len, device)
+        self.pos_encoder = SinusoidalPositionalEncoding(dim, max_len, device)
 
     def forward(self, weights):
         emb = super().forward(weights)
@@ -122,7 +95,7 @@ class NearestEmbeddingWithPos(nn.Module):
     def __init__(self, n_elements, dim, max_len, device, dropout) -> None:
         super().__init__()
         self.key_emb = nn.Embedding(n_elements, dim)
-        self.pos_encoder = PositionalEncoding(dim, max_len, device)
+        self.pos_encoder = SinusoidalPositionalEncoding(dim, max_len, device)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, kb_ids_seq: torch.Tensor):
@@ -410,7 +383,7 @@ def get_word_char_embedding_model_bigger__v3(d_model: int, n_word_chars: int,
     word_char_embedding = nn.Embedding(n_word_chars, d_model)
     dropout = 0.1
     word_char_emb_dropout = nn.Dropout(dropout)
-    word_char_pos_encoder = PositionalEncoding(d_model, max_out_seq_len, device=device)
+    word_char_pos_encoder = SinusoidalPositionalEncoding(d_model, max_out_seq_len, device=device)
 
     word_char_embedding_model = nn.Sequential(
         word_char_embedding,
@@ -732,10 +705,10 @@ class SwipeCurveTransformer(nn.Module):
             num_encoder_layers, num_heads_encoder_1,
             num_heads_encoder_2, dropout, device=device)
         
-        self.char_pos_encoder = PositionalEncoding(
+        self.char_pos_encoder = SinusoidalPositionalEncoding(
             char_emb_size, max_out_seq_len, device=device)
         
-        self.key_pos_encoder = PositionalEncoding(
+        self.key_pos_encoder = SinusoidalPositionalEncoding(
             key_emb_size, max_curves_seq_len, device=device)
         
         n_classes = char_vocab_size - 2  # <sos> and <pad> are not predicted
