@@ -179,7 +179,10 @@ class KeyboardKeyNormalDistributions(nn.Module):
         n_keys: int
             Number of keys on a keyboard.
         key_centers: torch.Tensor of shape (n_keys, 2) or None
-            If present, is supposed to be a tensor with centers of keys on a keyboard.
+            Optional key centers tensor that is used to initialize the means 
+            of the distributions. If None, the means are initialized randomly.
+            The missing keys are supposed to have a center (-1, -1); 
+            they won't have a distribution.
         """
 
         super().__init__()
