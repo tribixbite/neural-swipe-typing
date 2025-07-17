@@ -4,7 +4,7 @@ from modules.swipe_point_embedders import (NearestEmbeddingWithPos,
                                            SeparateTrajAndWEightedEmbeddingWithPos,
                                            SeparateTrajAndTrainableWeightedEmbeddingWithPos,
                                            SeparateTrajAndNearestEmbeddingWithPos)
-from modules.spe_embedder_factory_utils import get_kb_centers_tensor
+from modules.spe_factory_utils import get_kb_centers_tensor
 from feature_extraction.normalizers import MinMaxNormalizer
 
 
