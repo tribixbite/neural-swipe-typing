@@ -2,7 +2,6 @@ import torch
 from lightning import LightningModule
 import torchmetrics
 
-from model import MODEL_GETTERS_DICT
 from metrics import get_word_level_accuracy
 
 
@@ -19,8 +18,7 @@ from metrics import get_word_level_accuracy
 
 class LitNeuroswipeModel(LightningModule):
     def __init__(self, 
-                 model_name: str, 
-                 n_coord_feats: int, 
+                 model: torch.nn.Module,
                  criterion: torch.nn.Module,
                  word_pad_idx: int,
                  num_classes: int,
@@ -32,13 +30,12 @@ class LitNeuroswipeModel(LightningModule):
 
         self.save_hyperparameters(ignore = ["criterion", 'lr_scheduler_ctor', 'optimizer_ctor'])
 
-        self.model_name = model_name
         self.train_batch_size = train_batch_size
 
         self.optimizer_ctor = optimizer_ctor
         self.lr_scheduler_ctor = lr_scheduler_ctor
 
-        self.model: torch.nn.Module = MODEL_GETTERS_DICT[model_name](n_coord_feats=n_coord_feats)
+        self.model = model
         self.criterion = criterion
         self.word_pad_idx = word_pad_idx
 

@@ -20,6 +20,7 @@ from feature_extraction.swipe_feature_extractors import MultiFeatureExtractor, T
 from pl_module import LitNeuroswipeModel
 from train_utils import CrossEntropyLossWithReshape
 from train_utils import EmptyCudaCacheCallback
+from model import get_transformer__from_spe_config__vn1
 
 
 LOG_DIR = "lightning_logs/"
@@ -220,8 +221,20 @@ def main(train_config: dict) -> None:
         train_config["optimizer"]["params"]
     )
 
+    spe_config = read_json(train_config["swipe_point_embedder_config_path"])
+    model = get_transformer__from_spe_config__vn1(
+        spe_config=spe_config,
+        n_classes= train_config["num_classes"],
+        n_word_tokens=len(word_tokenizer.char_to_idx),
+        max_out_seq_len=train_config["max_out_seq_len"],
+        device=train_config["device"]
+    )
+
+    # n_coord_feats = get_n_traj_feats(feature_extractor)
+    # TODO add assert that d_model == (n_coord_feats + train_config["swipe_point_embedder_config"]["params"]["key_emb_size"])
+
     pl_model = LitNeuroswipeModel(
-        model_name = train_config["model_name"],
+        model=model,
         n_coord_feats=get_n_traj_feats(feature_extractor),
         criterion = criterion, 
         word_pad_idx = word_pad_idx,
@@ -246,7 +259,6 @@ def main(train_config: dict) -> None:
         pl_model, train_loader, val_loader,
         ckpt_path = path_to_continue_checkpoint
     )
-
 
 
     
