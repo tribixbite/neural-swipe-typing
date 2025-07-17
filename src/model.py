@@ -11,7 +11,6 @@ The primary difference between models is in the swipe point embedder.
 
 
 from typing import Optional, Union
-import json  # for type annotations
 
 import torch
 import torch.nn as nn
@@ -209,7 +208,7 @@ def _set_state(model: nn.Module,
 
 
 
-def get_transformer__from_spe_config__vn1(spe_config: json,
+def get_transformer__from_spe_config__vn1(spe_config: dict,
                                           n_classes: int,
                                           n_word_tokens: int,
                                           max_out_seq_len: int,
