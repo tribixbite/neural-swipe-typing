@@ -28,7 +28,7 @@ def swipe_point_embedder_factory(
     
     if config['type'] == 'nearest':
         return NearestEmbeddingWithPos(
-            params['n_elements'],
+            params['n_keys'],
             params['key_emb_size'],
             params['max_len'],
             params['device'],

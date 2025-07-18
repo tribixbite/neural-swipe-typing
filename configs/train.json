@@ -1,5 +1,6 @@
 {
     "num_classes": 35,
+    "max_out_seq_len": 35,
     "grid_name": "default",
     "grids_path": "./data/data_preprocessed/gridname_to_grid.json",
     "trajectory_features_statistics_path": "./data/data_preprocessed/trajectory_features_statistics.json",
@@ -19,7 +20,7 @@
     "val_total": 10000,
     "seed": 42,
     "early_stopping": {
-        "enabled": true,
+        "enabled": false,
         "patience": 30
     },
     "lr_scheduler": {
@@ -35,5 +36,6 @@
     "optimizer": {
         "type": "Adam",
         "params": {"lr":1e-4, "weight_decay":0}
-    }
+    },
+    "device": "cuda"
 }

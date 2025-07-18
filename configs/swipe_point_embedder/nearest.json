@@ -1,7 +1,7 @@
 {
     "type": "nearest",
     "params": {
-        "n_elements": 36,
+        "n_keys": 36,
         "key_emb_size": 128,
         "max_len": 299,
         "device": "cuda",
