@@ -213,7 +213,10 @@ def get_transformer__from_spe_config__vn1(spe_config: dict,
                                           n_word_tokens: int,
                                           max_out_seq_len: int,
                                           device: Optional[Union[torch.device, str]] = None,
+                                          weights_path: str = None
                                           ) -> EncoderDecoderTransformerLike:
     input_embedding = swipe_point_embedder_factory(spe_config)
-    return _set_state(_get_transformer__vn1(
-        input_embedding, n_classes, n_word_tokens, max_out_seq_len, device))
+    model = _get_transformer__vn1(
+        input_embedding, n_classes, n_word_tokens, max_out_seq_len, device)
+    model = _set_state(model, weights_path, device)
+    return model
