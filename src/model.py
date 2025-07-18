@@ -1,15 +1,3 @@
-"""
-Currently all models (except for the legacy ones) are obhects of the class EncoderDecoderTransformerLike.
-This class has 4 components:
-* swipe point embedder
-* word token embedder
-* encoder (that must have interface of nn.TransformerEncoder)
-* decoder (that must have interface of nn.TransformerDecoder)
-
-The primary difference between models is in the swipe point embedder.
-"""
-
-
 from typing import Optional, Union
 
 import torch
