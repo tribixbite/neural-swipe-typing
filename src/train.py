@@ -231,11 +231,11 @@ def main(train_config: dict) -> None:
     )
 
     # n_coord_feats = get_n_traj_feats(feature_extractor)
-    # TODO add assert that d_model == (n_coord_feats + train_config["swipe_point_embedder_config"]["params"]["key_emb_size"])
+    # key_emb_size = train_config["swipe_point_embedder_config"]["params"]["key_emb_size"]
+    # TODO add assert that d_model == n_coord_feats + key_emb_size
 
     pl_model = LitNeuroswipeModel(
         model=model,
-        n_coord_feats=get_n_traj_feats(feature_extractor),
         criterion = criterion, 
         word_pad_idx = word_pad_idx,
         num_classes = train_config["num_classes"],
