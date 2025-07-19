@@ -50,8 +50,8 @@ class EncoderDecoderTransformerLike(nn.Module):
 
     # x can be a tuple (ex. traj_feats, kb_tokens) or a single tensor
     # (ex. just kb_tokens).
-    def encode(self, x, x_pad_mask):
-        x = self.enc_in_emb_model(x)
+    def encode(self, tupled_x, x_pad_mask):
+        x = self.enc_in_emb_model(*tupled_x)
         return self.encoder(x, src_key_padding_mask = x_pad_mask)
     
     def decode(self, y, x_encoded, memory_key_padding_mask, tgt_key_padding_mask):
@@ -62,8 +62,8 @@ class EncoderDecoderTransformerLike(nn.Module):
                                tgt_key_padding_mask=tgt_key_padding_mask)
         return self.out(dec_out)
 
-    def forward(self, x, y, x_pad_mask, y_pad_mask):
-        x_encoded = self.encode(x, x_pad_mask)
+    def forward(self, tupled_x, y, x_pad_mask, y_pad_mask):
+        x_encoded = self.encode(tupled_x, x_pad_mask)
         return self.decode(y, x_encoded, x_pad_mask, y_pad_mask)
 
 

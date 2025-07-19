@@ -1,9 +1,23 @@
-from typing import Optional, Tuple
+from typing import Optional, Protocol
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 from modules.positional_encodings import SinusoidalPositionalEncoding
+
+
+class SwipeFeatureEmbedder(Protocol):    
+    def __call__(self, *features: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            *features: Variable number of input tensors.
+            The features are provided by a SwipeFeatureExtractor
+        Returns:
+            Single output tensor with the embedded representation
+        """
+        ...
+
 
 
 class WeightedSumEmbedding(nn.Module):
@@ -74,7 +88,7 @@ class NearestEmbeddingWithPos(nn.Module):
         kb_k_emb = self.key_emb(kb_ids_seq)
         kb_k_emb = self.pos_encoder(kb_k_emb)
         kb_k_emb = self.dropout(kb_k_emb)   
-        return kb_k_emb    
+        return kb_k_emb
 
 
 class SeparateTrajAndWEightedEmbeddingWithPos(nn.Module):
@@ -84,8 +98,7 @@ class SeparateTrajAndWEightedEmbeddingWithPos(nn.Module):
         self.weighted_sum_emb = WeightsSumEmbeddingWithPos(n_keys, key_emb_size, max_len, device)
         self.dropout = nn.Dropout(dropout)
     
-    def forward(self, input_tuple: Tuple[torch.Tensor, torch.Tensor]):
-        traj_feats, kb_key_weights = input_tuple
+    def forward(self, traj_feats: Tensor, kb_key_weights: Tensor) -> Tensor: 
         kb_k_emb = self.weighted_sum_emb(kb_key_weights)
         kb_k_emb = self.dropout(kb_k_emb)
         x = torch.cat((traj_feats, kb_k_emb), dim = -1)
@@ -99,13 +112,11 @@ class SeparateTrajAndNearestEmbeddingWithPos(nn.Module):
         self.key_emb = NearestEmbeddingWithPos(
             n_keys, key_emb_size, max_len, device, dropout)
     
-    def forward(self, input_tuple: Tuple[torch.Tensor, torch.Tensor]):
-        traj_feats, nearest_kb_key_ids = input_tuple
+    def forward(self, traj_feats: Tensor, nearest_kb_key_ids: Tensor) -> Tensor:
         kb_k_emb = self.key_emb(nearest_kb_key_ids)
         x = torch.cat((traj_feats, kb_k_emb), dim = -1)
         return x
     
-
 
 
 # class PSDSymmetricMatrix(nn.Module):
@@ -219,8 +230,7 @@ class SeparateTrajAndTrainableWeightedEmbeddingWithPos(nn.Module):
         self.weighted_sum_emb = WeightsSumEmbeddingWithPos(n_keys, key_emb_size, max_len, device)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, input_tuple: Tuple[torch.Tensor, torch.Tensor]):
-        traj_feats, xy_coords = input_tuple
+    def forward(self, traj_feats: Tensor, xy_coords: Tensor) -> Tensor:
         kb_key_weights = self.weights_getter(xy_coords)
         kb_k_emb = self.weighted_sum_emb(kb_key_weights)
         kb_k_emb = self.dropout(kb_k_emb)
