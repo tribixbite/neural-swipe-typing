@@ -252,7 +252,7 @@ def main(train_config: dict) -> None:
         # max_epochs=100,
         callbacks=callbacks,
         logger=tb_logger,
-        val_check_interval=3000,
+        val_check_interval=train_config["val_check_interval"]
     )
 
     trainer.fit(
