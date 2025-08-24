@@ -30,7 +30,7 @@
     },
     "training_config": {
         "model_name": "v3_weighted_and_traj_transformer_bigger",
-        "grid_name": "english",
+        "grid_name": "qwerty_english",
         "transform_name": "traj_feats_and_distance_weights",
         "dist_weights_func_name": "weights_function_v1",
         "batch_size_train": 256,
