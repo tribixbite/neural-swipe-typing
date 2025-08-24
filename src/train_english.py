@@ -19,7 +19,8 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch import loggers as pl_loggers
 import torchmetrics
 
-from ns_tokenizers import CharLevelTokenizerv2, KeyboardTokenizerv1
+from ns_tokenizers import CharLevelTokenizerv2
+from create_english_keyboard_tokenizer import KeyboardTokenizerEnglish
 from dataset import CurveDataset, CollateFnV2
 from feature_extraction.feature_extractors import (
     weights_function_v1_softmax, 
@@ -186,7 +187,7 @@ def main():
     
     # Create tokenizers
     char_tokenizer = CharLevelTokenizerv2(training_config['voc_path'])
-    kb_tokenizer = KeyboardTokenizerv1()
+    kb_tokenizer = KeyboardTokenizerEnglish()
     
     # Get transforms
     DIST_WEIGHTS_FUNCS = {
@@ -201,7 +202,7 @@ def main():
         gridname_to_grid_path=training_config['grid_path'],
         grid_names=[training_config['grid_name']],
         transform_name=training_config['transform_name'],
-        char_tokenizer=char_tokenizer,
+        char_tokenizer=kb_tokenizer,  # Pass keyboard tokenizer (confusing parameter name)
         uniform_noise_range=training_config['noise_range'],
         include_time=training_config['use_time'],
         include_velocities=training_config['use_velocity'],

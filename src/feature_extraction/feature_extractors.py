@@ -723,7 +723,7 @@ def assert_traj_feats_provided(include_time: Optional[bool],
 def get_val_transform(gridname_to_grid_path: str,
                       grid_names: List[str],
                       transform_name: str,
-                      char_tokenizer: KeyboardTokenizerv1,
+                      char_tokenizer,  # Now accepts any tokenizer type
                       uniform_noise_range: int = 0,
                       include_time: Optional[bool] = None,
                       include_velocities: Optional[bool] = None,
@@ -752,7 +752,8 @@ def get_val_transform(gridname_to_grid_path: str,
 
     gname_to_wh = {gname: (grid['width'], grid['height']) for gname, grid in gname_to_grid.items()}
 
-    kb_tokenizer = KeyboardTokenizerv1()
+    # Use the passed tokenizer instead of hardcoding
+    kb_tokenizer = char_tokenizer  # This is actually the keyboard tokenizer despite the name
 
 
     if transform_name in transforms_need_out_of_bounds:
@@ -863,7 +864,7 @@ def get_val_transform(gridname_to_grid_path: str,
 def get_transforms(gridname_to_grid_path: str,
                      grid_names: List[str],
                      transform_name: str,
-                     char_tokenizer: KeyboardTokenizerv1,
+                     char_tokenizer,  # Now accepts any tokenizer type
                      uniform_noise_range: int = 0,
                      include_time: Optional[bool] = None,
                      include_velocities: Optional[bool] = None,
