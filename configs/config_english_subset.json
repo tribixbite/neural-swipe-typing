@@ -1,0 +1,44 @@
+{
+    "prediction_config": {
+        "model_params": [
+            ["default", "v3_weighted_and_traj_transformer_bigger", "english_subset_model.pt"]
+        ],
+        "out_path": "./results/predictions/val/english_subset",
+        "csv_path": "",
+        "data_split": "val",
+        "grid_name_to_grid__path": "./data/data_preprocessed/gridname_to_grid_english.json",
+        "models_root": "./results/models_for_debug/english_subset",
+        "voc_path": "./data/data_preprocessed/voc_english_filtered.txt",
+        "transform_name": "traj_feats_and_distance_weights",
+        "include_coords": true,
+        "include_time": false,
+        "include_velocities": true,
+        "include_accelerations": true,
+        "generator": "beam",
+        "generator_call_kwargs": {
+            "max_steps_n": 35,
+            "return_hypotheses_n": null,
+            "beamsize": 6,
+            "normalization_factor": 0.5
+        },
+        "data_split__to__path": {
+            "train": "./data/data_preprocessed/english_subset_train.jsonl",
+            "val": "./data/data_preprocessed/english_subset_valid.jsonl",
+            "test": "./data/data_preprocessed/english_subset_test.jsonl"
+        },
+        "use_vocab_for_generation": true,
+        "n_classes": 40
+    },
+    "training_config": {
+        "batch_size_train": 32,
+        "batch_size_val": 64,
+        "learning_rate": 1e-4,
+        "num_epochs": 5,
+        "label_smoothing": 0.045,
+        "dropout": 0.2,
+        "early_stopping_patience": 3,
+        "gradient_clip_val": 1.0,
+        "accumulate_grad_batches": 1,
+        "num_workers": 0
+    }
+}
