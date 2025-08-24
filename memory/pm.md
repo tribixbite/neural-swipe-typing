@@ -85,6 +85,21 @@ Apply the best pipeline from this neural-swipe-typing repository to English lang
 - [x] Configure checkpoint naming for English model
 - [x] Include all necessary imports and Lightning setup
 
+### Phase 2.5: Data Quality Filtering ✅
+
+#### 2.5.1 Filter Dataset with English Wordlist ✅
+- [x] Analyzed word quality - found many non-English words (e.g., "glaxosmithkline", "cencosud", "nissan")
+- [x] Created `filter_with_english_wordlist.py` script
+- [x] Used `data/en.txt` (10,000 English words) as reference
+- [x] Filtered datasets:
+  - Train: 69,732 → 59,213 samples (84.9% retention)
+  - Valid: 8,716 → 7,362 samples (84.5% retention)
+  - Test: 8,718 → 7,446 samples (85.4% retention)
+- [x] Total: 87,166 → 74,021 samples (84.9% retention)
+- [x] Reduced unique words: 10,638 → 7,444
+- [x] Created filtered vocabulary: 40 tokens (37 chars + 3 special)
+- [x] Created `config_english_filtered.json` for filtered dataset
+
 ### Phase 3: Training
 
 #### 3.1 Initial Training Run
@@ -286,4 +301,4 @@ Based on the notebook documentation:
 
 ---
 Last Updated: 2024-11-24
-Status: Phases 1-2 COMPLETE! Dataset processed (87K swipes), configuration ready, training script created. Ready to start training!
+Status: Phases 1-2.5 COMPLETE! Dataset processed and filtered (74K clean English swipes), configuration ready, training script created. Ready to start training!

@@ -1,0 +1,64 @@
+{
+    "prediction_config": {
+        "model_params": [
+            ["english", "v3_weighted_and_traj_transformer_bigger", "english_transformer-epoch=1-val_loss=0.00-val_word_level_accuracy=0.00.pt"]
+        ],
+        "out_path": "./results/predictions/val/english_filtered",
+        "csv_path": "",
+        "data_split": "val",
+        "grid_name_to_grid__path": "./data/data_preprocessed/gridname_to_grid_english.json",
+        "models_root": "./results/models/english_filtered",
+        "voc_path": "./data/data_preprocessed/voc_english_filtered.txt",
+        "transform_name": "traj_feats_and_distance_weights",
+        "include_coords": true,
+        "include_time": false,
+        "include_velocities": true,
+        "include_accelerations": true,
+        "generator": "beam",
+        "generator_call_kwargs": {
+            "max_steps_n": 35,
+            "return_hypotheses_n": null,
+            "beamsize": 6,
+            "normalization_factor": 0.5
+        },
+        "data_split__to__path": {
+            "test": "./data/data_preprocessed/english_filtered_test.jsonl",
+            "val": "./data/data_preprocessed/english_filtered_valid.jsonl"
+        },
+        "use_vocab_for_generation": true,
+        "n_classes": 40
+    },
+    "training_config": {
+        "dataset_paths": {
+            "train": "./data/data_preprocessed/english_filtered_train.jsonl",
+            "val": "./data/data_preprocessed/english_filtered_valid.jsonl",
+            "test": "./data/data_preprocessed/english_filtered_test.jsonl"
+        },
+        "dataset_stats": {
+            "train_samples": 59213,
+            "val_samples": 7362,
+            "test_samples": 7446,
+            "total_samples": 74021,
+            "unique_words": 7444,
+            "vocab_size": 40,
+            "retention_rate": "84.9%"
+        },
+        "model_name": "v3_weighted_and_traj_transformer_bigger",
+        "transform_name": "traj_feats_and_distance_weights",
+        "grid_name": "english",
+        "voc_path": "./data/data_preprocessed/voc_english_filtered.txt",
+        "grid_path": "./data/data_preprocessed/gridname_to_grid_english.json",
+        "batch_size_train": 256,
+        "batch_size_val": 512,
+        "learning_rate": 1e-4,
+        "label_smoothing": 0.045,
+        "dropout": 0.1,
+        "num_epochs": 100,
+        "patience": 20,
+        "gradient_clip_val": 1.0,
+        "num_workers": 4,
+        "accumulate_grad_batches": 1,
+        "check_val_every_n_epoch": 1,
+        "log_every_n_steps": 50
+    }
+}
