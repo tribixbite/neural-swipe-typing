@@ -66,17 +66,6 @@ def create_proper_english_grid():
             }
         })
     
-    # Space bar (wider key)
-    keys.append({
-        "label": " ",
-        "hitbox": {
-            "x": 90,
-            "y": row3_y + y_spacing,
-            "w": 180,
-            "h": key_h
-        }
-    })
-    
     # Add special keys (needed for some models)
     keys.append({
         "action": "shift",

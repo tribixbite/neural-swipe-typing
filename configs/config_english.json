@@ -59,7 +59,7 @@
         },
         "grid_path": "./data/data_preprocessed/gridname_to_grid_english.json",
         "voc_path": "./data/data_preprocessed/voc_english.txt",
-        "n_keys": 30,
+        "n_keys": 29,
         "checkpoint_dir": "./checkpoints/english/",,
         "log_dir": "./lightning_logs/english/",
         "dataset_stats": {
