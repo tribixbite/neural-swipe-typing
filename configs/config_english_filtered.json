@@ -62,6 +62,16 @@
         "accumulate_grad_batches": 1,
         "check_val_every_n_epoch": 1,
         "log_every_n_steps": 50,
-        "random_seed": 42
+        "random_seed": 42,
+        "weight_decay": 0,
+        "lr_scheduler_patience": 20,
+        "lr_scheduler_factor": 0.5,
+        "use_coords": true,
+        "use_time": false,
+        "use_velocity": true,
+        "use_acceleration": true,
+        "noise_range": 0,
+        "checkpoint_dir": "./checkpoints/english_filtered/",
+        "log_dir": "./lightning_logs/english_filtered/"
     }
 }
