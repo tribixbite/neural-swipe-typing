@@ -1,0 +1,71 @@
+{
+    "prediction_config": {
+        "model_params": [
+            ["qwerty_english", "v3_weighted_and_traj_transformer_bigger", "english_transformer_epoch_001.pt"]
+        ],
+        "out_path": "./results/predictions/test/english",
+        "csv_path": "",
+        "data_split": "test",
+        "grid_name_to_grid__path": "./data/data_preprocessed/gridname_to_grid_english.json",
+        "models_root": "./results/models/english",
+        "voc_path": "./data/data_preprocessed/voc_english.txt",
+        "transform_name": "traj_feats_and_distance_weights",
+        "include_coords": true,
+        "include_time": false,
+        "include_velocities": true,
+        "include_accelerations": true,
+        "generator": "beam",
+        "generator_call_kwargs": {
+            "max_steps_n": 35,
+            "return_hypotheses_n": null,
+            "beamsize": 6,
+            "normalization_factor": 0.5
+        },
+        "data_split__to__path": {
+            "train": "./data/data_preprocessed/english_full_train.jsonl",
+            "val": "./data/data_preprocessed/english_full_valid.jsonl",
+            "test": "./data/data_preprocessed/english_full_test.jsonl"
+        },
+        "use_vocab_for_generation": true,
+        "n_classes": 35
+    },
+    "training_config": {
+        "model_name": "v3_weighted_and_traj_transformer_bigger",
+        "grid_name": "qwerty_english",
+        "transform_name": "traj_feats_and_distance_weights",
+        "dist_weights_func_name": "weights_function_v1",
+        "batch_size_train": 256,
+        "batch_size_val": 512,
+        "learning_rate": 1e-4,
+        "weight_decay": 0,
+        "label_smoothing": 0.045,
+        "dropout": 0.2,
+        "max_epochs": 100,
+        "early_stopping_patience": 35,
+        "lr_scheduler_patience": 20,
+        "lr_scheduler_factor": 0.5,
+        "val_check_interval": 3000,
+        "num_workers": 4,
+        "use_coords": true,
+        "use_time": false,
+        "use_velocity": true,
+        "use_acceleration": true,
+        "noise_range": 0,
+        "random_seed": 42,
+        "data_paths": {
+            "train": "./data/data_preprocessed/english_full_train.jsonl",
+            "val": "./data/data_preprocessed/english_full_valid.jsonl",
+            "test": "./data/data_preprocessed/english_full_test.jsonl"
+        },
+        "grid_path": "./data/data_preprocessed/gridname_to_grid_english.json",
+        "voc_path": "./data/data_preprocessed/voc_english.txt",
+        "checkpoint_dir": "./checkpoints/english/",
+        "log_dir": "./lightning_logs/english/",
+        "dataset_stats": {
+            "total_swipes": 87166,
+            "train_samples": 69732,
+            "val_samples": 8716,
+            "test_samples": 8718
+        }
+    }
+}

@@ -53,35 +53,37 @@ Apply the best pipeline from this neural-swipe-typing repository to English lang
 - [x] Output in JSONL format: `{"word": "target", "curve": {"x": [...], "y": [...], "t": [...], "grid_name": "qwerty_english"}}`
 - [x] Test on 5 sample files - extracted 235 swipes successfully
 
-#### 1.4 Process English Dataset
-- [ ] Run conversion script on all swipelogs
-- [ ] Split into train/validation/test sets (80/10/10 or similar)
-- [ ] Filter out erroneous swipes (marked with `is_err=1`)
-- [ ] Save as:
-  - `data/data_preprocessed/train_english.jsonl`
-  - `data/data_preprocessed/valid_english.jsonl`
-  - `data/data_preprocessed/test_english.jsonl`
+#### 1.4 Process English Dataset ✅
+- [x] Run conversion script on all swipelogs (1338 files)
+- [x] Split into train/validation/test sets (80/10/10)
+- [x] Filter out erroneous swipes (marked with `is_err=1`)
+- [x] Extracted 87,166 total swipes
+- [x] Save as:
+  - `data/data_preprocessed/english_full_train.jsonl` (69,732 samples)
+  - `data/data_preprocessed/english_full_valid.jsonl` (8,716 samples)
+  - `data/data_preprocessed/english_full_test.jsonl` (8,718 samples)
 
-#### 1.5 Prepare English Vocabulary
-- [ ] Extract unique words from training data
-- [ ] Create character vocabulary file
-- [ ] Save as `data/data_preprocessed/voc_english.txt`
-- [ ] Ensure special tokens included: `<sos>`, `<eos>`, `<pad>`, `<unk>`
+#### 1.5 Prepare English Vocabulary ✅
+- [x] Extract unique words from training data (10,638 unique words)
+- [x] Create character vocabulary file (61 unique characters)
+- [x] Save as `data/data_preprocessed/voc_english.txt`
+- [x] Ensure special tokens included: `<sos>`, `<eos>`, `<pad>`, `<unk>`
 
-### Phase 2: Model Configuration
+### Phase 2: Model Configuration ✅
 
-#### 2.1 Create English Configuration
-- [ ] Copy `configs/config__my_weighted_features.json`
-- [ ] Create `configs/config_english.json`
-- [ ] Update paths to English datasets
-- [ ] Set `grid_name: "qwerty_english"`
-- [ ] Adjust hyperparameters if needed
+#### 2.1 Create English Configuration ✅
+- [x] Copy `configs/config__my_weighted_features.json`
+- [x] Create `configs/config_english.json`
+- [x] Update paths to English datasets
+- [x] Set `grid_name: "qwerty_english"`
+- [x] Configure hyperparameters (lr=1e-4, batch=256/512, smoothing=0.045)
 
-#### 2.2 Update Training Script
-- [ ] Modify `src/train.ipynb` or create `src/train_english.py`
-- [ ] Add English dataset paths to `GRID_NAME_TO_DS_PATHS`
-- [ ] Set appropriate batch sizes based on dataset size
-- [ ] Configure checkpoint naming for English model
+#### 2.2 Update Training Script ✅
+- [x] Create standalone `src/train_english.py` script
+- [x] Add English dataset paths configuration
+- [x] Set appropriate batch sizes (train=256, val=512)
+- [x] Configure checkpoint naming for English model
+- [x] Include all necessary imports and Lightning setup
 
 ### Phase 3: Training
 
@@ -130,11 +132,11 @@ Apply the best pipeline from this neural-swipe-typing repository to English lang
 
 ### Phase 5: Android Deployment Preparation
 
-#### 5.1 Merge ExecutorTorch Branch
-- [ ] Review `executorch-investigation` branch compatibility
-- [ ] Merge branch into main (contains `executorch_export.ipynb`)
-- [ ] Test export pipeline with Russian model first
-- [ ] Document any conflicts or updates needed
+#### 5.1 Merge ExecutorTorch Branch ✅
+- [x] Review `executorch-investigation` branch compatibility
+- [x] Merge branch into main (contains `executorch_export.ipynb`)
+- [x] No conflicts - clean merge
+- [ ] Test export pipeline with trained English model
 
 #### 5.2 Export Model for Android
 - [ ] Install ExecutorTorch 0.5 with XNNPACK backend
@@ -284,4 +286,4 @@ Based on the notebook documentation:
 
 ---
 Last Updated: 2024-11-24
-Status: Phase 1 critical items completed! Conversion script created and tested. Ready to process full dataset.
+Status: Phases 1-2 COMPLETE! Dataset processed (87K swipes), configuration ready, training script created. Ready to start training!
