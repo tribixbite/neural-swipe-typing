@@ -423,14 +423,16 @@ def get_word_char_embedding_model_bigger__v3(d_model: int, n_word_chars: int,
 
 
 def _get_transformer_bigger__v3(input_embedding: nn.Module,
-                                device = None,):
-    CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
-    MAX_OUT_SEQ_LEN = 35  # word_char_tokenizer.max_word_len - 1
+                                device = None,
+                                vocab_size = 37,
+                                max_word_len = 36):
+    CHAR_VOCAB_SIZE = vocab_size  # Configurable vocabulary size
+    MAX_OUT_SEQ_LEN = max_word_len - 1  # Configurable output sequence length
 
     n_word_chars = CHAR_VOCAB_SIZE
 
 
-    n_classes = CHAR_VOCAB_SIZE - 2  # <sos> and <pad> are not predicted
+    n_classes = CHAR_VOCAB_SIZE  # Output all vocab classes for English
 
 
     d_model = 128
@@ -470,12 +472,16 @@ def _set_state(model, weights_path, device):
 
 def get_transformer_bigger_weighted_and_traj__v3(device = None, 
                                                  weights_path = None,
-                                                 n_coord_feats = 6) -> EncoderDecoderTransformerLike:
-    CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
-    MAX_CURVES_SEQ_LEN = 299
+                                                 n_coord_feats = 6,
+                                                 n_keys = 37,
+                                                 vocab_size = 37,
+                                                 max_word_len = 36) -> EncoderDecoderTransformerLike:
+    CHAR_VOCAB_SIZE = vocab_size  # Configurable vocabulary size
+    MAX_CURVES_SEQ_LEN = 2048  # Increased for longer English swipes
+    MAX_OUT_SEQ_LEN = max_word_len - 1  # Configurable output sequence length
     # Actually, n_keys != n_word_chars. n_keys = 36.
     # It's legacy. It should not affect the model performace though.
-    n_keys = CHAR_VOCAB_SIZE
+    # n_keys = CHAR_VOCAB_SIZE  # Now passed as parameter
 
     d_model = 128
     key_emb_size = d_model - n_coord_feats
@@ -488,7 +494,7 @@ def get_transformer_bigger_weighted_and_traj__v3(device = None,
         n_keys=n_keys, key_emb_size=key_emb_size, 
         max_len=MAX_CURVES_SEQ_LEN, device = device, dropout=0.1)
     
-    model = _get_transformer_bigger__v3(input_embedding, device)
+    model = _get_transformer_bigger__v3(input_embedding, device, vocab_size, max_word_len)
 
     model = _set_state(model, weights_path, device)
 

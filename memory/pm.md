@@ -301,6 +301,22 @@ Based on the notebook documentation:
 - Create FullEncoder modules
 - Verify unused model fields don't affect export
 
+### Phase 7: Context-Aware Prediction (Future Work)
+
+#### 7.1 Research and Design
+- [ ] Research methods for incorporating previous word context into the transformer decoder.
+- [ ] Design architectural changes needed (e.g., new inputs for the decoder, context encoder).
+
+#### 7.2 Implementation
+- [ ] Modify the `Dataset` and `CollateFn` to provide previous word(s) as input.
+- [ ] Update the model architecture in `src/model.py` to accept and use context.
+- [ ] Adjust the training script `src/train_english.py` to handle the new data format.
+
+#### 7.3 Training and Evaluation
+- [ ] Train the new context-aware model.
+- [ ] Evaluate its performance against the non-contextual model to measure improvement.
+
+
 ---
 Last Updated: 2024-11-24
 Status: Phases 1-3.1 COMPLETE! Dataset processed and filtered (74K clean English swipes), configuration ready, subset testing successful. Model forward pass verified. Ready for full training!

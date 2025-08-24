@@ -19,7 +19,7 @@ def _get_data_from_json_line(line) -> RawDatasetEl:
 
     X = array.array('h', data['curve']['x'])
     Y = array.array('h', data['curve']['y'])
-    T = array.array('h', data['curve']['t'])
+    T = array.array('i', data['curve']['t'])
 
     grid_name = data['curve']['grid_name']   
 

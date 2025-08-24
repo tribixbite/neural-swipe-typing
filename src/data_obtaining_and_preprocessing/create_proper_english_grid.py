@@ -66,27 +66,6 @@ def create_proper_english_grid():
             }
         })
     
-    # Add punctuation
-    keys.append({
-        "label": "'",
-        "hitbox": {"x": 324, "y": row2_y, "w": key_w, "h": key_h}
-    })
-    
-    keys.append({
-        "label": ".",
-        "hitbox": {"x": 288, "y": row3_y, "w": key_w, "h": key_h}
-    })
-    
-    keys.append({
-        "label": ",",
-        "hitbox": {"x": 252, "y": row3_y, "w": key_w, "h": key_h}
-    })
-    
-    keys.append({
-        "label": "-",
-        "hitbox": {"x": 342, "y": row1_y, "w": key_w, "h": key_h}
-    })
-    
     # Space bar (wider key)
     keys.append({
         "label": " ",

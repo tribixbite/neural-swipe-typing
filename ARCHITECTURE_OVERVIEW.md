@@ -19,7 +19,7 @@ Raw Swipe → Feature Extraction → Encoder → Decoder → Word Prediction
 1. **Swipe Point Embedder** (`SeparateTrajAndWeightedEmbeddingWithPos`)
    - Computes weighted sum of ALL keyboard key embeddings for each swipe point
    - Combines trajectory features with keyboard distance weights
-   - Embedding dimension: 128 total (122 for keys + 6 for trajectory features)
+   - Embedding dimension: 128 total (the exact size for keys depends on the keyboard layout, e.g. 30 for the current English QWERTY, plus 6 for trajectory features)
    - Uses positional encoding with dropout=0.1
 
 2. **Transformer Encoder**
@@ -38,7 +38,7 @@ Raw Swipe → Feature Extraction → Encoder → Decoder → Word Prediction
 
 4. **Word Token Embedder**
    - Standard embedding layer for target characters
-   - Vocabulary size: 37 tokens (including special tokens)
+   - Vocabulary size: 40 tokens (including special tokens)
    - Combined with sinusoidal positional encoding
 
 ### 1.2 Model Variants Comparison
@@ -128,10 +128,10 @@ logits: (batch_size, target_len, vocab_size)  # Character probabilities
 
 ### 3.2 Dataset Statistics
 
-- Total English swipes: 87,166 (after filtering)
-- Train: 69,732 (80%)
-- Validation: 8,716 (10%)
-- Test: 8,718 (10%)
+- Total English swipes: 74,021 (after filtering non-English words)
+- Train: 59,213 (80%)
+- Validation: 7,362 (10%)
+- Test: 7,446 (10%)
 
 ## 4. Inference & Decoding
 

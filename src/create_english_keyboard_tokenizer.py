@@ -6,8 +6,8 @@ import string
 class KeyboardTokenizerEnglish:
     """English keyboard tokenizer compatible with feature extraction."""
     
-    # All lowercase English letters + some punctuation
-    ENGLISH_CHARS = list(string.ascii_lowercase) + [' ', "'", ',', '.', '-']
+    # Just lowercase English letters for swipe input (people don't swipe punctuation)
+    ENGLISH_CHARS = list(string.ascii_lowercase)
     
     def __init__(self):
         self.i2t = self.ENGLISH_CHARS + ['<unk>', '<pad>']

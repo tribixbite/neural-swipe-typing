@@ -56,8 +56,9 @@ def get_lr_scheduler(optimizer, patience=20, factor=0.5):
 
 
 class LitNeuroswipeModel(LightningModule):
-    def __init__(self, model_name: str, n_coord_feats: int, criterion,
-                 num_classes: int, train_batch_size: int = None,
+    def __init__(self, model_name: str, n_coord_feats: int, n_keys: int, criterion,
+                 num_classes: int, vocab_size: int, max_word_len: int,
+                 train_batch_size: int = None,
                  criterion_ignore_index: int = -100, optim_kwargs=None,
                  optimizer_ctor=None, lr_scheduler_ctor=None, label_smoothing=0.0):
         super().__init__()
@@ -73,7 +74,12 @@ class LitNeuroswipeModel(LightningModule):
         self.optimizer_ctor = optimizer_ctor
         self.lr_scheduler_ctor = lr_scheduler_ctor
         
-        self.model = MODEL_GETTERS_DICT[model_name](n_coord_feats=n_coord_feats)
+        self.model = MODEL_GETTERS_DICT[model_name](
+            n_coord_feats=n_coord_feats, 
+            n_keys=n_keys,
+            vocab_size=vocab_size,
+            max_word_len=max_word_len
+        )
         self.criterion = criterion
         
         self.train_token_acc = torchmetrics.classification.Accuracy(
@@ -211,7 +217,8 @@ def main():
         ds_paths_list=[training_config['data_paths']['train'], 
                       training_config['data_paths']['val']],
         totals=(training_config['dataset_stats']['train_samples'],
-                training_config['dataset_stats']['val_samples'])
+                training_config['dataset_stats']['val_samples']),
+        word_tokenizer=char_tokenizer  # Pass character tokenizer for decoder
     )
     
     # Create datasets
@@ -265,7 +272,10 @@ def main():
         model_name=training_config['model_name'],
         criterion=cross_entropy_with_reshape,
         n_coord_feats=n_coord_feats,
+        n_keys=training_config['n_keys'],
         num_classes=len(char_tokenizer.idx_to_char),
+        vocab_size=len(char_tokenizer.idx_to_char),
+        max_word_len=30,  # Support up to 28 character words + <sos> + <eos> (safe margin)
         train_batch_size=training_config['batch_size_train'],
         criterion_ignore_index=char_tokenizer.char_to_idx['<pad>'],
         optim_kwargs=dict(lr=training_config['learning_rate'],

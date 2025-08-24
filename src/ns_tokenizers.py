@@ -7,6 +7,11 @@ ALL_CYRILLIC_LETTERS_ALPHABET_ORD = [
     'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я'
 ]
 
+ALL_ENGLISH_LETTERS_ALPHABET_ORD = [
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
+]
+
 
 class CharLevelTokenizerv2:
     """

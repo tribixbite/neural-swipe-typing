@@ -37,7 +37,7 @@ from tqdm.auto import tqdm
 from .nearest_key_lookup import NearestKeyLookup, ExtendedNearestKeyLookup
 from .distances_lookup import DistancesLookup
 from ns_tokenizers import KeyboardTokenizerv1, CharLevelTokenizerv2
-from ns_tokenizers import ALL_CYRILLIC_LETTERS_ALPHABET_ORD
+from ns_tokenizers import ALL_CYRILLIC_LETTERS_ALPHABET_ORD, ALL_ENGLISH_LETTERS_ALPHABET_ORD
 from dataset import RawDatasetEl 
 from grid_processing_utils import get_gname_to_wh, get_kb_label, get_grid
 
@@ -694,16 +694,19 @@ def get_traj_feats_and_weights_transform(gname_to_grid: Dict[str, dict],
                                            weights_func: Callable,
                                            include_time: bool,
                                            include_velocities: bool,
-                                           include_accelerations: bool
+                                           include_accelerations: bool,
+                                           allowed_keys = DEFAULT_ALLOWED_KEYS,
+                                           word_tokenizer = None
                                             ) -> Callable:
     full_transform = FullTransform(
         encoder_in_getter=EncoderFeaturesGetter_KbKeyWeightsAndTrajFeats(
             grid_name_to_dists_lookup, gname_to_grid,
             include_time=include_time, include_velocities=include_velocities,
-            include_accelerations=include_accelerations, weights_func=weights_func
+            include_accelerations=include_accelerations, weights_func=weights_func,
+            allowed_keys=allowed_keys
         ),
         decoder_in_out_getter=DecoderInputOutputGetter(
-            word_tokenizer=char_tokenizer,
+            word_tokenizer=word_tokenizer if word_tokenizer is not None else char_tokenizer,
             dtype=torch.int64
         )
     )
@@ -732,7 +735,8 @@ def get_val_transform(gridname_to_grid_path: str,
                       ds_paths_list: Optional[List[str]] = None,
                       totals: Tuple[Optional[int], Optional[int]] = None,
                       kb_x_scaler: Callable = lambda x: x,
-                      kb_y_scaler: Callable = lambda y: y
+                      kb_y_scaler: Callable = lambda y: y,
+                      word_tokenizer = None  # Add parameter for decoder word tokenizer
                    ) -> Tuple[Callable, Callable]:
     """Returns validation transform"""
     TRAJ_FEATS_AND_WEIGHTS = "traj_feats_and_distance_weights"
@@ -791,7 +795,7 @@ def get_val_transform(gridname_to_grid_path: str,
                 include_accelerations=include_accelerations
             ),
             decoder_in_out_getter=DecoderInputOutputGetter(
-                word_tokenizer=char_tokenizer,
+                word_tokenizer=word_tokenizer if word_tokenizer is not None else char_tokenizer,
                 dtype=torch.int64
             )
         )
@@ -801,9 +805,12 @@ def get_val_transform(gridname_to_grid_path: str,
         assert_traj_feats_provided(include_time, include_velocities, include_accelerations)
         assert dist_weights_func is not None, "dist_weights_func must be provided"
 
+        # Determine allowed keys based on grid name
+        allowed_keys = ALL_ENGLISH_LETTERS_ALPHABET_ORD if any('english' in gname for gname in grid_names) else DEFAULT_ALLOWED_KEYS
+        
         full_transform = get_traj_feats_and_weights_transform(
             gname_to_grid, char_tokenizer, gridname_to_dists_lookup, dist_weights_func,
-            include_time, include_velocities, include_accelerations
+            include_time, include_velocities, include_accelerations, allowed_keys, word_tokenizer
         )
 
     elif transform_name == NEAREST_KEY_ONLY:
@@ -814,7 +821,7 @@ def get_val_transform(gridname_to_grid_path: str,
                 dtype=torch.int32
             ),
             decoder_in_out_getter=DecoderInputOutputGetter(
-                word_tokenizer=char_tokenizer,
+                word_tokenizer=word_tokenizer if word_tokenizer is not None else char_tokenizer,
                 dtype=torch.int64
             )
         )
@@ -831,7 +838,7 @@ def get_val_transform(gridname_to_grid_path: str,
                 include_accelerations=include_accelerations
             ),
             decoder_in_out_getter=DecoderInputOutputGetter(
-                word_tokenizer=char_tokenizer,
+                word_tokenizer=word_tokenizer if word_tokenizer is not None else char_tokenizer,
                 dtype=torch.int64
             )
         )
@@ -849,7 +856,7 @@ def get_val_transform(gridname_to_grid_path: str,
                 kb_y_scaler=kb_y_scaler
             ),
             decoder_in_out_getter=DecoderInputOutputGetter(
-                word_tokenizer=char_tokenizer,
+                word_tokenizer=word_tokenizer if word_tokenizer is not None else char_tokenizer,
                 dtype=torch.int64
             )
         )
@@ -873,7 +880,8 @@ def get_transforms(gridname_to_grid_path: str,
                      ds_paths_list: Optional[List[str]] = None,
                      totals: Tuple[Optional[int], Optional[int]] = None,
                      kb_x_scaler: Callable = lambda x: x,
-                     kb_y_scaler: Callable = lambda y: y
+                     kb_y_scaler: Callable = lambda y: y,
+                     word_tokenizer = None  # Add parameter for decoder word tokenizer
                      ) -> Tuple[Callable, Callable]:
     """Returns train and validation transforms"""
     
@@ -882,7 +890,7 @@ def get_transforms(gridname_to_grid_path: str,
         gridname_to_grid_path, grid_names, transform_name, char_tokenizer,
         uniform_noise_range, include_time, include_velocities,
         include_accelerations, dist_weights_func, ds_paths_list, totals,
-        kb_x_scaler, kb_y_scaler
+        kb_x_scaler, kb_y_scaler, word_tokenizer
     )
 
     train_transform = val_transform
