@@ -249,7 +249,7 @@ def main():
         batch_size=training_config['batch_size_train'],
         shuffle=True,
         num_workers=training_config['num_workers'],
-        persistent_workers=True,
+        persistent_workers=training_config['num_workers'] > 0,
         collate_fn=collate_fn
     )
     
@@ -258,7 +258,7 @@ def main():
         batch_size=training_config['batch_size_val'],
         shuffle=False,
         num_workers=training_config['num_workers'],
-        persistent_workers=True,
+        persistent_workers=training_config['num_workers'] > 0,
         collate_fn=collate_fn
     )
     
@@ -273,7 +273,7 @@ def main():
         criterion=cross_entropy_with_reshape,
         n_coord_feats=n_coord_feats,
         n_keys=training_config['n_keys'],
-        num_classes=len(char_tokenizer.idx_to_char),
+        num_classes=len(char_tokenizer.idx_to_char) - 2,  # Model outputs VOCAB_SIZE - 2 classes
         vocab_size=len(char_tokenizer.idx_to_char),
         max_word_len=30,  # Support up to 28 character words + <sos> + <eos> (safe margin)
         train_batch_size=training_config['batch_size_train'],
