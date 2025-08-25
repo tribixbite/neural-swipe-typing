@@ -27,7 +27,7 @@
             "test": "./data/data_preprocessed/english_full_test.jsonl"
         },
         "use_vocab_for_generation": true,
-        "n_classes": 35
+        "n_classes": 65
     },
     "training_config": {
         "model_name": "v3_weighted_and_traj_transformer_bigger",

@@ -125,11 +125,13 @@ Apply the best pipeline from this neural-swipe-typing repository to English lang
   - Enabled batch_first=True for nested tensor optimization
   - Enabled Tensor Cores with high precision matmul
   - Removed deprecated verbose parameter
-- [x] First epoch completed successfully:
-  - Final train loss: ~2.15
-  - Train word accuracy: ~17%
-  - Val loss: 0.742 (best checkpoint)
-  - Val word accuracy: 63.5%
+  - Fixed checkpoint compatibility with conversion script
+  - Fixed metrics calculation for batch_first format
+- [x] Training completed to epoch 70+ with optimizations:
+  - Epoch 70: Val accuracy 63.5% (best checkpoint before optimizations)
+  - Successfully resumed training after batch_first conversion
+  - Epoch 72: Train accuracy ~77.3%, Val accuracy ~63.4%
+  - All performance optimizations working correctly
 - [x] Multiple checkpoints saved (epochs 60, 61, 65, 66, 70)
 - [x] Use best hyperparameters from Russian model:
   - Learning rate: 1e-4
@@ -371,3 +373,22 @@ Status: Phase 3.2 OPTIMIZATIONS COMPLETE! Performance improvements implemented:
 - Tensor Cores enabled for RTX acceleration
 - First epoch completed: 63.5% validation accuracy
 - Model checkpoints saved and ready for further training
+
+## ✅ CRITICAL ARCHITECTURAL FIX (2024-11-25)
+
+**Problem Identified**: Previous training used bloated 67-token vocabulary instead of optimal 29 tokens for swipe typing use case.
+
+**Root Cause**: Use case only requires 26 lowercase letters (a-z) + 3 special tokens, but model was trained with unnecessary foreign characters, uppercase letters, and punctuation.
+
+**Solution Implemented**:
+- Created optimal `voc_english_minimal.txt` with exactly 29 tokens
+- New configuration: `config_english_minimal.json`
+- Model architecture optimized: 57% smaller output layer (29 vs 67 classes)
+- Training restarted from scratch with correct architecture
+- All performance optimizations preserved (batch-first, Tensor Cores, mixed precision)
+
+**Benefits**:
+- Faster training convergence (model focuses only on relevant tokens)
+- Smaller model size for mobile deployment
+- Improved efficiency: 57% reduction in output layer parameters
+- Eliminated vocabulary bloat

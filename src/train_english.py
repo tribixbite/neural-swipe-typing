@@ -117,7 +117,7 @@ class LitNeuroswipeModel(LightningModule):
         
         argmax_pred = torch.argmax(pred, dim=2)
         wl_accuracy = get_word_level_accuracy(
-            argmax_pred.T, batch_y.T, pad_token=self.criterion_ignore_index, mask=dec_seq_pad_mask)
+            argmax_pred, batch_y, pad_token=self.criterion_ignore_index, mask=dec_seq_pad_mask)
         
         flat_y = batch_y.reshape(-1)
         n_classes = pred.shape[-1]
@@ -149,7 +149,7 @@ class LitNeuroswipeModel(LightningModule):
         
         argmax_pred = torch.argmax(pred, dim=2)
         wl_accuracy = get_word_level_accuracy(
-            argmax_pred.T, batch_y.T, pad_token=self.criterion_ignore_index, mask=dec_seq_pad_mask)
+            argmax_pred, batch_y, pad_token=self.criterion_ignore_index, mask=dec_seq_pad_mask)
         
         flat_y = batch_y.reshape(-1)
         n_classes = pred.shape[-1]
@@ -276,7 +276,7 @@ def main():
         criterion=cross_entropy_with_reshape,
         n_coord_feats=n_coord_feats,
         n_keys=training_config['n_keys'],
-        num_classes=len(char_tokenizer.idx_to_char) - 2,  # Model outputs VOCAB_SIZE - 2 classes
+        num_classes=len(char_tokenizer.idx_to_char) - 2,  # Model outputs VOCAB_SIZE - 2 classes (currently 67-2=65)
         vocab_size=len(char_tokenizer.idx_to_char),
         max_word_len=30,  # Support up to 28 character words + <sos> + <eos> (safe margin)
         train_batch_size=training_config['batch_size_train'],

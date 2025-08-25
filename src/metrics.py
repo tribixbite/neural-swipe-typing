@@ -35,12 +35,13 @@ def get_word_level_accuracy(y_true_batch: torch.Tensor,
                             pred_batch: torch.Tensor, 
                             pad_token: int, 
                             mask: torch.Tensor) -> float:
-    # By default y_true.shape = pred.shape = (chars_seq_len, batch_size)
-    # So we have to transpose here or before calling
+    # With batch_first=True: y_true.shape = pred.shape = (batch_size, chars_seq_len)
+    # mask.shape = (batch_size, chars_seq_len)
 
     y_true_batch = y_true_batch.masked_fill(mask, pad_token)
     pred_batch = pred_batch.masked_fill(mask, pad_token)
-    equality_results = torch.all(torch.eq(y_true_batch, pred_batch), dim = 1)
+    # Compare along sequence dimension (dim=1 for batch_first)
+    equality_results = torch.all(torch.eq(y_true_batch, pred_batch), dim=1)
         
     return float(equality_results.sum() / len(equality_results))
 

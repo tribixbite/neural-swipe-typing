@@ -1,0 +1,73 @@
+{
+    "prediction_config": {
+        "model_params": [
+            ["qwerty_english", "v3_weighted_and_traj_transformer_bigger", "english_minimal_transformer_best.pt"]
+        ],
+        "out_path": "./results/predictions/test/english_minimal",
+        "csv_path": "",
+        "data_split": "test",
+        "grid_name_to_grid__path": "./data/data_preprocessed/gridname_to_grid_english.json",
+        "models_root": "./results/models/english_minimal",
+        "voc_path": "./data/data_preprocessed/voc_english_minimal.txt",
+        "transform_name": "traj_feats_and_distance_weights",
+        "include_coords": true,
+        "include_time": false,
+        "include_velocities": true,
+        "include_accelerations": true,
+        "generator": "beam",
+        "generator_call_kwargs": {
+            "max_steps_n": 35,
+            "return_hypotheses_n": null,
+            "beamsize": 6,
+            "normalization_factor": 0.5
+        },
+        "data_split__to__path": {
+            "train": "./data/data_preprocessed/english_filtered_train.jsonl",
+            "val": "./data/data_preprocessed/english_filtered_valid.jsonl",
+            "test": "./data/data_preprocessed/english_filtered_test.jsonl"
+        },
+        "use_vocab_for_generation": true,
+        "n_classes": 26
+    },
+    "training_config": {
+        "model_name": "v3_weighted_and_traj_transformer_bigger",
+        "grid_name": "qwerty_english",
+        "transform_name": "traj_feats_and_distance_weights",
+        "dist_weights_func_name": "weights_function_v1",
+        "batch_size_train": 512,
+        "batch_size_val": 1024,
+        "learning_rate": 2e-4,
+        "weight_decay": 0,
+        "label_smoothing": 0.045,
+        "dropout": 0.2,
+        "max_epochs": 100,
+        "early_stopping_patience": 15,
+        "lr_scheduler_patience": 20,
+        "lr_scheduler_factor": 0.5,
+        "val_check_interval": 1.0,
+        "num_workers": 8,
+        "use_coords": true,
+        "use_time": false,
+        "use_velocity": true,
+        "use_acceleration": true,
+        "noise_range": 0,
+        "random_seed": 42,
+        "data_paths": {
+            "train": "./data/data_preprocessed/english_filtered_train.jsonl",
+            "val": "./data/data_preprocessed/english_filtered_valid.jsonl",
+            "test": "./data/data_preprocessed/english_filtered_test.jsonl"
+        },
+        "grid_path": "./data/data_preprocessed/gridname_to_grid_english.json",
+        "voc_path": "./data/data_preprocessed/voc_english_minimal.txt",
+        "n_keys": 29,
+        "checkpoint_dir": "./checkpoints/english_minimal_gpu_optimized/",
+        "log_dir": "./lightning_logs/english_minimal_gpu_optimized/",
+        "dataset_stats": {
+            "total_swipes": 74021,
+            "train_samples": 59213,
+            "val_samples": 7362,
+            "test_samples": 7446,
+            "comment": "GPU-optimized: larger batches, 8 workers, higher LR for fast training"
+        }
+    }
+}
