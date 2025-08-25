@@ -52,7 +52,7 @@ def cross_entropy_with_reshape(pred, target, ignore_index=-100, label_smoothing=
 
 def get_lr_scheduler(optimizer, patience=20, factor=0.5):
     return torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=patience, factor=factor, verbose=True)
+        optimizer, patience=patience, factor=factor)  # Removed deprecated verbose parameter
 
 
 class LitNeuroswipeModel(LightningModule):
@@ -182,6 +182,9 @@ def main():
     
     args = parser.parse_args()
     
+    # Enable Tensor Cores for faster training on RTX GPUs
+    torch.set_float32_matmul_precision('high')
+    
     # Load configuration
     with open(args.config, 'r') as f:
         config = json.load(f)
@@ -241,7 +244,7 @@ def main():
     # Create data loaders
     collate_fn = CollateFnV2(
         word_pad_idx=char_tokenizer.char_to_idx['<pad>'],
-        batch_first=False
+        batch_first=True  # Use batch_first for nested tensor optimization
     )
     
     train_loader = DataLoader(

@@ -20,19 +20,32 @@ import torch.nn.functional as F
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, max_len: int, device, dropout: float = 0.0):
+    def __init__(self, d_model: int, max_len: int, device, dropout: float = 0.0, batch_first: bool = True):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
+        self.batch_first = batch_first
 
         position = torch.arange(max_len).unsqueeze(1)
         # ```d_model // 2``` elements
         div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
-        pe = torch.zeros(max_len, 1, d_model)
-        pe[:, 0, 0::2] = torch.sin(position * div_term)
-        if d_model % 2 == 0:
-            pe[:, 0, 1::2] = torch.cos(position * div_term)
+        
+        if batch_first:
+            # Shape: [1, max_len, d_model] for batch_first
+            pe = torch.zeros(1, max_len, d_model)
+            pe[0, :, 0::2] = torch.sin(position * div_term)
+            if d_model % 2 == 0:
+                pe[0, :, 1::2] = torch.cos(position * div_term)
+            else:
+                pe[0, :, 1::2] = torch.cos(position * div_term[:-1])
         else:
-            pe[:, 0, 1::2] = torch.cos(position * div_term[:-1])
+            # Shape: [max_len, 1, d_model] for seq_first
+            pe = torch.zeros(max_len, 1, d_model)
+            pe[:, 0, 0::2] = torch.sin(position * div_term)
+            if d_model % 2 == 0:
+                pe[:, 0, 1::2] = torch.cos(position * div_term)
+            else:
+                pe[:, 0, 1::2] = torch.cos(position * div_term[:-1])
+        
         pe = pe.to(device=device)
         self.register_buffer('pe', pe)
 
@@ -40,9 +53,13 @@ class PositionalEncoding(nn.Module):
         """
         Arguments:
         ----------
-        x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
+        x: Tensor, shape ``[batch_size, seq_len, embedding_dim]`` if batch_first
+                   or ``[seq_len, batch_size, embedding_dim]`` if not batch_first
         """
-        x = x + self.pe[:x.size(0)]
+        if self.batch_first:
+            x = x + self.pe[:, :x.size(1)]
+        else:
+            x = x + self.pe[:x.size(0)]
         return self.dropout(x)
     
 
@@ -102,7 +119,7 @@ class WeightedSumEmbedding(nn.Module):
 class WeightsSumEmbeddingWithPos(WeightedSumEmbedding):
     def __init__(self, n_elements, dim, max_len, device) -> None:
         super().__init__(n_elements, dim)
-        self.pos_encoder = PositionalEncoding(dim, max_len, device)
+        self.pos_encoder = PositionalEncoding(dim, max_len, device, batch_first=True)
 
     def forward(self, weights):
         emb = super().forward(weights)
@@ -122,7 +139,7 @@ class NearestEmbeddingWithPos(nn.Module):
     def __init__(self, n_elements, dim, max_len, device, dropout) -> None:
         super().__init__()
         self.key_emb = nn.Embedding(n_elements, dim)
-        self.pos_encoder = PositionalEncoding(dim, max_len, device)
+        self.pos_encoder = PositionalEncoding(dim, max_len, device, batch_first=True)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, kb_ids_seq: torch.Tensor):
@@ -313,13 +330,15 @@ class EncoderDecoderTransformerLike(nn.Module):
                  encoder: nn.Module, 
                  decoder: nn.Module, 
                  out: nn.Module,
-                 device: Optional[str] = None):
+                 device: Optional[str] = None,
+                 batch_first: bool = True):
         super().__init__()
         self.enc_in_emb_model = enc_in_emb_model
         self.dec_in_emb_model = dec_in_emb_model
         self.encoder = encoder
         self.decoder = decoder
         self.out = out  # linear
+        self.batch_first = batch_first
         self.device = torch.device(
             device or 'cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -331,7 +350,9 @@ class EncoderDecoderTransformerLike(nn.Module):
     
     def decode(self, y, x_encoded, memory_key_padding_mask, tgt_key_padding_mask):
         y = self.dec_in_emb_model(y)
-        tgt_mask = self._get_mask(len(y)).to(device=self.device)
+        # Get sequence length based on batch_first flag
+        seq_len = y.size(1) if self.batch_first else y.size(0)
+        tgt_mask = self._get_mask(seq_len).to(device=self.device)
         dec_out = self.decoder(y, x_encoded, tgt_mask=tgt_mask, 
                                memory_key_padding_mask=memory_key_padding_mask, 
                                tgt_key_padding_mask=tgt_key_padding_mask)
@@ -364,6 +385,7 @@ def get_transformer_encoder_backbone_bigger__v3() -> nn.TransformerEncoder:
         dim_feedforward=dim_feedforward,
         dropout=dropout,
         activation=activation,
+        batch_first=True,  # Enable nested tensor optimization
     )
     
     encoder = nn.TransformerEncoder(
@@ -391,6 +413,7 @@ def get_transformer_decoder_backbone_bigger__v3() -> nn.TransformerDecoder:
         dim_feedforward=dim_feedforward,
         dropout=dropout,
         activation=activation,
+        batch_first=True,  # Enable nested tensor optimization
     )
     
     decoder = nn.TransformerDecoder(
@@ -410,7 +433,7 @@ def get_word_char_embedding_model_bigger__v3(d_model: int, n_word_chars: int,
     word_char_embedding = nn.Embedding(n_word_chars, d_model)
     dropout = 0.1
     word_char_emb_dropout = nn.Dropout(dropout)
-    word_char_pos_encoder = PositionalEncoding(d_model, max_out_seq_len, device=device)
+    word_char_pos_encoder = PositionalEncoding(d_model, max_out_seq_len, device=device, batch_first=True)
 
     word_char_embedding_model = nn.Sequential(
         word_char_embedding,
@@ -455,7 +478,8 @@ def _get_transformer_bigger__v3(input_embedding: nn.Module,
 
 
     return EncoderDecoderTransformerLike(
-        input_embedding, word_char_embedding_model, encoder, decoder, out
+        input_embedding, word_char_embedding_model, encoder, decoder, out,
+        batch_first=True  # Use batch_first for nested tensor optimization
     )
 
 
@@ -739,10 +763,10 @@ class SwipeCurveTransformer(nn.Module):
             num_heads_encoder_2, dropout, device=device)
         
         self.char_pos_encoder = PositionalEncoding(
-            char_emb_size, max_out_seq_len, device=device)
+            char_emb_size, max_out_seq_len, device=device, batch_first=True)
         
         self.key_pos_encoder = PositionalEncoding(
-            key_emb_size, max_curves_seq_len, device=device)
+            key_emb_size, max_curves_seq_len, device=device, batch_first=True)
         
         n_classes = char_vocab_size - 2  # <sos> and <pad> are not predicted
         self.decoder = SwipeCurveTransformerDecoderv1(
