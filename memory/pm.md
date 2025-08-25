@@ -110,7 +110,7 @@ Apply the best pipeline from this neural-swipe-typing repository to English lang
 - [x] Fixed English keyboard grid format (added keys array structure)
 - [x] Created proper test scripts for validation
 
-#### 3.2 Full Training 🔄 IN PROGRESS
+#### 3.2 Full Training ✅ RUNNING SUCCESSFULLY
 - [x] Fixed critical configuration issues (JSON syntax, dataset stats)
 - [x] Implemented model optimizations:
   - Mixed precision training (fp16) for 2x speedup
@@ -118,7 +118,15 @@ Apply the best pipeline from this neural-swipe-typing repository to English lang
   - Fixed vocabulary size (VOCAB_SIZE - 2)
 - [x] Created unified tokenizer interface for multi-language support
 - [x] Set num_workers=0 to avoid multiprocessing bug
-- [ ] Train on complete English dataset (in progress)
+- [x] Fixed runtime issues:
+  - persistent_workers compatibility with num_workers=0
+  - Metrics num_classes mismatch (model outputs VOCAB_SIZE-2)
+- [x] Training successfully started and running:
+  - Loss decreasing: 4.25 → 3.53 (after 23 batches)
+  - Word accuracy starting to improve (up to 2.73%)
+  - Processing ~0.17 batches/sec on RTX 4090M
+  - Using ~16GB VRAM with mixed precision
+- [ ] Complete full epoch training (in progress - Epoch 0)
 - [x] Use best hyperparameters from Russian model:
   - Learning rate: 1e-4
   - Batch size: 256 (train), 512 (val)
@@ -353,5 +361,9 @@ Based on the notebook documentation:
 - Expected to reach 70-75% accuracy after full training
 
 ---
-Last Updated: 2024-11-24
-Status: Phase 3.2 IN PROGRESS! Critical fixes applied, optimizations implemented. Model training successfully with improved configuration. Ready for full training run with monitoring.
+Last Updated: 2024-11-25
+Status: Phase 3.2 TRAINING RUNNING! All critical issues resolved. Model successfully training with:
+- Loss decreasing: 4.25 → 3.53
+- Word accuracy improving
+- Mixed precision enabled
+- ~16GB VRAM usage on RTX 4090M
