@@ -96,7 +96,7 @@ def main():
     print("\n📋 Next steps:")
     print("1. Run training: ./run_training.py")
     print("2. Or activate environment: source .venv/bin/activate") 
-    print("3. Check GPU: uv run python -c \"import torch; print(f'CUDA: {torch.cuda.is_available()}')\"\")
+    print('3. Check GPU: uv run python -c "import torch; print(f\'CUDA: {torch.cuda.is_available()}\')"')
 
 if __name__ == "__main__":
     main()

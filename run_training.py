@@ -166,7 +166,7 @@ def main():
     
     # Build training command
     cmd = [
-        "uv", "run", "python", "src/train_english.py",
+        "python", "src/train_english.py",
         "--config", str(config_path),
         "--gpus", str(args.gpus),
         "--max-epochs", str(args.max_epochs)
@@ -189,7 +189,7 @@ def main():
     if args.gpus > 0:
         try:
             result = subprocess.run([
-                "uv", "run", "python", "-c", 
+                "python", "-c", 
                 "import torch; print('CUDA available:', torch.cuda.is_available()); print('GPU count:', torch.cuda.device_count())"
             ], check=True, capture_output=True, text=True)
             print(f"✅ GPU status: {result.stdout.strip()}")
