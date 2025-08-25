@@ -309,7 +309,7 @@ def main():
         filename='english-{epoch:02d}-{val_loss:.3f}-{val_word_level_accuracy:.3f}'
     )
     
-    # Create trainer
+    # Create trainer with mixed precision for faster training
     trainer = Trainer(
         max_epochs=args.max_epochs,
         accelerator='gpu' if args.gpus > 0 else 'cpu',
@@ -318,7 +318,9 @@ def main():
         logger=tb_logger,
         val_check_interval=training_config['val_check_interval'],
         log_every_n_steps=100,
-        num_sanity_val_steps=0
+        num_sanity_val_steps=0,
+        precision=16 if args.gpus > 0 else 32,  # Use mixed precision on GPU
+        accumulate_grad_batches=2  # Effective batch size = 512 for training
     )
     
     # Train

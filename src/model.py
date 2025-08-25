@@ -432,7 +432,7 @@ def _get_transformer_bigger__v3(input_embedding: nn.Module,
     n_word_chars = CHAR_VOCAB_SIZE
 
 
-    n_classes = CHAR_VOCAB_SIZE  # Output all vocab classes for English
+    n_classes = CHAR_VOCAB_SIZE - 2  # <sos> and <pad> are not predicted
 
 
     d_model = 128

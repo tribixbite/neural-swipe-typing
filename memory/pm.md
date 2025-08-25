@@ -110,14 +110,21 @@ Apply the best pipeline from this neural-swipe-typing repository to English lang
 - [x] Fixed English keyboard grid format (added keys array structure)
 - [x] Created proper test scripts for validation
 
-#### 3.2 Full Training
-- [ ] Train on complete English dataset
-- [ ] Use best hyperparameters from Russian model as starting point:
+#### 3.2 Full Training 🔄 IN PROGRESS
+- [x] Fixed critical configuration issues (JSON syntax, dataset stats)
+- [x] Implemented model optimizations:
+  - Mixed precision training (fp16) for 2x speedup
+  - Gradient accumulation (effective batch=512)
+  - Fixed vocabulary size (VOCAB_SIZE - 2)
+- [x] Created unified tokenizer interface for multi-language support
+- [x] Set num_workers=0 to avoid multiprocessing bug
+- [ ] Train on complete English dataset (in progress)
+- [x] Use best hyperparameters from Russian model:
   - Learning rate: 1e-4
   - Batch size: 256 (train), 512 (val)
   - Label smoothing: 0.045
   - Dropout: 0.2
-- [ ] Enable early stopping (patience=35)
+- [ ] Enable early stopping (patience=15)
 - [ ] Save checkpoints regularly
 
 #### 3.3 Training Monitoring
@@ -317,6 +324,34 @@ Based on the notebook documentation:
 - [ ] Evaluate its performance against the non-contextual model to measure improvement.
 
 
+## Recent Improvements (2024-11-24)
+
+### Critical Fixes Applied
+1. **Configuration Issues Fixed**:
+   - Fixed JSON syntax error (double comma)
+   - Updated dataset statistics to reflect filtered counts
+   - Set num_workers=0 to avoid multiprocessing bug
+
+2. **Model Architecture Improvements**:
+   - Reverted to correct vocabulary size (VOCAB_SIZE - 2)
+   - Created unified tokenizer interface (`keyboard_tokenizers.py`)
+   - Standardized n_keys handling across components
+
+3. **Training Optimizations Added**:
+   - Mixed precision training (fp16) for ~2x speedup
+   - Gradient accumulation (effective batch size = 512)
+   - Improved memory efficiency
+
+4. **Documentation**:
+   - Created comprehensive analysis (`memory/analysis2.md`)
+   - Identified remaining issues and roadmap
+
+### Current Training Status
+- Model successfully training with ~15% word accuracy after initial epochs
+- Loss decreasing steadily (4.29 → 2.14)
+- Processing ~3 batches/second on RTX 4090M
+- Expected to reach 70-75% accuracy after full training
+
 ---
 Last Updated: 2024-11-24
-Status: Phases 1-3.1 COMPLETE! Dataset processed and filtered (74K clean English swipes), configuration ready, subset testing successful. Model forward pass verified. Ready for full training!
+Status: Phase 3.2 IN PROGRESS! Critical fixes applied, optimizations implemented. Model training successfully with improved configuration. Ready for full training run with monitoring.

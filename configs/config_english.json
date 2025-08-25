@@ -45,7 +45,7 @@
         "lr_scheduler_patience": 20,
         "lr_scheduler_factor": 0.5,
         "val_check_interval": 1.0,
-        "num_workers": 4,
+        "num_workers": 0,
         "use_coords": true,
         "use_time": false,
         "use_velocity": true,
@@ -60,13 +60,14 @@
         "grid_path": "./data/data_preprocessed/gridname_to_grid_english.json",
         "voc_path": "./data/data_preprocessed/voc_english.txt",
         "n_keys": 29,
-        "checkpoint_dir": "./checkpoints/english/",,
+        "checkpoint_dir": "./checkpoints/english/",
         "log_dir": "./lightning_logs/english/",
         "dataset_stats": {
-            "total_swipes": 87166,
-            "train_samples": 69732,
-            "val_samples": 8716,
-            "test_samples": 8718
+            "total_swipes": 74021,
+            "train_samples": 59213,
+            "val_samples": 7362,
+            "test_samples": 7446,
+            "comment": "Filtered to include only common English words"
         }
     }
 }
