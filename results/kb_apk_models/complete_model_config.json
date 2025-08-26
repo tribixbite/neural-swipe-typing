@@ -1,0 +1,36 @@
+{
+  "model_name": "v3_weighted_and_traj_transformer_bigger",
+  "transform_name": "traj_feats_and_distance_weights",
+  "grid_name": "qwerty_english",
+  "voc_file": "voc_english_minimal.txt",
+  "grid_file": "gridname_to_grid_english.json",
+  "use_time": false,
+  "use_velocity": true,
+  "use_acceleration": true,
+  "max_swipe_len": 299,
+  "max_word_len": 30,
+  "n_keys": 29,
+  "vocab_size": 32,
+  "n_classes": 30,
+  "n_coord_feats": 6,
+  "model_params": {
+    "n_coord_feats": 6,
+    "n_keys": 29,
+    "vocab_size": 32,
+    "max_word_len": 30
+  },
+  "checkpoint_info": {
+    "path": "../checkpoints/english_minimal_vram16gb/english-epoch=59-val_loss=0.611-val_word_level_accuracy=0.707.ckpt",
+    "accuracy": "70.7%",
+    "validation_loss": 0.611
+  },
+  "architecture_details": {
+    "encoder_layers": 4,
+    "decoder_layers": 4,
+    "hidden_dim": 128,
+    "attention_heads": 4,
+    "embedding_dim": 122,
+    "vocab_size": 32,
+    "max_sequence_length": 299
+  }
+}
