@@ -1,0 +1,16 @@
+{
+  "model_name": "v3_weighted_and_traj_transformer_bigger",
+  "transform_name": "traj_feats_and_distance_weights",
+  "grid_name": "qwerty_english",
+  "voc_file": "voc_english_minimal.txt",
+  "grid_file": "gridname_to_grid_english.json",
+  "use_time": false,
+  "use_velocity": true,
+  "use_acceleration": true,
+  "max_swipe_len": 299,
+  "max_word_len": 30,
+  "n_keys": 29,
+  "vocab_size": 32,
+  "n_classes": 30,
+  "n_coord_feats": 6
+}
