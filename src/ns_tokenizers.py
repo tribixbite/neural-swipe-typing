@@ -1,10 +1,10 @@
 from typing import List
 
 
-ALL_CYRILLIC_LETTERS_ALPHABET_ORD = [
-    'а', 'б', 'в', 'г', 'д', 'е', 'ë', 'ж', 'з', 'и', 'й',
-    'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф',
-    'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я'
+ALL_ENGLISH_LETTERS_ALPHABET_ORD = [
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
+    'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+    'w', 'x', 'y', 'z'
 ]
 
 
@@ -66,7 +66,7 @@ class KeyboardTokenizerv1:
     
     # '-' and '<unk>' symbol are in case of new keyboard layouts.
     # <pad> is used for padding.
-    i2t = ALL_CYRILLIC_LETTERS_ALPHABET_ORD + ['-', '<unk>', '<pad>']
+    i2t = ALL_ENGLISH_LETTERS_ALPHABET_ORD + ['-', '<unk>', '<pad>']
     
     t2i = {t: i for i, t in enumerate(i2t)}
 

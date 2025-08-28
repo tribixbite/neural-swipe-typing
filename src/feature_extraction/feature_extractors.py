@@ -37,12 +37,12 @@ from tqdm.auto import tqdm
 from .nearest_key_lookup import NearestKeyLookup, ExtendedNearestKeyLookup
 from .distances_lookup import DistancesLookup
 from ns_tokenizers import KeyboardTokenizerv1, CharLevelTokenizerv2
-from ns_tokenizers import ALL_CYRILLIC_LETTERS_ALPHABET_ORD
+from ns_tokenizers import ALL_ENGLISH_LETTERS_ALPHABET_ORD
 from dataset import RawDatasetEl 
 from grid_processing_utils import get_gname_to_wh, get_kb_label, get_grid
 
 
-DEFAULT_ALLOWED_KEYS = ALL_CYRILLIC_LETTERS_ALPHABET_ORD
+DEFAULT_ALLOWED_KEYS = ALL_ENGLISH_LETTERS_ALPHABET_ORD
 GetItemTransformInput = Tuple[array, array, array, str, Optional[str], array]
 EncoderInType = Union[Tensor, Tuple[Tensor, Tensor]]
 FullTransformResultType = Tuple[Tuple[EncoderInType, Tensor], Tensor]
