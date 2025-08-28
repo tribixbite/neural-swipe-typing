@@ -255,7 +255,7 @@ def main():
             name='english_swipe_training'
         ),
         log_every_n_steps=50,
-        val_check_interval=1000,
+        val_check_interval=200,
         enable_progress_bar=True
     )
     
