@@ -33,23 +33,26 @@ import torchmetrics
 class LitNeuroswipeModel(LightningModule):
     def __init__(self, model_name: str, n_coord_feats: int, num_classes: int,
                  criterion_ignore_index: int = -100, 
-                 lr: float = 1e-4, weight_decay: float = 0,
-                 label_smoothing: float = 0.045):
+                 lr: float = 5e-5, weight_decay: float = 1e-5,  # Lower LR and add weight decay
+                 label_smoothing: float = 0.0):  # Remove label smoothing initially
         super().__init__()
         
         self.save_hyperparameters()
         
         self.model = MODEL_GETTERS_DICT[model_name](n_coord_feats=n_coord_feats)
+        
+        # Initialize weights to prevent NaN
+        self._init_weights()
         self.criterion_ignore_index = criterion_ignore_index
         self.lr = lr
         self.weight_decay = weight_decay
         self.label_smoothing = label_smoothing
         
-        # Metrics
+        # Metrics - ensure correct number of classes
         self.train_token_acc = torchmetrics.classification.Accuracy(
-            task="multiclass", num_classes=num_classes, ignore_index=criterion_ignore_index)
+            task="multiclass", num_classes=30, ignore_index=criterion_ignore_index)
         self.val_token_acc = torchmetrics.classification.Accuracy(
-            task="multiclass", num_classes=num_classes, ignore_index=criterion_ignore_index)
+            task="multiclass", num_classes=30, ignore_index=criterion_ignore_index)
 
     def forward(self, encoder_in, y, encoder_in_pad_mask, y_pad_mask):
         return self.model.forward(encoder_in, y, encoder_in_pad_mask, y_pad_mask)
@@ -62,7 +65,8 @@ class LitNeuroswipeModel(LightningModule):
                              label_smoothing=self.label_smoothing)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        # Use SGD with momentum instead of Adam to avoid NaN issues
+        optimizer = torch.optim.SGD(self.parameters(), lr=self.lr, momentum=0.9, weight_decay=self.weight_decay)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, patience=20, factor=0.5)
         
@@ -129,6 +133,19 @@ class LitNeuroswipeModel(LightningModule):
                 prog_bar=True, batch_size=batch_size)
         
         return loss
+    
+    def _init_weights(self):
+        """Initialize model weights to prevent NaN gradients"""
+        for module in self.model.modules():
+            if isinstance(module, (torch.nn.Linear, torch.nn.Conv1d)):
+                torch.nn.init.xavier_uniform_(module.weight.data)
+                if module.bias is not None:
+                    torch.nn.init.zeros_(module.bias.data)
+            elif isinstance(module, torch.nn.Embedding):
+                torch.nn.init.normal_(module.weight.data, 0.0, 0.1)
+            elif isinstance(module, (torch.nn.LayerNorm, torch.nn.BatchNorm1d)):
+                torch.nn.init.ones_(module.weight.data)
+                torch.nn.init.zeros_(module.bias.data)
 
 
 def main():
@@ -173,7 +190,7 @@ def main():
     # Initialize tokenizers
     char_tokenizer = CharLevelTokenizerv2(voc_path)
     WORD_PAD_IDX = char_tokenizer.char_to_idx['<pad>']
-    NUM_CLASSES = 28  # 26 letters + <sos> + <eos>
+    NUM_CLASSES = len(char_tokenizer.idx_to_char)  # Total vocabulary size
     
     print(f"  Vocabulary size: {len(char_tokenizer.idx_to_char)}")
     print(f"  Number of classes: {NUM_CLASSES}")
@@ -230,9 +247,9 @@ def main():
         n_coord_feats=N_COORD_FEATS,
         num_classes=NUM_CLASSES,
         criterion_ignore_index=WORD_PAD_IDX,
-        lr=1e-4,
-        weight_decay=0,
-        label_smoothing=0.045
+        lr=1e-6,  # Extremely low learning rate  
+        weight_decay=0.0,   # No weight decay
+        label_smoothing=0.0  # No label smoothing
     )
     
     # Setup callbacks
@@ -256,7 +273,8 @@ def main():
         ),
         log_every_n_steps=50,
         val_check_interval=200,
-        enable_progress_bar=True
+        enable_progress_bar=True,
+        gradient_clip_val=1.0  # Add gradient clipping
     )
     
     print("\nStarting training...")
