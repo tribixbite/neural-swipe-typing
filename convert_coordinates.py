@@ -33,13 +33,18 @@ def convert_coordinates(input_file: str, output_file: str) -> None:
             x_coords = data['curve']['x']
             y_coords = data['curve']['y']
             
-            # Convert to absolute coordinates
-            absolute_x = [x * KEYBOARD_WIDTH for x in x_coords]
-            absolute_y = [y * KEYBOARD_HEIGHT for y in y_coords]
+            # Convert to absolute integer coordinates
+            absolute_x = [int(round(x * KEYBOARD_WIDTH)) for x in x_coords]
+            absolute_y = [int(round(y * KEYBOARD_HEIGHT)) for y in y_coords]
+            
+            # Convert timestamps from seconds to milliseconds
+            t_coords = data['curve']['t']
+            absolute_t = [int(round(t * 1000)) for t in t_coords]
             
             # Update the data
             data['curve']['x'] = absolute_x
             data['curve']['y'] = absolute_y
+            data['curve']['t'] = absolute_t
             
             # Write converted line
             outfile.write(json.dumps(data) + '\n')
