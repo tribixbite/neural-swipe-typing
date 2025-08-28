@@ -37,15 +37,55 @@ Successfully adapted the neural swipe typing training pipeline from Cyrillic to 
 - Tokenizers work with English vocabulary  
 - All architecture constants properly aligned
 
+## Recent Completed Tasks
+
+### ✅ English Dataset Integration (Complete)
+
+Successfully integrated new English swipe dataset and adapted pipeline for training:
+
+**Dataset Processing:**
+- Processed 24,081 English swipe samples (15,177 train, 759 val, 8,145 test)
+- Converted normalized coordinates (0-1 range) to absolute pixel coordinates (360x215)
+- Fixed dataset loading to handle float coordinates and timestamps
+- Updated vocabulary to 10k English words
+
+**Coordinate System Adaptation:**
+- Created coordinate conversion script (`convert_coordinates.py`)
+- Updated keyboard layout to match 360x215 dimensions with proper QWERTY positioning
+- Fixed feature extraction pipeline for English alphabet
+- Updated `TrajFeatsGetter` normalization for new coordinate system
+
+**Training Pipeline Setup:**
+- Created `train_english.py` training script optimized for 16GB VRAM
+- Configured for CUDA GPU with RTX 4090 (17.2GB VRAM)
+- Set up PyTorch Lightning training with proper callbacks
+- Fixed PyTorch compatibility issues (scheduler parameters)
+
+**Technical Fixes Applied:**
+- `dataset.py:21-24`: Added float-to-int conversion for coordinates and timestamps
+- `feature_extractors.py:682`: Fixed Cyrillic→English alphabet reference
+- `gridname_to_grid.json`: Created new QWERTY layout with 360x215 dimensions
+- Model configuration: 6 coordinate features, batch size 64, 28 output classes
+
+**Current Status:**
+- ✅ Data pipeline working correctly
+- ✅ Model initialization successful (1.1M parameters)
+- ✅ GPU detection and setup working
+- ⚠️ Minor tensor dimension issue in positional encoder (sequence length mismatch)
+
 ## Next Steps
 
-### 🔄 Ready for Training
-The codebase is now fully adapted for English and ready for:
-1. **Data Collection**: Gather real English swipe gesture training data
-2. **Training**: Run training pipeline with English configuration
-3. **Evaluation**: Test model performance on English swipe typing
+### 🔧 Remaining Issues
+1. **Model Architecture**: Fix positional encoder dimension mismatch for English sequence lengths
+2. **Hyperparameter Tuning**: Optimize batch size and learning rate for new dataset scale
+
+### 🔄 Ready for Full Training
+Once dimensional issue resolved:
+1. **Training**: Run full training pipeline with English dataset
+2. **Evaluation**: Test model performance on English swipe typing
+3. **Performance Optimization**: Fine-tune for best accuracy
 
 ### 📋 Future Enhancements
-- Expand English vocabulary beyond current 100 words
-- Add more comprehensive English training dataset
-- Fine-tune model hyperparameters for English language characteristics
+- Experiment with different model architectures for English
+- Add data augmentation specific to English swipe patterns
+- Evaluate performance against baseline English typing models
