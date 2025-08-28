@@ -1,0 +1,31 @@
+{
+  "total_files_processed": 1052,
+  "total_samples": 53841,
+  "train_samples": 37688,
+  "val_samples": 8076,
+  "test_samples": 8077,
+  "unique_words": 8765,
+  "avg_samples_per_word": 6.142726754135767,
+  "most_common_words": {
+    "you": 1809,
+    "is": 819,
+    "are": 739,
+    "what": 675,
+    "the": 649,
+    "to": 642,
+    "this": 640,
+    "we": 580,
+    "can": 511,
+    "in": 440,
+    "it": 430,
+    "on": 397,
+    "me": 387,
+    "do": 356,
+    "for": 354,
+    "get": 342,
+    "with": 340,
+    "have": 336,
+    "will": 321,
+    "im": 304
+  }
+}
