@@ -17,9 +17,11 @@ RawDatasetEl = Tuple[array.array, array.array,
 def _get_data_from_json_line(line) -> RawDatasetEl:
     data = json.loads(line)
 
-    X = array.array('h', data['curve']['x'])
-    Y = array.array('h', data['curve']['y'])
-    T = array.array('h', data['curve']['t'])
+    # Convert float coordinates to integers for array storage
+    X = array.array('h', [int(round(x)) for x in data['curve']['x']])
+    Y = array.array('h', [int(round(y)) for y in data['curve']['y']])
+    # Handle both float and int timestamps
+    T = array.array('h', [int(round(t * 1000)) if isinstance(t, float) and t < 10 else int(round(t)) for t in data['curve']['t']])
 
     grid_name = data['curve']['grid_name']   
 

@@ -679,7 +679,7 @@ def get_gname_to_nkl(gname_to_grid: Dict[str, dict],
     
     gridname_to_nkl = {
         gname: ExtendedNearestKeyLookup(
-            grid, ALL_CYRILLIC_LETTERS_ALPHABET_ORD,
+            grid, ALL_ENGLISH_LETTERS_ALPHABET_ORD,
             gname_to_out_of_bounds[gname]
         ) for gname, grid in gname_to_grid.items()
     }
