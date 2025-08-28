@@ -24,7 +24,7 @@ def get_label_to_key_map(kb_keys: dict,
         keys in kb_keys. If False, the values are the keys themselves.
     """
     if substitutions is None:
-        substitutions = {'ъ': 'ь', 'ё': 'е'}
+        substitutions = {}
 
     label2key = {}
     for key in kb_keys:

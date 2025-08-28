@@ -424,7 +424,7 @@ def get_word_char_embedding_model_bigger__v3(d_model: int, n_word_chars: int,
 
 def _get_transformer_bigger__v3(input_embedding: nn.Module,
                                 device = None,):
-    CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
+    CHAR_VOCAB_SIZE = 30  # = len(word_char_tokenizer.char_to_idx)
     MAX_OUT_SEQ_LEN = 35  # word_char_tokenizer.max_word_len - 1
 
     n_word_chars = CHAR_VOCAB_SIZE
@@ -471,7 +471,7 @@ def _set_state(model, weights_path, device):
 def get_transformer_bigger_weighted_and_traj__v3(device = None, 
                                                  weights_path = None,
                                                  n_coord_feats = 6) -> EncoderDecoderTransformerLike:
-    CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
+    CHAR_VOCAB_SIZE = 30  # = len(word_char_tokenizer.char_to_idx)
     MAX_CURVES_SEQ_LEN = 299
     # Actually, n_keys != n_word_chars. n_keys = 36.
     # It's legacy. It should not affect the model performace though.
@@ -508,7 +508,7 @@ def get_transformer_bigger_nearest_and_traj__v3(device = None,
     key_emb_size = d_model - n_coord_feats
 
     input_embedding = SeparateTrajAndNearestEmbeddingWithPos(
-        n_keys=37, key_emb_size=key_emb_size, 
+        n_keys=30, key_emb_size=key_emb_size, 
         max_len=299, device = device, dropout=0.1)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
@@ -532,7 +532,7 @@ def get_transformer_bigger_nearest_only__v3(device = None,
     d_model = 128
 
     input_embedding = NearestEmbeddingWithPos(
-        n_elements=37, dim=d_model, max_len=299, device=device, dropout=0.1)
+        n_elements=30, dim=d_model, max_len=299, device=device, dropout=0.1)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
 
@@ -556,7 +556,7 @@ def get_transformer_bigger_trainable_gaussian_weights_and_traj__v3(
     key_emb_size = d_model - n_coord_feats
 
     input_embedding = SeparateTrajAndTrainableWeightedEmbeddingWithPos(
-        n_keys=37, key_emb_size=key_emb_size,
+        n_keys=30, key_emb_size=key_emb_size,
         max_len=299, device=device, dropout=0.1,
         key_centers=key_centers)
     
@@ -782,7 +782,7 @@ class SwipeCurveTransformer(nn.Module):
 
 
 def get_m1_model(device = None, weights_path = None):
-    CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
+    CHAR_VOCAB_SIZE = 30  # = len(word_char_tokenizer.char_to_idx)
     MAX_CURVES_SEQ_LEN = 299
     MAX_OUT_SEQ_LEN = 35  # word_char_tokenizer.max_word_len - 1
 
@@ -817,7 +817,7 @@ def get_m1_model(device = None, weights_path = None):
 
 
 def get_m1_bigger_model(device = None, weights_path = None):
-    CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
+    CHAR_VOCAB_SIZE = 30  # = len(word_char_tokenizer.char_to_idx)
     MAX_CURVES_SEQ_LEN = 299
     MAX_OUT_SEQ_LEN = 35  # word_char_tokenizer.max_word_len - 1
 
@@ -852,7 +852,7 @@ def get_m1_bigger_model(device = None, weights_path = None):
 
 
 def get_m1_smaller_model(device = None, weights_path = None):
-    CHAR_VOCAB_SIZE = 37  # = len(word_char_tokenizer.char_to_idx)
+    CHAR_VOCAB_SIZE = 30  # = len(word_char_tokenizer.char_to_idx)
     MAX_CURVES_SEQ_LEN = 299
     MAX_OUT_SEQ_LEN = 35  # word_char_tokenizer.max_word_len - 1
 

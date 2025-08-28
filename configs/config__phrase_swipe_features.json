@@ -30,6 +30,6 @@
             "val": "./data/data_preprocessed/valid.jsonl"
         },
         "use_vocab_for_generation": true,
-        "n_classes": 35
+        "n_classes": 28
     }
 } 
