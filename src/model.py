@@ -509,7 +509,7 @@ def get_transformer_bigger_nearest_and_traj__v3(device = None,
 
     input_embedding = SeparateTrajAndNearestEmbeddingWithPos(
         n_keys=30, key_emb_size=key_emb_size, 
-        max_len=299, device = device, dropout=0.1)
+        max_len=1500, device = device, dropout=0.1)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
 
@@ -532,7 +532,7 @@ def get_transformer_bigger_nearest_only__v3(device = None,
     d_model = 128
 
     input_embedding = NearestEmbeddingWithPos(
-        n_elements=30, dim=d_model, max_len=299, device=device, dropout=0.1)
+        n_elements=30, dim=d_model, max_len=1500, device=device, dropout=0.1)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
 
@@ -557,7 +557,7 @@ def get_transformer_bigger_trainable_gaussian_weights_and_traj__v3(
 
     input_embedding = SeparateTrajAndTrainableWeightedEmbeddingWithPos(
         n_keys=30, key_emb_size=key_emb_size,
-        max_len=299, device=device, dropout=0.1,
+        max_len=1500, device=device, dropout=0.1,
         key_centers=key_centers)
     
     model = _get_transformer_bigger__v3(input_embedding, device)
