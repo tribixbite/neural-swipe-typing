@@ -1,0 +1,86 @@
+{
+  "timestamp": "2025-08-29T13:06:46.636Z",
+  "testResults": [
+    {
+      "timestamp": "2025-08-29T13:06:41.296Z",
+      "type": "info",
+      "message": "🔍 Validating web demo components..."
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.298Z",
+      "type": "success",
+      "message": "   test_web_demo.html: 20.9KB"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.298Z",
+      "type": "success",
+      "message": "   transformers_js_integration.js: 14.7KB"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.298Z",
+      "type": "success",
+      "message": "   english-epoch=51-val_loss=1.248-val_word_acc=0.659.onnx: 5371.9KB"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.298Z",
+      "type": "warning",
+      "message": "   HTML structure: Keyboard(true) Script(false) Styles(true)"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.298Z",
+      "type": "info",
+      "message": "🦊 Starting Firefox-based web demo test..."
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.299Z",
+      "type": "info",
+      "message": "🌐 Checking web server responsiveness..."
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.343Z",
+      "type": "success",
+      "message": "   test_web_demo.html: HTTP 200 ✓"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.365Z",
+      "type": "success",
+      "message": "   transformers_js_integration.js: HTTP 200 ✓"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.391Z",
+      "type": "success",
+      "message": "   english-epoch=51-val_loss=1.248-val_word_acc=0.659.onnx: HTTP 200 ✓"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.391Z",
+      "type": "info",
+      "message": "📝 Creating Firefox automation test script..."
+    },
+    {
+      "timestamp": "2025-08-29T13:06:41.392Z",
+      "type": "info",
+      "message": "🔄 Running Firefox test (10 second timeout)..."
+    },
+    {
+      "timestamp": "2025-08-29T13:06:46.636Z",
+      "type": "info",
+      "message": "Firefox process exited with code: 0"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:46.636Z",
+      "type": "info",
+      "message": "Firefox output captured"
+    },
+    {
+      "timestamp": "2025-08-29T13:06:46.636Z",
+      "type": "info",
+      "message": "📋 Generating test report..."
+    }
+  ],
+  "summary": {
+    "total": 15,
+    "successes": 6,
+    "errors": 0,
+    "warnings": 1
+  }
+}
