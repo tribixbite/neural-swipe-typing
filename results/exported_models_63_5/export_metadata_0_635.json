@@ -1,0 +1,50 @@
+{
+  "model_info": {
+    "accuracy": "0.635",
+    "architecture": "v3_weighted_and_traj_transformer_bigger",
+    "vocab_size": 67,
+    "model_parameters": {
+      "n_coord_feats": 6,
+      "n_keys": 29,
+      "vocab_size": 67,
+      "max_word_len": 30
+    },
+    "checkpoint": "../checkpoints/english/english-epoch=70-val_loss=0.742-val_word_level_accuracy=0.635.ckpt"
+  },
+  "exported_formats": {
+    "executorch_available": false,
+    "executorch_exported": false,
+    "onnx_exported": false
+  },
+  "input_specification": {
+    "trajectory_features": {
+      "shape": [
+        13,
+        1,
+        6
+      ],
+      "dtype": "float32",
+      "description": "Swipe trajectory coordinates, velocities, accelerations"
+    },
+    "keyboard_weights": {
+      "shape": [
+        13,
+        1,
+        29
+      ],
+      "dtype": "float32",
+      "description": "Keyboard key weights for each swipe point"
+    }
+  },
+  "output_specification": {
+    "encoded_sequence": {
+      "shape": [
+        13,
+        1,
+        128
+      ],
+      "dtype": "float32",
+      "description": "Encoded swipe representation for decoding"
+    }
+  }
+}
