@@ -1,0 +1,23 @@
+{
+  "model_type": "neural_swipe_decoder",
+  "architecture": "EncoderDecoderTransformerLike",
+  "vocab_size": 30,
+  "d_model": 128,
+  "max_encoder_seq_len": 299,
+  "max_decoder_seq_len": 35,
+  "input_features": {
+    "trajectory_dim": 6,
+    "keyboard_dim": 1
+  },
+  "preprocessing": {
+    "normalize_coordinates": true,
+    "include_velocities": true,
+    "include_accelerations": true
+  },
+  "inference": {
+    "temperature": 1.0,
+    "top_k": 10,
+    "top_p": 0.9,
+    "max_length": 35
+  }
+}
