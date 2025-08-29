@@ -48,4 +48,33 @@
 - ⚠️ Model expects tuple input format (trajectory_features, keyboard_ids)
 - ⚠️ Complex transformer architecture causes ONNX graph conversion errors
 - ⚠️ Padding mask type incompatibilities between PyTorch and ONNX
-- ⚠️ May need to simplify model architecture or use TorchScript instead
+- ⚠️ Both ONNX and TorchScript export fail due to "required keyword attribute 'value' has the wrong type"
+
+## Complete Model Documentation Created
+
+### Model Architecture Understood:
+- **Input**: Swipe points (x,y,t) → 6D trajectory features + keyboard proximity ID
+- **Encoder**: 4-layer transformer, 128 dims, 4 heads
+- **Decoder**: Autoregressive character generation
+- **Vocabulary**: 30 tokens (26 letters + special tokens)
+- **Padding**: Boolean masks for variable-length sequences
+
+### Export Strategies Attempted:
+1. **ONNX Split Export** (export_onnx_working.py):
+   - Separate encoder and decoder models
+   - Input wrapper to combine tuple features
+   - Failed due to graph conversion errors
+
+2. **TorchScript Export** (export_torchscript.py):
+   - Complete model with wrapper
+   - Java interface code generated
+   - Failed due to same attribute type error
+
+### Root Cause:
+The model uses complex positional encoding buffers and transformer layers that are incompatible with current PyTorch export mechanisms. The error occurs in the graph optimization phase.
+
+### Recommended Next Steps:
+1. Simplify model architecture (remove positional encoding buffers)
+2. Use older PyTorch version with better export support
+3. Implement model from scratch in target language
+4. Use model serving instead of edge deployment
