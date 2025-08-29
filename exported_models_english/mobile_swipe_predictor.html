@@ -792,9 +792,14 @@
             
             patternMatchingPrediction(swipePoints, features, candidateWords = null) {
                 const candidates = [];
+                const wordsToCheck = candidateWords || Array.from(this.swipePatterns.keys()).slice(0, 100);
                 
-                // Compare against pre-computed patterns
-                this.swipePatterns.forEach((pattern, word) => {
+                // Iterate over the filtered candidates, not the whole pattern map
+                wordsToCheck.forEach(word => {
+                    const pattern = this.swipePatterns.get(word);
+                    // Skip if this candidate doesn't have a pre-computed pattern
+                    if (!pattern) return;
+                    
                     let score = 0.1; // Base score
                     
                     // Path length similarity
@@ -831,29 +836,34 @@
                 const vocabSubset = candidateWords || this.vocabulary.slice(0, 200);
                 
                 vocabSubset.forEach(word => {
+                    // New: Subsequence matching logic
                     let score = 0;
+                    let sequenceIndex = 0;
                     
-                    // Check if word starts with first letter
-                    if (features.letterSequence.length > 0 && word[0] === features.letterSequence[0]) {
-                        score += 0.3;
+                    // Check if traced letters appear as subsequence in word
+                    for (let i = 0; i < word.length && sequenceIndex < features.letterSequence.length; i++) {
+                        if (word[i] === features.letterSequence[sequenceIndex]) {
+                            sequenceIndex++;
+                        }
                     }
+                    const subsequenceMatchScore = sequenceIndex / features.letterSequence.length;
                     
-                    // Check if word ends with last letter
-                    if (features.letterSequence.length > 0 && 
-                        word[word.length - 1] === features.letterSequence[features.letterSequence.length - 1]) {
+                    // Only proceed if it's a decent match
+                    if (subsequenceMatchScore < 0.75) return;
+                    
+                    score += subsequenceMatchScore * 0.6; // 60% of score from subsequence match
+                    
+                    // Starts with the right letter is a strong signal
+                    if (word[0] === features.letterSequence[0]) {
                         score += 0.2;
                     }
                     
-                    // Count letter matches
-                    const matches = this.countLetterMatches(word, features.letterSequence);
-                    score += (matches / word.length) * 0.4;
+                    // Penalize length difference more gracefully
+                    const lengthDifference = Math.abs(word.length - features.letterSequence.length);
+                    const lengthPenalty = Math.min(lengthDifference / features.letterSequence.length, 1.0); // Cap penalty
+                    score *= (1 - lengthPenalty * 0.5); // Apply up to 50% penalty for length mismatch
                     
-                    // Penalize length mismatches
-                    const lengthRatio = Math.min(word.length, features.letterSequence.length) /
-                                       Math.max(word.length, features.letterSequence.length);
-                    score *= lengthRatio;
-                    
-                    if (score > 0.1) {
+                    if (score > 0.2) {
                         candidates.push({ word, score });
                     }
                 });
@@ -1309,14 +1319,14 @@
                 {x: 0.54, y: 0.45, t: 0},    // h
                 {x: 0.27, y: 0.2, t: 100},   // e  
                 {x: 0.81, y: 0.45, t: 200},  // l
-                {x: 0.81, y: 0.45, t: 300},  // l
+                {x: 0.80, y: 0.46, t: 300},  // l (slight move for second l)
                 {x: 0.77, y: 0.2, t: 400}    // o
             ];
             
             updateStatus('🎬 Running demo: advanced analysis of "hello"...', 'loading');
             
-            // Simulate tracing letters
-            tracedLetters = ['h', 'e', 'l', 'o'];
+            // Simulate tracing letters correctly for "hello"
+            tracedLetters = ['h', 'e', 'l', 'l', 'o'];
             updateLetterTrace();
             
             for (let i = 0; i < demoPoints.length; i++) {
@@ -1327,7 +1337,7 @@
             }
             
             clearHighlights();
-            await processSwipe(demoPoints);
+            await processSwipe(demoPoints, tracedLetters);
         });
         
         clearBtn.addEventListener('click', () => {
