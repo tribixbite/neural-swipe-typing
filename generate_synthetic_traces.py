@@ -42,9 +42,11 @@ class SyntheticTraceGenerator:
         
         # Generation parameters
         self.std_devs = ["0.5", "1", "1.5", "2"]  # Different noise levels
-        self.request_delay = (1.0, 1.0)  # 1 second delay between requests
-        self.max_retries = 3
-        self.timeout = 10
+        self.base_delay = 1.0  # Base delay between requests
+        self.request_delay = (0.8, 1.2)  # Random jitter around base delay
+        self.max_retries = 5  # More retries for reliability
+        self.timeout = 15  # Longer timeout for stability
+        self.backoff_multiplier = 1.5  # Exponential backoff on failures
         
         # Setup logging
         logging.basicConfig(
@@ -100,9 +102,10 @@ class SyntheticTraceGenerator:
             except requests.exceptions.RequestException as e:
                 self.logger.warning(f"Request failed for '{word}' (attempt {attempt + 1}): {e}")
                 
-            # Wait before retry
+            # Exponential backoff with jitter
             if attempt < self.max_retries - 1:
-                time.sleep(random.uniform(1, 3))
+                backoff_delay = (self.backoff_multiplier ** attempt) * random.uniform(1, 2)
+                time.sleep(backoff_delay)
                 
         self.logger.error(f"Failed to fetch gesture for word '{word}' after {self.max_retries} attempts")
         return None
@@ -116,7 +119,7 @@ class SyntheticTraceGenerator:
             if gesture:
                 traces.append(gesture)
                 
-            # Random delay between requests
+            # Random delay between requests with jitter
             delay = random.uniform(*self.request_delay)
             time.sleep(delay)
             
@@ -156,8 +159,8 @@ class SyntheticTraceGenerator:
         pbar = tqdm(words, desc="Generating traces")
         
         for i, word in enumerate(pbar):
-            # Skip words shorter than 3 characters (matching our filter)
-            if len(word) < 3:
+            # Skip single-character words only (include 2+ char words)
+            if len(word) < 2:
                 continue
                 
             traces = self.generate_traces_for_word(word)
