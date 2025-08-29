@@ -1,0 +1,17 @@
+{
+  "tokenizer_class": "PreTrainedTokenizer",
+  "model_max_length": 35,
+  "padding_side": "right",
+  "truncation_side": "right",
+  "special_tokens": {
+    "bos_token": "<s>",
+    "eos_token": "</s>",
+    "unk_token": "<unk>",
+    "pad_token": "<pad>"
+  },
+  "bos_token": "<s>",
+  "eos_token": "</s>",
+  "unk_token": "<unk>",
+  "pad_token": "<pad>",
+  "clean_up_tokenization_spaces": true
+}

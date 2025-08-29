@@ -13,7 +13,7 @@ import { pipeline, env } from '@huggingface/transformers';
  */
 const SWIPE_CONFIG = {
     // Model paths - update these based on your model location
-    modelPath: './onnx/',  // Path to ONNX model directory
+    modelPath: './english-epoch=51-val_loss=1.248-val_word_acc=0.659.onnx',  // Path to ONNX model file
     
     // Keyboard layout (QWERTY)
     keyboard: {
