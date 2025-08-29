@@ -33,6 +33,8 @@ def main():
                        help='Maximum number of words to process')
     parser.add_argument('--batch-size', type=int, default=500,
                        help='Traces per output file (default: 500)')
+    parser.add_argument('--no-confirm', action='store_true',
+                       help='Skip confirmation prompt for automated runs')
     
     args = parser.parse_args()
     
@@ -59,7 +61,7 @@ def main():
     )
     
     # Confirm for full generation
-    if args.full and not args.test:
+    if args.full and not args.test and not args.no_confirm:
         response = input("\n⚠️  Full generation will take 6-8 hours. Continue? [y/N]: ")
         if response.lower() != 'y':
             print("Generation cancelled.")
