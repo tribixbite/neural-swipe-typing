@@ -1,0 +1,15 @@
+{
+  "total_words_attempted": 20,
+  "total_traces_generated": 36,
+  "failed_words_count": 0,
+  "failed_words": [],
+  "success_rate": 1.0,
+  "std_devs_used": [
+    "0.5",
+    "1",
+    "1.5",
+    "2"
+  ],
+  "traces_per_word": 4,
+  "generation_timestamp": 1756435149.2529674
+}
