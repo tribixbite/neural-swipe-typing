@@ -781,7 +781,16 @@
                         .map(word => ({ word, score: 0.1 }));
                 }
                 
-                this.vocabulary.forEach(word => {
+                // Filter vocabulary first to prevent checking all 10000 words
+                const vocabSubset = features.letterSequence.length > 0 
+                    ? this.vocabulary.filter(word => {
+                        // Must contain at least the first or last letter
+                        return word.includes(features.letterSequence[0]) || 
+                               word.includes(features.letterSequence[features.letterSequence.length - 1]);
+                    }).slice(0, 200)
+                    : this.vocabulary.slice(0, 50);
+                
+                vocabSubset.forEach(word => {
                     let score = 0;
                     
                     // Check if word starts with first letter
@@ -815,7 +824,10 @@
             geometricPrediction(features) {
                 const candidates = [];
                 
-                this.vocabulary.forEach(word => {
+                // Only check a subset of vocabulary to prevent performance issues
+                const vocabSubset = this.vocabulary.slice(0, Math.min(100, this.vocabulary.length));
+                
+                vocabSubset.forEach(word => {
                     let score = 0.1;
                     
                     // Length correlation
@@ -833,7 +845,9 @@
                     const durationScore = 1 - Math.abs(features.duration - expectedDuration) / Math.max(features.duration, expectedDuration);
                     score += durationScore * 0.2;
                     
-                    candidates.push({ word, score });
+                    if (score > 0.2) { // Only add if score is meaningful
+                        candidates.push({ word, score });
+                    }
                 });
                 
                 return candidates.sort((a, b) => b.score - a.score).slice(0, 10);
@@ -849,7 +863,16 @@
                         .map(([word, freq]) => ({ word, score: freq }));
                 }
                 
-                this.vocabulary.forEach(word => {
+                // Limit vocabulary subset based on letter sequence
+                const vocabSubset = features.letterSequence.length > 1
+                    ? this.vocabulary.filter(word => {
+                        // Must start with or contain first letter
+                        return word[0] === features.letterSequence[0] || 
+                               word.includes(features.letterSequence[0]);
+                    }).slice(0, 100)
+                    : this.vocabulary.slice(0, 50);
+                
+                vocabSubset.forEach(word => {
                     let score = this.wordFrequencies.get(word) || 0.001;
                     
                     // Add transition probability scores
@@ -866,7 +889,9 @@
                     const letterMatches = this.countLetterMatches(word, features.letterSequence);
                     score *= (1 + letterMatches / word.length);
                     
-                    candidates.push({ word, score });
+                    if (score > 0.01) { // Filter out very low scores
+                        candidates.push({ word, score });
+                    }
                 });
                 
                 return candidates.sort((a, b) => b.score - a.score).slice(0, 10);
