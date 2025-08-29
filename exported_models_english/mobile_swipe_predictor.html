@@ -465,7 +465,7 @@
                     }
                     const text = await response.text();
                     // Only load first 500 words to prevent performance issues
-                    const allWords = text.trim().split('\\n').filter(word => word.length > 0);
+                    const allWords = text.trim().split('\n').filter(word => word.length > 0);
                     this.vocabulary = allWords.slice(0, 500);
                     console.log(`📖 Loaded ${this.vocabulary.length} words from ${allWords.length} total`);
                 } catch (error) {
