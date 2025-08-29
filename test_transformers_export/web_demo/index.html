@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Swipe Typing Demo</title>
+    <script type="module">
+        import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.0';
+        
+        class SwipeDecoder {
+            constructor() {
+                this.pipeline = null;
+                this.ready = false;
+            }
+            
+            async initialize() {
+                try {
+                    // Load the model from the onnx directory
+                    this.pipeline = await pipeline('text-generation', './onnx/', {
+                        dtype: 'fp32'
+                    });
+                    this.ready = true;
+                    console.log('Model loaded successfully');
+                    document.getElementById('status').textContent = 'Ready';
+                } catch (error) {
+                    console.error('Failed to load model:', error);
+                    document.getElementById('status').textContent = 'Error loading model';
+                }
+            }
+            
+            extractTrajectoryFeatures(swipePoints) {
+                const features = [];
+                
+                for (let i = 0; i < swipePoints.length; i++) {
+                    const point = swipePoints[i];
+                    const prevPoint = i > 0 ? swipePoints[i - 1] : point;
+                    const nextPoint = i < swipePoints.length - 1 ? swipePoints[i + 1] : point;
+                    
+                    const x = point.x;
+                    const y = point.y;
+                    
+                    const dt = Math.max(point.t - prevPoint.t, 1);
+                    const vx = (point.x - prevPoint.x) / dt;
+                    const vy = (point.y - prevPoint.y) / dt;
+                    
+                    const dt2 = Math.max(nextPoint.t - point.t, 1);
+                    const vx_next = (nextPoint.x - point.x) / dt2;
+                    const vy_next = (nextPoint.y - point.y) / dt2;
+                    const ax = (vx_next - vx) / Math.max((dt + dt2) / 2, 1);
+                    const ay = (vy_next - vy) / Math.max((dt + dt2) / 2, 1);
+                    
+                    features.push([x, y, vx, vy, ax, ay]);
+                }
+                
+                return features;
+            }
+            
+            async decodeSwipe(swipePoints) {
+                if (!this.ready) {
+                    throw new Error('Model not ready');
+                }
+                
+                const trajectoryFeatures = this.extractTrajectoryFeatures(swipePoints);
+                // Note: This is a simplified example - actual implementation would
+                // need to properly format inputs for the custom model
+                
+                console.log('Trajectory features:', trajectoryFeatures);
+                return { message: 'Demo mode - custom model integration needed' };
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('DOMContentLoaded', async () => {
+            const decoder = new SwipeDecoder();
+            await decoder.initialize();
+            
+            // Demo swipe points
+            const demoSwipe = [
+                { x: 0.1, y: 0.5, t: 0 },
+                { x: 0.2, y: 0.5, t: 100 },
+                { x: 0.3, y: 0.5, t: 200 },
+                { x: 0.4, y: 0.5, t: 300 }
+            ];
+            
+            document.getElementById('demo-btn').onclick = async () => {
+                try {
+                    const result = await decoder.decodeSwipe(demoSwipe);
+                    document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+                } catch (error) {
+                    document.getElementById('result').textContent = 'Error: ' + error.message;
+                }
+            };
+        });
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        #result {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Neural Swipe Typing Demo</h1>
+    <div class="status">Status: <span id="status">Loading...</span></div>
+    
+    <p>This demo shows how to integrate the neural swipe typing model with transformer.js.</p>
+    
+    <button id="demo-btn">Test Demo Swipe</button>
+    
+    <div id="result"></div>
+    
+    <h2>Notes</h2>
+    <ul>
+        <li>The model architecture is: v3_nearest_and_traj_transformer_bigger</li>
+        <li>This requires the ONNX model to be successfully converted</li>
+        <li>Custom preprocessing may be needed for trajectory and keyboard features</li>
+        <li>The actual implementation would integrate with a virtual keyboard interface</li>
+    </ul>
+</body>
+</html>

@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [
+    {
+      "id": 0,
+      "content": "<pad>",
+      "special": true
+    },
+    {
+      "id": 1,
+      "content": "<s>",
+      "special": true
+    },
+    {
+      "id": 2,
+      "content": "</s>",
+      "special": true
+    },
+    {
+      "id": 3,
+      "content": "<unk>",
+      "special": true
+    }
+  ],
+  "normalizer": null,
+  "pre_tokenizer": {
+    "type": "CharDelimiterSplit",
+    "delimiter": ""
+  },
+  "post_processor": {
+    "type": "TemplateProcessing",
+    "single": "<s> $A </s>",
+    "pair": "<s> $A </s> $B </s>",
+    "special_tokens": {
+      "<s>": {
+        "id": 1,
+        "type_id": 0
+      },
+      "</s>": {
+        "id": 2,
+        "type_id": 0
+      }
+    }
+  },
+  "decoder": {
+    "type": "CharDecoder"
+  },
+  "model": {
+    "type": "WordPiece",
+    "vocab": {
+      "<pad>": 0,
+      "<s>": 1,
+      "</s>": 2,
+      "<unk>": 3,
+      " ": 4,
+      "a": 5,
+      "b": 6,
+      "c": 7,
+      "d": 8,
+      "e": 9,
+      "f": 10,
+      "g": 11,
+      "h": 12,
+      "i": 13,
+      "j": 14,
+      "k": 15,
+      "l": 16,
+      "m": 17,
+      "n": 18,
+      "o": 19,
+      "p": 20,
+      "q": 21,
+      "r": 22,
+      "s": 23,
+      "t": 24,
+      "u": 25,
+      "v": 26,
+      "w": 27,
+      "x": 28,
+      "y": 29,
+      "z": 30,
+      "'": 31,
+      "-": 32,
+      ".": 33
+    },
+    "unk_token": "<unk>",
+    "continuing_subword_prefix": "",
+    "max_input_chars_per_word": 50
+  }
+}
