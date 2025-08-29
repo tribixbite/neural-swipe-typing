@@ -356,7 +356,7 @@
     <div class="container">
         <div class="header">
             <h1>🧠 Neural Swipe Typing</h1>
-            <p>Advanced pattern recognition with intelligent prediction</p>
+            <p>Advanced pattern recognition with 10,000-word vocabulary</p>
         </div>
         
         <div class="main-content">
@@ -374,7 +374,7 @@
                         <ul>
                             <li><strong>Neural Pattern Matching:</strong> Advanced swipe trajectory analysis</li>
                             <li><strong>Multi-Factor Scoring:</strong> Path analysis, velocity patterns, letter positions</li>
-                            <li><strong>Smart Vocabulary:</strong> 500 common English words with intelligent filtering</li>
+                            <li><strong>Complete Vocabulary:</strong> 10,000 English words with intelligent filtering</li>
                             <li><strong>Real-Time Analytics:</strong> See prediction confidence and reasoning</li>
                         </ul>
                     </div>
@@ -464,10 +464,10 @@
                         throw new Error(`Failed to load vocabulary: ${response.status}`);
                     }
                     const text = await response.text();
-                    // Only load first 500 words to prevent performance issues
+                    // Load all words from vocabulary
                     const allWords = text.trim().split('\n').filter(word => word.length > 0);
-                    this.vocabulary = allWords.slice(0, 500);
-                    console.log(`📖 Loaded ${this.vocabulary.length} words from ${allWords.length} total`);
+                    this.vocabulary = allWords;
+                    console.log(`📖 Loaded ${this.vocabulary.length} words`);
                 } catch (error) {
                     console.error('Failed to load vocabulary:', error);
                     // Use minimal vocabulary for demonstration
@@ -511,7 +511,7 @@
             
             precomputeSwipePatterns() {
                 // Pre-compute ideal swipe patterns for common words
-                const topWords = this.vocabulary.slice(0, 1000); // Top 1000 words
+                const topWords = this.vocabulary.slice(0, 2000); // Top 2000 words
                 
                 topWords.forEach(word => {
                     const pattern = this.computeIdealSwipePattern(word);
