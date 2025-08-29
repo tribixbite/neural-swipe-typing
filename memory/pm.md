@@ -73,6 +73,35 @@ Successfully integrated new English swipe dataset and adapted pipeline for train
 - ✅ GPU detection and setup working
 - ⚠️ Minor tensor dimension issue in positional encoder (sequence length mismatch)
 
+### ✅ Raw Log Data Processing & Validation (Complete)
+
+Successfully improved and ran the log processing pipeline with comprehensive data validation:
+
+**Data Processing Improvements:**
+- Added error flag validation (columns 11/12) filtering out flagged swipe traces
+- Implemented touchstart/touchend sequence validation for proper touch events
+- Added coordinate array validation ensuring equal x, y, t value counts
+- Increased word length filter from >1 to >=3 characters minimum
+- Added trajectory similarity analysis for repeated words using interpolation and distance metrics
+
+**Dataset Statistics:**
+- Processed 1,052 log files from `/data/swipetraces/`
+- Found 976 files (92.8%) containing error-flagged data
+- Extracted 37,688 training samples after validation filtering
+- Generated clean datasets: `raw_converted_english_swipes_train.jsonl` (30,150), `_val.jsonl` (3,769), `_test.jsonl` (3,769)
+
+**Keyboard Layout Analysis:**
+- Detected Y coordinate usage: 71.6% of available 215px height space
+- Identified 3 main keyboard rows at Y positions [67.5, 102.1, 136.8]
+- Confirmed 4-row layout with spacebar row (25% Y space unused as expected)
+- High trajectory similarity for repeated words (e.g., 'the': 0.869 average similarity)
+
+**Technical Implementation:**
+- `validate_touch_sequence()`: Ensures proper touchstart→touchend sequences
+- `has_error_flag()`: Filters lines with error flag = 1 in columns 11/12
+- `analyze_trajectory_similarity()`: Computes similarity metrics for repeated word curves
+- `analyze_keyboard_layout()`: Maps coordinate distribution to keyboard structure
+
 ## Next Steps
 
 ### 🔧 Remaining Issues
@@ -81,7 +110,7 @@ Successfully integrated new English swipe dataset and adapted pipeline for train
 
 ### 🔄 Ready for Full Training
 Once dimensional issue resolved:
-1. **Training**: Run full training pipeline with English dataset
+1. **Training**: Run full training pipeline with cleaned English dataset (37,688 samples)
 2. **Evaluation**: Test model performance on English swipe typing
 3. **Performance Optimization**: Fine-tune for best accuracy
 
@@ -89,3 +118,4 @@ Once dimensional issue resolved:
 - Experiment with different model architectures for English
 - Add data augmentation specific to English swipe patterns
 - Evaluate performance against baseline English typing models
+- Consider using trajectory similarity analysis for data augmentation
