@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Loading Test - Neural Swipe Typing</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.95);
+            color: #333;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .test-result { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
+        }
+        button { 
+            background: #667eea; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px; 
+            border-radius: 6px; 
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover { background: #5a6fd8; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        #output { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            font-family: monospace; 
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+        }
+        .success { border-left-color: #28a745; }
+        .error { border-left-color: #dc3545; }
+        .warning { border-left-color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Real Model Loading Test</h1>
+        <p>Testing if the actual ONNX model can be loaded with transformer.js</p>
+        
+        <button onclick="testTransformersAvailability()" id="transformers-test-btn">Test Transformers.js</button>
+        <button onclick="testONNXModelLoading()" id="onnx-test-btn" disabled>Test ONNX Model Loading</button>
+        <button onclick="testModelInference()" id="inference-test-btn" disabled>Test Model Inference</button>
+        
+        <div id="results"></div>
+        <div id="output">Click buttons above to run tests...\n</div>
+    </div>
+
+    <script type="module">
+        let output = document.getElementById('output');
+        let results = document.getElementById('results');
+        let transformersLib = null;
+        let loadedModel = null;
+        
+        function log(message) {
+            output.textContent += new Date().toISOString() + ': ' + message + '\n';
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+        
+        window.testTransformersAvailability = async function() {
+            log('🚀 Testing Transformers.js availability...');
+            document.getElementById('transformers-test-btn').disabled = true;
+            
+            try {
+                const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.0');
+                transformersLib = { pipeline, env };
+                
+                log('✅ Transformers.js loaded successfully!');
+                log('📦 Available functions: ' + Object.keys(transformersLib).join(', '));
+                
+                results.innerHTML += `
+                    <div class="test-result success">
+                        <h3>✅ Transformers.js Test - PASSED</h3>
+                        <p>Library loaded successfully from CDN</p>
+                        <p>Version: @huggingface/transformers@3.7.0</p>
+                    </div>
+                `;
+                
+                document.getElementById('onnx-test-btn').disabled = false;
+                
+            } catch (error) {
+                log('❌ Transformers.js loading failed: ' + error.message);
+                
+                results.innerHTML += `
+                    <div class="test-result error">
+                        <h3>❌ Transformers.js Test - FAILED</h3>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('transformers-test-btn').disabled = false;
+            }
+        };
+        
+        window.testONNXModelLoading = async function() {
+            log('🤖 Testing ONNX model loading...');
+            document.getElementById('onnx-test-btn').disabled = true;
+            
+            if (!transformersLib) {
+                log('❌ Transformers.js not available, run first test');
+                return;
+            }
+            
+            try {
+                log('📥 Attempting to load ONNX model...');
+                
+                // Try different approaches
+                const modelPath = './english-epoch=51-val_loss=1.248-val_word_acc=0.659.onnx';
+                
+                log('🔍 Model path: ' + modelPath);
+                log('📊 Attempting text-generation pipeline...');
+                
+                try {
+                    loadedModel = await transformersLib.pipeline('text-generation', modelPath, {
+                        dtype: 'fp32',
+                        device: 'cpu'
+                    });
+                    
+                    log('✅ ONNX model loaded successfully with text-generation pipeline!');
+                    log('🔧 Model type: ' + (loadedModel.constructor.name || 'Unknown'));
+                    
+                    results.innerHTML += `
+                        <div class="test-result success">
+                            <h3>✅ ONNX Model Loading - SUCCESS</h3>
+                            <p>Model loaded as text-generation pipeline</p>
+                            <p>Model file: ${modelPath}</p>
+                            <p>Device: CPU, dtype: fp32</p>
+                        </div>
+                    `;
+                    
+                    document.getElementById('inference-test-btn').disabled = false;
+                    
+                } catch (textGenError) {
+                    log('⚠️ Text-generation pipeline failed: ' + textGenError.message);
+                    log('🔄 Trying alternative approaches...');
+                    
+                    try {
+                        // Try other pipeline types
+                        const alternatives = ['feature-extraction', 'zero-shot-classification', 'text-classification'];
+                        
+                        for (const pipelineType of alternatives) {
+                            log(`🧪 Trying ${pipelineType} pipeline...`);
+                            try {
+                                loadedModel = await transformersLib.pipeline(pipelineType, modelPath);
+                                log(`✅ Success with ${pipelineType} pipeline!`);
+                                break;
+                            } catch (altError) {
+                                log(`❌ ${pipelineType} failed: ${altError.message}`);
+                            }
+                        }
+                        
+                        if (loadedModel) {
+                            results.innerHTML += `
+                                <div class="test-result warning">
+                                    <h3>⚠️ ONNX Model Loading - PARTIAL SUCCESS</h3>
+                                    <p>Model loaded but not as text-generation pipeline</p>
+                                    <p>Alternative pipeline worked</p>
+                                </div>
+                            `;
+                        } else {
+                            throw new Error('All pipeline types failed');
+                        }
+                        
+                    } catch (allFailedError) {
+                        throw new Error('All loading approaches failed: ' + allFailedError.message);
+                    }
+                }
+                
+            } catch (error) {
+                log('❌ ONNX model loading completely failed: ' + error.message);
+                log('🔍 This could mean:');
+                log('   - Model file not compatible with transformers.js');
+                log('   - ONNX format issues');
+                log('   - Model architecture not supported');
+                log('   - File access issues');
+                
+                results.innerHTML += `
+                    <div class="test-result error">
+                        <h3>❌ ONNX Model Loading - FAILED</h3>
+                        <p>Error: ${error.message}</p>
+                        <p><strong>Possible causes:</strong></p>
+                        <ul>
+                            <li>Model not compatible with transformers.js</li>
+                            <li>ONNX format incompatibility</li>
+                            <li>Unsupported model architecture</li>
+                            <li>File access issues</li>
+                        </ul>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('onnx-test-btn').disabled = false;
+            }
+        };
+        
+        window.testModelInference = async function() {
+            log('🎯 Testing model inference...');
+            document.getElementById('inference-test-btn').disabled = true;
+            
+            if (!loadedModel) {
+                log('❌ No model loaded, run ONNX loading test first');
+                return;
+            }
+            
+            try {
+                log('🧠 Attempting model inference...');
+                
+                // Try different input formats
+                const testInputs = [
+                    'hello',
+                    { input: 'hello' },
+                    ['hello'],
+                    { text: 'hello' }
+                ];
+                
+                for (const input of testInputs) {
+                    log(`🔍 Trying input format: ${JSON.stringify(input)}`);
+                    try {
+                        const result = await loadedModel(input);
+                        log('✅ Inference successful!');
+                        log('📊 Result: ' + JSON.stringify(result, null, 2));
+                        
+                        results.innerHTML += `
+                            <div class="test-result success">
+                                <h3>✅ Model Inference - SUCCESS</h3>
+                                <p>Model successfully processed input and returned results</p>
+                                <p><strong>Input:</strong> ${JSON.stringify(input)}</p>
+                                <p><strong>Output:</strong> ${JSON.stringify(result)}</p>
+                            </div>
+                        `;
+                        
+                        return; // Success, exit
+                        
+                    } catch (inferenceError) {
+                        log(`❌ Inference failed with input ${JSON.stringify(input)}: ${inferenceError.message}`);
+                    }
+                }
+                
+                throw new Error('All inference attempts failed');
+                
+            } catch (error) {
+                log('❌ Model inference completely failed: ' + error.message);
+                
+                results.innerHTML += `
+                    <div class="test-result error">
+                        <h3>❌ Model Inference - FAILED</h3>
+                        <p>Model loaded but cannot process inputs</p>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('inference-test-btn').disabled = false;
+            }
+        };
+        
+        // Auto-run first test
+        setTimeout(() => {
+            testTransformersAvailability();
+        }, 1000);
+    </script>
+</body>
+</html>

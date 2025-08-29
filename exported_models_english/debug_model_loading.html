@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Model Loading</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #00ff00; }
+        .log { margin: 5px 0; padding: 5px; background: #2a2a2a; border-radius: 3px; }
+        .error { color: #ff4444; }
+        .success { color: #44ff44; }
+        .warning { color: #ffaa44; }
+        .info { color: #4444ff; }
+    </style>
+</head>
+<body>
+    <h1>🐛 Model Loading Debug</h1>
+    <div id="logs"></div>
+    <button onclick="testModelLoading()" style="padding: 10px; font-size: 16px; margin-top: 20px;">Test Model Loading</button>
+
+    <script type="module">
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message, type = 'info') {
+            const logElement = document.createElement('div');
+            logElement.className = `log ${type}`;
+            logElement.textContent = `[${new Date().toISOString()}] ${message}`;
+            logsDiv.appendChild(logElement);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(message);
+        }
+
+        window.testModelLoading = async function() {
+            logsDiv.innerHTML = '';
+            log('🚀 Starting model loading test...', 'info');
+            
+            try {
+                // Test 1: Check if transformerjs files are accessible
+                log('📁 Testing file accessibility...', 'info');
+                
+                const files = ['config.json', 'tokenizer.json', 'onnx/model.onnx'];
+                for (const file of files) {
+                    try {
+                        const response = await fetch(`./transformerjs/${file}`, { method: 'HEAD' });
+                        if (response.ok) {
+                            log(`✅ ${file} - accessible (${response.headers.get('content-length')} bytes)`, 'success');
+                        } else {
+                            log(`❌ ${file} - not accessible (${response.status})`, 'error');
+                        }
+                    } catch (e) {
+                        log(`❌ ${file} - fetch error: ${e.message}`, 'error');
+                    }
+                }
+                
+                // Test 2: Load and validate config.json
+                log('📋 Loading config.json...', 'info');
+                try {
+                    const configResponse = await fetch('./transformerjs/config.json');
+                    const config = await configResponse.json();
+                    log(`✅ Config loaded - model_type: ${config.model_type}`, 'success');
+                    log(`📊 Vocab size: ${config.vocab_size}, Architecture: ${config.architectures?.[0]}`, 'info');
+                } catch (e) {
+                    log(`❌ Config loading failed: ${e.message}`, 'error');
+                }
+                
+                // Test 3: Load and validate tokenizer.json
+                log('🔤 Loading tokenizer.json...', 'info');
+                try {
+                    const tokenizerResponse = await fetch('./transformerjs/tokenizer.json');
+                    const tokenizer = await tokenizerResponse.json();
+                    log(`✅ Tokenizer loaded - version: ${tokenizer.version}`, 'success');
+                    log(`📝 Model type: ${tokenizer.model?.type}, Vocab size: ${Object.keys(tokenizer.model?.vocab || {}).length}`, 'info');
+                } catch (e) {
+                    log(`❌ Tokenizer loading failed: ${e.message}`, 'error');
+                }
+                
+                // Test 4: Try importing transformers.js
+                log('📦 Importing transformers.js...', 'info');
+                try {
+                    const { AutoModel, AutoTokenizer, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+                    log('✅ Transformers.js imported successfully', 'success');
+                    
+                    // Configure environment
+                    env.allowRemoteModels = false;
+                    env.localModelPath = './';
+                    log('⚙️ Environment configured for local models', 'info');
+                    
+                    // Test 5: Try loading the model
+                    log('🧠 Attempting to load ONNX model...', 'info');
+                    try {
+                        const model = await AutoModel.from_pretrained('./transformerjs/', {
+                            local_files_only: true,
+                            use_cache: false
+                        });
+                        log(`✅ Model loaded successfully! Type: ${model.constructor.name}`, 'success');
+                        
+                        // Test tokenizer loading
+                        log('🔤 Attempting to load tokenizer...', 'info');
+                        const tokenizerObj = await AutoTokenizer.from_pretrained('./transformerjs/', {
+                            local_files_only: true,
+                            use_cache: false
+                        });
+                        log(`✅ Tokenizer loaded successfully! Type: ${tokenizerObj.constructor.name}`, 'success');
+                        
+                        log('🎉 All tests passed! Model is working.', 'success');
+                        
+                    } catch (modelError) {
+                        log(`❌ Model loading failed: ${modelError.message}`, 'error');
+                        log(`🔍 Error details: ${modelError.stack}`, 'error');
+                        
+                        // Check if it's a specific transformers.js compatibility issue
+                        if (modelError.message.includes('not supported')) {
+                            log('💡 This appears to be a model compatibility issue with transformers.js', 'warning');
+                            log('💡 The ONNX model may need to be regenerated in HuggingFace format', 'warning');
+                        }
+                    }
+                    
+                } catch (importError) {
+                    log(`❌ Transformers.js import failed: ${importError.message}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+            }
+        };
+        
+        // Auto-run test after page load
+        window.addEventListener('load', () => {
+            setTimeout(() => testModelLoading(), 1000);
+        });
+    </script>
+</body>
+</html>
