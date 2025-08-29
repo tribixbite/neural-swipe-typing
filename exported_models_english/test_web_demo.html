@@ -240,6 +240,7 @@
 
     <script type="module">
         console.log('Starting neural swipe demo...');
+        console.log('Document readyState:', document.readyState);
         
         // Import transformers.js
         let transformersAvailable = false;
@@ -373,6 +374,7 @@
         
         // Global variables
         let decoder = new TestSwipeDecoder();
+        console.log('Decoder created:', decoder);
         let isDrawing = false;
         let swipePoints = [];
         let keyElements = [];
@@ -385,20 +387,38 @@
         const predictionList = document.getElementById('prediction-list');
         const debugInfo = document.getElementById('debug');
         
+        console.log('DOM elements:', {
+            status: !!status,
+            keyboard: !!keyboard, 
+            demoBtn: !!demoBtn,
+            realModelBtn: !!realModelBtn,
+            predictionList: !!predictionList
+        });
+        
         // Initialize
         async function initialize() {
+            console.log('Starting initialization...');
             try {
                 updateStatus('Initializing...', 'loading');
-                createKeyboard();
+                console.log('Status updated to initializing');
                 
+                createKeyboard();
+                console.log('Keyboard created');
+                
+                console.log('Starting decoder initialization...');
                 await decoder.initialize(false);
+                console.log('Decoder initialized successfully');
                 
                 updateStatus('Ready! Draw on the keyboard', 'ready');
+                console.log('Status updated to ready');
                 demoBtn.disabled = false;
                 
                 if (transformersAvailable) {
                     realModelBtn.disabled = false;
+                    console.log('Real model button enabled');
                 }
+                
+                console.log('Initialization complete');
                 
             } catch (error) {
                 console.error('Init failed:', error);
@@ -606,7 +626,12 @@
         });
         
         // Start initialization
-        window.addEventListener('DOMContentLoaded', initialize);
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            // Document already loaded, run initialization immediately
+            initialize();
+        }
         
     </script>
 </body>
