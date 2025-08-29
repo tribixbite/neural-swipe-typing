@@ -1,0 +1,25 @@
+{
+  "model_architecture": "EncoderDecoderTransformerLike",
+  "model_name": "v3_nearest_and_traj_transformer_bigger",
+  "vocab_size": 30,
+  "max_encoder_seq_len": 299,
+  "max_decoder_seq_len": 35,
+  "d_model": 128,
+  "input_features": {
+    "trajectory_features": 6,
+    "keyboard_embedding": 122
+  },
+  "preprocessing": {
+    "include_coords": true,
+    "include_time": false,
+    "include_velocities": true,
+    "include_accelerations": true,
+    "transform_name": "traj_feats_and_distance_weights"
+  },
+  "export_info": {
+    "pytorch_version": "2.8.0+cu128",
+    "checkpoint_epoch": 51,
+    "validation_loss": "unknown",
+    "validation_accuracy": "unknown"
+  }
+}
