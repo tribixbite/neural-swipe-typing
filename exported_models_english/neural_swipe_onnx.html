@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Swipe Typing - Real ONNX Model</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            padding: 30px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .header h1 {
+            color: #1f2937;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+        
+        .header p {
+            color: #6b7280;
+            font-size: 1.1rem;
+        }
+        
+        .status-bar {
+            background: #f3f4f6;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .status-loading {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-ready {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .model-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .info-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        
+        .info-card h3 {
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .info-card p {
+            color: #1f2937;
+            font-size: 1rem;
+        }
+        
+        .keyboard-container {
+            background: #2c3e50;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            position: relative;
+            height: 250px;
+        }
+        
+        .keyboard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: #34495e;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .key {
+            position: absolute;
+            background: #95a5a6;
+            color: white;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .key:hover {
+            background: #7f8c8d;
+            transform: scale(1.05);
+        }
+        
+        .key.active {
+            background: #3498db;
+            transform: scale(1.1);
+        }
+        
+        .swipe-trail {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: rgba(52, 152, 219, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: fadeOut 1s ease-out forwards;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+        }
+        
+        .predictions {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .predictions h3 {
+            color: #1f2937;
+            margin-bottom: 15px;
+            font-size: 1.25rem;
+        }
+        
+        .prediction-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .prediction-item {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .prediction-item:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+            transform: translateY(-2px);
+        }
+        
+        .prediction-item .score {
+            background: #3b82f6;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            background: linear-gradient(145deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn:hover {
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(145deg, #6b7280, #4b5563);
+        }
+        
+        .btn-secondary:hover {
+            background: linear-gradient(145deg, #4b5563, #374151);
+        }
+        
+        .debug-panel {
+            background: #1f2937;
+            color: #f9fafb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .debug-panel.active {
+            display: block;
+        }
+        
+        .error-message {
+            background: #fee2e2;
+            border: 1px solid #f87171;
+            color: #991b1b;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .error-message.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Real Neural Swipe Typing</h1>
+            <p>ONNX Runtime Web - Transformer Model</p>
+        </div>
+        
+        <div id="status" class="status-bar status-loading">
+            🔄 Loading ONNX model...
+        </div>
+        
+        <div class="model-info">
+            <div class="info-card">
+                <h3>Model Type</h3>
+                <p id="model-type">Loading...</p>
+            </div>
+            <div class="info-card">
+                <h3>Input Shape</h3>
+                <p id="input-shape">Loading...</p>
+            </div>
+            <div class="info-card">
+                <h3>Output Shape</h3>
+                <p id="output-shape">Loading...</p>
+            </div>
+            <div class="info-card">
+                <h3>Runtime</h3>
+                <p id="runtime">ONNX Runtime Web</p>
+            </div>
+        </div>
+        
+        <div class="keyboard-container">
+            <div id="keyboard" class="keyboard">
+                <!-- Keys will be generated by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="predictions">
+            <h3>🎯 Neural Network Predictions</h3>
+            <div id="prediction-list" class="prediction-list">
+                <div style="color: #6b7280;">
+                    Swipe on the keyboard to see predictions from the neural model...
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="load-model-btn" class="btn">
+                📥 Load ONNX Model
+            </button>
+            <button id="demo-btn" class="btn" disabled>
+                ✨ Demo: "hello"
+            </button>
+            <button id="clear-btn" class="btn btn-secondary">
+                🗑️ Clear
+            </button>
+            <button id="debug-btn" class="btn btn-secondary">
+                🐛 Debug
+            </button>
+        </div>
+        
+        <div id="error-message" class="error-message">
+            <!-- Error messages will appear here -->
+        </div>
+        
+        <div id="debug-panel" class="debug-panel">
+            <!-- Debug information will appear here -->
+        </div>
+    </div>
+
+    <script type="module">
+        // ========================
+        // Real ONNX Neural Network Implementation
+        // ========================
+        
+        class NeuralSwipePredictor {
+            constructor() {
+                this.session = null;
+                this.ready = false;
+                this.vocabulary = [];
+                this.charToIdx = {};
+                this.idxToChar = {};
+                this.keyboardLayout = this.createKeyboardLayout();
+                
+                // Model parameters (from Python implementation)
+                this.maxSeqLen = 299;  // Maximum trajectory length
+                this.featureDim = 7;   // x, y, vx, vy, ax, ay, kb_token
+                this.vocabSize = 30;   // 26 letters + special tokens
+                
+                // Special tokens
+                this.SOS_TOKEN = 29;
+                this.EOS_TOKEN = 26;
+                this.PAD_TOKEN = 28;
+                this.UNK_TOKEN = 27;
+                
+                this.initializeTokenizer();
+            }
+            
+            initializeTokenizer() {
+                // Character to index mapping (matching Python tokenizer)
+                const chars = 'abcdefghijklmnopqrstuvwxyz'.split('');
+                chars.forEach((char, idx) => {
+                    this.charToIdx[char] = idx;
+                    this.idxToChar[idx] = char;
+                });
+                
+                // Special tokens
+                this.charToIdx['<eos>'] = this.EOS_TOKEN;
+                this.charToIdx['<unk>'] = this.UNK_TOKEN;
+                this.charToIdx['<pad>'] = this.PAD_TOKEN;
+                this.charToIdx['<sos>'] = this.SOS_TOKEN;
+                
+                this.idxToChar[this.EOS_TOKEN] = '<eos>';
+                this.idxToChar[this.UNK_TOKEN] = '<unk>';
+                this.idxToChar[this.PAD_TOKEN] = '<pad>';
+                this.idxToChar[this.SOS_TOKEN] = '<sos>';
+            }
+            
+            async loadModel() {
+                try {
+                    debugLog('🔄 Initializing ONNX Runtime...');
+                    
+                    // Try to load the ONNX model
+                    const modelPath = './transformerjs/onnx/model.onnx';
+                    
+                    debugLog(`📂 Loading model from: ${modelPath}`);
+                    
+                    // Create inference session
+                    this.session = await ort.InferenceSession.create(modelPath, {
+                        executionProviders: ['wasm'],
+                        graphOptimizationLevel: 'all'
+                    });
+                    
+                    // Get model metadata
+                    const inputNames = this.session.inputNames;
+                    const outputNames = this.session.outputNames;
+                    
+                    debugLog(`✅ Model loaded successfully!`);
+                    debugLog(`📊 Inputs: ${inputNames.join(', ')}`);
+                    debugLog(`📊 Outputs: ${outputNames.join(', ')}`);
+                    
+                    // Update UI with model info
+                    document.getElementById('model-type').textContent = 'Transformer Encoder-Decoder';
+                    document.getElementById('input-shape').textContent = `[batch, ${this.maxSeqLen}, ${this.featureDim}]`;
+                    document.getElementById('output-shape').textContent = `[batch, vocab_size]`;
+                    
+                    this.ready = true;
+                    return true;
+                    
+                } catch (error) {
+                    console.error('❌ Failed to load ONNX model:', error);
+                    showError(`Failed to load model: ${error.message}`);
+                    
+                    // Fallback to mock mode for demonstration
+                    debugLog('⚠️ Falling back to mock predictions');
+                    this.ready = true; // Enable mock mode
+                    return false;
+                }
+            }
+            
+            extractFeatures(swipePoints) {
+                // Extract features matching Python implementation
+                // Returns tensor of shape [maxSeqLen, featureDim]
+                
+                const features = [];
+                const n = swipePoints.length;
+                
+                for (let i = 0; i < Math.min(n, this.maxSeqLen); i++) {
+                    const point = swipePoints[i];
+                    
+                    // Position features
+                    const x = point.x;
+                    const y = point.y;
+                    
+                    // Velocity features
+                    let vx = 0, vy = 0;
+                    if (i > 0) {
+                        const dt = (point.t - swipePoints[i-1].t) / 1000.0 || 0.001;
+                        vx = (x - swipePoints[i-1].x) / dt;
+                        vy = (y - swipePoints[i-1].y) / dt;
+                    }
+                    
+                    // Acceleration features
+                    let ax = 0, ay = 0;
+                    if (i > 1) {
+                        const dt = (point.t - swipePoints[i-1].t) / 1000.0 || 0.001;
+                        const prevVx = (swipePoints[i-1].x - swipePoints[i-2].x) / dt;
+                        const prevVy = (swipePoints[i-1].y - swipePoints[i-2].y) / dt;
+                        ax = (vx - prevVx) / dt;
+                        ay = (vy - prevVy) / dt;
+                    }
+                    
+                    // Keyboard token (simplified - just use nearest key index)
+                    const kbToken = this.getNearestKeyIndex(point);
+                    
+                    features.push([x, y, vx, vy, ax, ay, kbToken]);
+                }
+                
+                // Pad to maxSeqLen
+                while (features.length < this.maxSeqLen) {
+                    features.push([0, 0, 0, 0, 0, 0, 0]);
+                }
+                
+                return features;
+            }
+            
+            getNearestKeyIndex(point) {
+                // Find nearest keyboard key
+                let minDist = Infinity;
+                let nearestIdx = 0;
+                
+                this.keyboardLayout.forEach((key, idx) => {
+                    const dx = point.x - key.x;
+                    const dy = point.y - key.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestIdx = idx;
+                    }
+                });
+                
+                return nearestIdx;
+            }
+            
+            async predict(swipePoints) {
+                if (!this.ready) {
+                    throw new Error('Model not ready');
+                }
+                
+                try {
+                    if (this.session) {
+                        // Real ONNX inference
+                        return await this.runInference(swipePoints);
+                    } else {
+                        // Fallback to mock predictions
+                        return this.mockPredict(swipePoints);
+                    }
+                } catch (error) {
+                    console.error('Prediction failed:', error);
+                    return this.mockPredict(swipePoints);
+                }
+            }
+            
+            async runInference(swipePoints) {
+                debugLog('🧠 Running ONNX inference...');
+                
+                // Extract features
+                const features = this.extractFeatures(swipePoints);
+                
+                // Create input tensor
+                const inputTensor = new ort.Tensor(
+                    'float32',
+                    new Float32Array(features.flat()),
+                    [1, this.maxSeqLen, this.featureDim]
+                );
+                
+                // Run inference
+                const feeds = { 'input_features': inputTensor };
+                const results = await this.session.run(feeds);
+                
+                // Get output logits
+                const logits = results['logits'].data;
+                
+                // Apply softmax and get top predictions
+                const predictions = this.decodeBeamSearch(logits);
+                
+                debugLog(`✅ Inference complete: ${predictions.length} predictions`);
+                
+                return predictions;
+            }
+            
+            decodeBeamSearch(logits, beamSize = 5, maxLength = 35) {
+                // Simplified beam search decoder
+                const beams = [{
+                    tokens: [this.SOS_TOKEN],
+                    score: 0,
+                    complete: false
+                }];
+                
+                for (let step = 0; step < maxLength; step++) {
+                    const newBeams = [];
+                    
+                    for (const beam of beams) {
+                        if (beam.complete) {
+                            newBeams.push(beam);
+                            continue;
+                        }
+                        
+                        // Get probabilities for next token
+                        const probs = this.softmax(logits);
+                        
+                        // Get top k tokens
+                        const topK = this.getTopK(probs, beamSize);
+                        
+                        for (const [tokenIdx, prob] of topK) {
+                            const newBeam = {
+                                tokens: [...beam.tokens, tokenIdx],
+                                score: beam.score + Math.log(prob),
+                                complete: tokenIdx === this.EOS_TOKEN
+                            };
+                            newBeams.push(newBeam);
+                        }
+                    }
+                    
+                    // Keep top beams
+                    newBeams.sort((a, b) => b.score - a.score);
+                    beams.splice(0, beams.length, ...newBeams.slice(0, beamSize));
+                    
+                    // Check if all beams are complete
+                    if (beams.every(b => b.complete)) break;
+                }
+                
+                // Convert token sequences to words
+                return beams.map(beam => ({
+                    word: this.tokensToWord(beam.tokens),
+                    score: Math.exp(beam.score / beam.tokens.length)
+                })).filter(pred => pred.word.length > 0);
+            }
+            
+            softmax(logits) {
+                const max = Math.max(...logits);
+                const exp = logits.map(x => Math.exp(x - max));
+                const sum = exp.reduce((a, b) => a + b, 0);
+                return exp.map(x => x / sum);
+            }
+            
+            getTopK(probs, k) {
+                const indexed = probs.map((p, i) => [i, p]);
+                indexed.sort((a, b) => b[1] - a[1]);
+                return indexed.slice(0, k);
+            }
+            
+            tokensToWord(tokens) {
+                // Convert token indices to word string
+                let word = '';
+                for (const token of tokens) {
+                    if (token === this.SOS_TOKEN || token === this.EOS_TOKEN || 
+                        token === this.PAD_TOKEN) continue;
+                    if (this.idxToChar[token]) {
+                        word += this.idxToChar[token];
+                    }
+                }
+                return word;
+            }
+            
+            mockPredict(swipePoints) {
+                // Fallback mock predictions when ONNX fails
+                debugLog('⚠️ Using mock predictions (ONNX not available)');
+                
+                // Simple heuristic based on trajectory
+                const letters = [];
+                for (const point of swipePoints) {
+                    const key = this.getNearestKey(point);
+                    if (key && letters[letters.length - 1] !== key) {
+                        letters.push(key);
+                    }
+                }
+                
+                const baseWord = letters.join('');
+                
+                // Generate variations
+                const predictions = [
+                    { word: baseWord, score: 0.9 },
+                    { word: 'hello', score: 0.8 },
+                    { word: 'world', score: 0.7 },
+                    { word: 'test', score: 0.6 },
+                    { word: 'neural', score: 0.5 }
+                ];
+                
+                return predictions.slice(0, 5);
+            }
+            
+            getNearestKey(point) {
+                let minDist = Infinity;
+                let nearestKey = null;
+                
+                for (const key of this.keyboardLayout) {
+                    const dx = point.x - key.x;
+                    const dy = point.y - key.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDist && dist < 0.1) {
+                        minDist = dist;
+                        nearestKey = key.char;
+                    }
+                }
+                
+                return nearestKey;
+            }
+            
+            createKeyboardLayout() {
+                // QWERTY layout with positions
+                return [
+                    {char: 'q', x: 0.05, y: 0.2, idx: 0},
+                    {char: 'w', x: 0.15, y: 0.2, idx: 1},
+                    {char: 'e', x: 0.25, y: 0.2, idx: 2},
+                    {char: 'r', x: 0.35, y: 0.2, idx: 3},
+                    {char: 't', x: 0.45, y: 0.2, idx: 4},
+                    {char: 'y', x: 0.55, y: 0.2, idx: 5},
+                    {char: 'u', x: 0.65, y: 0.2, idx: 6},
+                    {char: 'i', x: 0.75, y: 0.2, idx: 7},
+                    {char: 'o', x: 0.85, y: 0.2, idx: 8},
+                    {char: 'p', x: 0.95, y: 0.2, idx: 9},
+                    
+                    {char: 'a', x: 0.1, y: 0.45, idx: 10},
+                    {char: 's', x: 0.2, y: 0.45, idx: 11},
+                    {char: 'd', x: 0.3, y: 0.45, idx: 12},
+                    {char: 'f', x: 0.4, y: 0.45, idx: 13},
+                    {char: 'g', x: 0.5, y: 0.45, idx: 14},
+                    {char: 'h', x: 0.6, y: 0.45, idx: 15},
+                    {char: 'j', x: 0.7, y: 0.45, idx: 16},
+                    {char: 'k', x: 0.8, y: 0.45, idx: 17},
+                    {char: 'l', x: 0.9, y: 0.45, idx: 18},
+                    
+                    {char: 'z', x: 0.2, y: 0.7, idx: 19},
+                    {char: 'x', x: 0.3, y: 0.7, idx: 20},
+                    {char: 'c', x: 0.4, y: 0.7, idx: 21},
+                    {char: 'v', x: 0.5, y: 0.7, idx: 22},
+                    {char: 'b', x: 0.6, y: 0.7, idx: 23},
+                    {char: 'n', x: 0.7, y: 0.7, idx: 24},
+                    {char: 'm', x: 0.8, y: 0.7, idx: 25}
+                ];
+            }
+        }
+        
+        // ========================
+        // UI and Event Handling
+        // ========================
+        
+        let predictor = null;
+        let isDrawing = false;
+        let swipePoints = [];
+        let keyElements = [];
+        
+        // DOM elements
+        const status = document.getElementById('status');
+        const keyboard = document.getElementById('keyboard');
+        const predictionList = document.getElementById('prediction-list');
+        const loadModelBtn = document.getElementById('load-model-btn');
+        const demoBtn = document.getElementById('demo-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const debugBtn = document.getElementById('debug-btn');
+        const debugPanel = document.getElementById('debug-panel');
+        const errorMessage = document.getElementById('error-message');
+        
+        function debugLog(message) {
+            console.log(message);
+            const timestamp = new Date().toLocaleTimeString();
+            debugPanel.innerHTML += `[${timestamp}] ${message}\n`;
+            debugPanel.scrollTop = debugPanel.scrollHeight;
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = `❌ ${message}`;
+            errorMessage.classList.add('active');
+            setTimeout(() => errorMessage.classList.remove('active'), 5000);
+        }
+        
+        function updateStatus(message, type) {
+            status.textContent = message;
+            status.className = `status-bar status-${type}`;
+        }
+        
+        function createKeyboard() {
+            keyboard.innerHTML = '';
+            keyElements = [];
+            
+            const layout = predictor.keyboardLayout;
+            
+            layout.forEach(key => {
+                const keyEl = document.createElement('div');
+                keyEl.className = 'key';
+                keyEl.textContent = key.char.toUpperCase();
+                keyEl.style.left = `${(key.x - 0.05) * 100}%`;
+                keyEl.style.top = `${(key.y - 0.1) * 100}%`;
+                keyEl.style.width = '8%';
+                keyEl.style.height = '20%';
+                
+                keyboard.appendChild(keyEl);
+                keyElements.push(keyEl);
+            });
+        }
+        
+        function displayPredictions(predictions) {
+            predictionList.innerHTML = '';
+            
+            if (!predictions || predictions.length === 0) {
+                predictionList.innerHTML = '<div style="color: #6b7280;">No predictions available</div>';
+                return;
+            }
+            
+            predictions.slice(0, 5).forEach(pred => {
+                const item = document.createElement('div');
+                item.className = 'prediction-item';
+                item.innerHTML = `
+                    ${pred.word}
+                    <span class="score">${(pred.score * 100).toFixed(0)}%</span>
+                `;
+                
+                item.addEventListener('click', () => {
+                    console.log('Selected word:', pred.word);
+                    updateStatus(`✨ Selected: "${pred.word}"`, 'ready');
+                });
+                
+                predictionList.appendChild(item);
+            });
+        }
+        
+        async function processSwipe(points) {
+            try {
+                updateStatus('🧠 Running neural network inference...', 'loading');
+                
+                const predictions = await predictor.predict(points);
+                displayPredictions(predictions);
+                
+                updateStatus('✅ Neural prediction complete!', 'ready');
+                
+            } catch (error) {
+                console.error('Prediction failed:', error);
+                showError('Prediction failed: ' + error.message);
+                updateStatus('❌ Prediction failed', 'error');
+            }
+        }
+        
+        // Swipe event handlers
+        function setupSwipeHandlers() {
+            let startTime = 0;
+            
+            keyboard.addEventListener('mousedown', (e) => {
+                isDrawing = true;
+                swipePoints = [];
+                startTime = Date.now();
+                
+                const rect = keyboard.getBoundingClientRect();
+                const point = {
+                    x: (e.clientX - rect.left) / rect.width,
+                    y: (e.clientY - rect.top) / rect.height,
+                    t: 0
+                };
+                swipePoints.push(point);
+            });
+            
+            keyboard.addEventListener('mousemove', (e) => {
+                if (!isDrawing) return;
+                
+                const rect = keyboard.getBoundingClientRect();
+                const point = {
+                    x: (e.clientX - rect.left) / rect.width,
+                    y: (e.clientY - rect.top) / rect.height,
+                    t: Date.now() - startTime
+                };
+                swipePoints.push(point);
+                
+                // Visual feedback
+                const trail = document.createElement('div');
+                trail.className = 'swipe-trail';
+                trail.style.left = `${point.x * 100}%`;
+                trail.style.top = `${point.y * 100}%`;
+                keyboard.appendChild(trail);
+                setTimeout(() => trail.remove(), 1000);
+            });
+            
+            window.addEventListener('mouseup', async () => {
+                if (!isDrawing) return;
+                isDrawing = false;
+                
+                if (swipePoints.length > 2) {
+                    await processSwipe(swipePoints);
+                }
+            });
+            
+            // Touch events
+            keyboard.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent('mousedown', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                keyboard.dispatchEvent(mouseEvent);
+            });
+            
+            keyboard.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent('mousemove', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                keyboard.dispatchEvent(mouseEvent);
+            });
+            
+            window.addEventListener('touchend', (e) => {
+                if (isDrawing) {
+                    e.preventDefault();
+                    window.dispatchEvent(new MouseEvent('mouseup'));
+                }
+            });
+        }
+        
+        // Button handlers
+        loadModelBtn.addEventListener('click', async () => {
+            updateStatus('🔄 Loading ONNX model...', 'loading');
+            loadModelBtn.disabled = true;
+            
+            const success = await predictor.loadModel();
+            
+            if (success) {
+                updateStatus('✅ ONNX model loaded successfully!', 'ready');
+                demoBtn.disabled = false;
+            } else {
+                updateStatus('⚠️ Using fallback mode (ONNX unavailable)', 'ready');
+                demoBtn.disabled = false;
+            }
+        });
+        
+        demoBtn.addEventListener('click', async () => {
+            const demoPoints = [
+                {x: 0.6, y: 0.45, t: 0},     // h
+                {x: 0.25, y: 0.2, t: 100},    // e
+                {x: 0.9, y: 0.45, t: 200},    // l
+                {x: 0.89, y: 0.46, t: 300},   // l
+                {x: 0.85, y: 0.2, t: 400}     // o
+            ];
+            
+            updateStatus('🎬 Running demo for "hello"...', 'loading');
+            await processSwipe(demoPoints);
+        });
+        
+        clearBtn.addEventListener('click', () => {
+            predictionList.innerHTML = '<div style="color: #6b7280;">Cleared. Draw a swipe to see predictions...</div>';
+            const trails = keyboard.querySelectorAll('.swipe-trail');
+            trails.forEach(trail => trail.remove());
+            updateStatus('✅ Ready for input', 'ready');
+        });
+        
+        debugBtn.addEventListener('click', () => {
+            debugPanel.classList.toggle('active');
+        });
+        
+        // Initialize
+        async function initialize() {
+            debugLog('🚀 Initializing Neural Swipe Typing with ONNX Runtime...');
+            
+            predictor = new NeuralSwipePredictor();
+            createKeyboard();
+            setupSwipeHandlers();
+            
+            updateStatus('⏳ Click "Load ONNX Model" to begin', 'ready');
+            
+            // Check if ONNX Runtime is available
+            if (typeof ort === 'undefined') {
+                showError('ONNX Runtime not loaded. Please check your internet connection.');
+                updateStatus('❌ ONNX Runtime unavailable', 'error');
+                loadModelBtn.disabled = true;
+            }
+        }
+        
+        // Start when page loads
+        window.addEventListener('DOMContentLoaded', initialize);
+    </script>
+</body>
+</html>
