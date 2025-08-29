@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Swipe Typing Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            padding: 30px;
+        }
+        
+        .status-bar {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 30px;
+            font-weight: 600;
+            text-align: center;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .status-loading { border-color: #ffc107; color: #856404; }
+        .status-ready { border-color: #28a745; color: #155724; }
+        .status-error { border-color: #dc3545; color: #721c24; }
+        
+        .keyboard-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            position: relative;
+            height: 300px;
+            border: 2px solid #dee2e6;
+            overflow: hidden;
+        }
+        
+        .keyboard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: linear-gradient(145deg, #e2e8f0, #cbd5e0);
+            border-radius: 10px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .key {
+            position: absolute;
+            background: linear-gradient(145deg, #ffffff, #f1f5f9);
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 16px;
+            color: #374151;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            user-select: none;
+        }
+        
+        .key:hover {
+            background: linear-gradient(145deg, #f8fafc, #e2e8f0);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .key.active {
+            background: linear-gradient(145deg, #3b82f6, #2563eb);
+            color: white;
+            transform: scale(0.95);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .swipe-trail {
+            position: absolute;
+            pointer-events: none;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.8) 0%, rgba(59, 130, 246, 0.3) 50%, transparent 100%);
+            transform: translate(-50%, -50%);
+            animation: fadeOut 1s ease-out forwards;
+        }
+        
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 15px;
+            margin: 20px 0;
+            align-items: center;
+        }
+        
+        .btn {
+            background: linear-gradient(145deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn:hover {
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(145deg, #6b7280, #4b5563);
+            box-shadow: 0 4px 8px rgba(107, 114, 128, 0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: linear-gradient(145deg, #4b5563, #374151);
+            box-shadow: 0 6px 12px rgba(107, 114, 128, 0.4);
+        }
+        
+        .predictions {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 120px;
+        }
+        
+        .predictions h3 {
+            margin-bottom: 15px;
+            color: #374151;
+            font-size: 1.2rem;
+        }
+        
+        .prediction-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .prediction-item {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 25px;
+            padding: 8px 16px;
+            font-weight: 600;
+            color: #374151;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .prediction-item:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-1px);
+        }
+        
+        .prediction-item .score {
+            font-size: 0.8em;
+            opacity: 0.7;
+            margin-left: 8px;
+        }
+        
+        .debug-info {
+            background: #1f2937;
+            color: #f9fafb;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .instructions {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            color: #92400e;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #92400e;
+        }
+        
+        .instructions ul {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 5px 0;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .prediction-list {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Neural Swipe Typing</h1>
+            <p>AI-powered swipe gesture recognition in your browser</p>
+        </div>
+        
+        <div class="main-content">
+            <div id="status" class="status-bar status-loading">
+                🔄 Loading neural network model...
+            </div>
+            
+            <div class="instructions">
+                <h3>📱 How to Use</h3>
+                <ul>
+                    <li><strong>Swipe:</strong> Click and drag across the keyboard to spell words</li>
+                    <li><strong>Release:</strong> Let go to get word predictions</li>
+                    <li><strong>Try words like:</strong> "hello", "world", "amazing", "keyboard"</li>
+                    <li><strong>Tip:</strong> Swipe smoothly through the letters you want</li>
+                </ul>
+            </div>
+            
+            <div class="keyboard-container">
+                <div id="keyboard" class="keyboard">
+                    <!-- Keys will be generated by JavaScript -->
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div></div>
+                <button id="demo-btn" class="btn" disabled>
+                    ✨ Run Demo
+                </button>
+                <button id="clear-btn" class="btn btn-secondary">
+                    🗑️ Clear
+                </button>
+            </div>
+            
+            <div class="predictions">
+                <h3>🎯 Predictions</h3>
+                <div id="prediction-list" class="prediction-list">
+                    <div style="color: #6b7280; font-style: italic;">
+                        Draw a swipe gesture to see predictions...
+                    </div>
+                </div>
+            </div>
+            
+            <div id="debug" class="debug-info" style="display: none;">
+                Debug information will appear here...
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the neural swipe decoder
+        // Note: This would import from the actual module when available
+        console.log('Loading neural swipe typing module...');
+        
+        // Mock implementation for demo purposes
+        class DemoSwipeDecoder {
+            constructor() {
+                this.ready = false;
+                this.vocabulary = ['hello', 'world', 'amazing', 'keyboard', 'neural', 'swipe', 'typing', 'demo', 'great', 'awesome'];
+            }
+            
+            async initialize() {
+                // Simulate loading time
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                this.ready = true;
+                return true;
+            }
+            
+            extractTrajectoryFeatures(points) {
+                return points.map(p => [p.x, p.y, 0, 0, 0, 0]); // Mock features
+            }
+            
+            async decode(swipePoints) {
+                // Simple mock prediction based on swipe pattern
+                const length = swipePoints.length;
+                const startChar = this.getClosestChar(swipePoints[0]);
+                const endChar = this.getClosestChar(swipePoints[swipePoints.length - 1]);
+                
+                // Generate predictions based on pattern
+                const predictions = [];
+                for (let i = 0; i < Math.min(5, this.vocabulary.length); i++) {
+                    const word = this.vocabulary[i];
+                    const score = Math.random() * 0.4 + 0.6; // Random score 0.6-1.0
+                    predictions.push({
+                        word: word,
+                        score: score,
+                        rank: i + 1
+                    });
+                }
+                
+                // Sort by score
+                predictions.sort((a, b) => b.score - a.score);
+                
+                return predictions;
+            }
+            
+            getClosestChar(point) {
+                // Simple character mapping based on position
+                const chars = 'qwertyuiopasdfghjklzxcvbnm';
+                const idx = Math.floor(point.x * chars.length);
+                return chars[Math.max(0, Math.min(chars.length - 1, idx))];
+            }
+        }
+        
+        // Keyboard layout
+        const keyboardLayout = [
+            {id: 0, char: 'q', x: 0.05, y: 0.2, width: 0.08, height: 0.2},
+            {id: 1, char: 'w', x: 0.14, y: 0.2, width: 0.08, height: 0.2},
+            {id: 2, char: 'e', x: 0.23, y: 0.2, width: 0.08, height: 0.2},
+            {id: 3, char: 'r', x: 0.32, y: 0.2, width: 0.08, height: 0.2},
+            {id: 4, char: 't', x: 0.41, y: 0.2, width: 0.08, height: 0.2},
+            {id: 5, char: 'y', x: 0.50, y: 0.2, width: 0.08, height: 0.2},
+            {id: 6, char: 'u', x: 0.59, y: 0.2, width: 0.08, height: 0.2},
+            {id: 7, char: 'i', x: 0.68, y: 0.2, width: 0.08, height: 0.2},
+            {id: 8, char: 'o', x: 0.77, y: 0.2, width: 0.08, height: 0.2},
+            {id: 9, char: 'p', x: 0.86, y: 0.2, width: 0.08, height: 0.2},
+            
+            {id: 10, char: 'a', x: 0.09, y: 0.45, width: 0.08, height: 0.2},
+            {id: 11, char: 's', x: 0.18, y: 0.45, width: 0.08, height: 0.2},
+            {id: 12, char: 'd', x: 0.27, y: 0.45, width: 0.08, height: 0.2},
+            {id: 13, char: 'f', x: 0.36, y: 0.45, width: 0.08, height: 0.2},
+            {id: 14, char: 'g', x: 0.45, y: 0.45, width: 0.08, height: 0.2},
+            {id: 15, char: 'h', x: 0.54, y: 0.45, width: 0.08, height: 0.2},
+            {id: 16, char: 'j', x: 0.63, y: 0.45, width: 0.08, height: 0.2},
+            {id: 17, char: 'k', x: 0.72, y: 0.45, width: 0.08, height: 0.2},
+            {id: 18, char: 'l', x: 0.81, y: 0.45, width: 0.08, height: 0.2},
+            
+            {id: 19, char: 'z', x: 0.18, y: 0.7, width: 0.08, height: 0.2},
+            {id: 20, char: 'x', x: 0.27, y: 0.7, width: 0.08, height: 0.2},
+            {id: 21, char: 'c', x: 0.36, y: 0.7, width: 0.08, height: 0.2},
+            {id: 22, char: 'v', x: 0.45, y: 0.7, width: 0.08, height: 0.2},
+            {id: 23, char: 'b', x: 0.54, y: 0.7, width: 0.08, height: 0.2},
+            {id: 24, char: 'n', x: 0.63, y: 0.7, width: 0.08, height: 0.2},
+            {id: 25, char: 'm', x: 0.72, y: 0.7, width: 0.08, height: 0.2}
+        ];
+        
+        // Global variables
+        let decoder = null;
+        let isDrawing = false;
+        let swipePoints = [];
+        let keyElements = [];
+        
+        // DOM elements
+        const status = document.getElementById('status');
+        const keyboard = document.getElementById('keyboard');
+        const demoBtn = document.getElementById('demo-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const predictionList = document.getElementById('prediction-list');
+        const debugInfo = document.getElementById('debug');
+        
+        // Initialize the application
+        async function initialize() {
+            try {
+                updateStatus('🔄 Initializing neural network...', 'loading');
+                
+                // Create keyboard
+                createKeyboard();
+                
+                // Initialize decoder
+                decoder = new DemoSwipeDecoder();
+                await decoder.initialize();
+                
+                updateStatus('✅ Ready! Draw a swipe gesture on the keyboard', 'ready');
+                demoBtn.disabled = false;
+                
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                updateStatus('❌ Failed to load model. Using demo mode.', 'error');
+                demoBtn.disabled = false;
+            }
+        }
+        
+        // Create keyboard layout
+        function createKeyboard() {
+            keyboard.innerHTML = '';
+            keyElements = [];
+            
+            keyboardLayout.forEach((key, index) => {
+                const keyEl = document.createElement('div');
+                keyEl.className = 'key';
+                keyEl.textContent = key.char.toUpperCase();
+                keyEl.style.left = `${key.x * 100}%`;
+                keyEl.style.top = `${key.y * 100}%`;
+                keyEl.style.width = `${key.width * 100}%`;
+                keyEl.style.height = `${key.height * 100}%`;
+                
+                keyboard.appendChild(keyEl);
+                keyElements.push(keyEl);
+            });
+            
+            setupSwipeHandlers();
+        }
+        
+        // Setup swipe event handlers
+        function setupSwipeHandlers() {
+            let startTime = 0;
+            
+            // Mouse events
+            keyboard.addEventListener('mousedown', (e) => startSwipe(e, 'mouse'));
+            keyboard.addEventListener('mousemove', (e) => continueSwipe(e, 'mouse'));
+            keyboard.addEventListener('mouseup', () => endSwipe());
+            keyboard.addEventListener('mouseleave', () => endSwipe());
+            
+            // Touch events
+            keyboard.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                startSwipe(e.touches[0], 'touch');
+            });
+            keyboard.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                continueSwipe(e.touches[0], 'touch');
+            });
+            keyboard.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                endSwipe();
+            });
+            
+            function startSwipe(e, type) {
+                isDrawing = true;
+                swipePoints = [];
+                startTime = Date.now();
+                
+                const rect = keyboard.getBoundingClientRect();
+                const point = {
+                    x: (e.clientX - rect.left) / rect.width,
+                    y: (e.clientY - rect.top) / rect.height,
+                    t: Date.now() - startTime
+                };
+                
+                swipePoints.push(point);
+                addSwipeTrail(point);
+                highlightNearestKey(point);
+                
+                clearPredictions();
+            }
+            
+            function continueSwipe(e, type) {
+                if (!isDrawing) return;
+                
+                const rect = keyboard.getBoundingClientRect();
+                const point = {
+                    x: (e.clientX - rect.left) / rect.width,
+                    y: (e.clientY - rect.top) / rect.height,
+                    t: Date.now() - startTime
+                };
+                
+                swipePoints.push(point);
+                addSwipeTrail(point);
+                highlightNearestKey(point);
+            }
+            
+            function endSwipe() {
+                if (!isDrawing) return;
+                
+                isDrawing = false;
+                clearHighlights();
+                
+                if (swipePoints.length > 2) {
+                    processSwipe(swipePoints);
+                }
+            }
+        }
+        
+        // Add visual trail for swipe
+        function addSwipeTrail(point) {
+            const trail = document.createElement('div');
+            trail.className = 'swipe-trail';
+            trail.style.left = `${point.x * 100}%`;
+            trail.style.top = `${point.y * 100}%`;
+            trail.style.width = '12px';
+            trail.style.height = '12px';
+            
+            keyboard.appendChild(trail);
+            
+            // Remove after animation
+            setTimeout(() => {
+                if (trail.parentNode) {
+                    trail.parentNode.removeChild(trail);
+                }
+            }, 1000);
+        }
+        
+        // Highlight nearest key
+        function highlightNearestKey(point) {
+            clearHighlights();
+            
+            let nearestKey = null;
+            let minDistance = Infinity;
+            
+            keyboardLayout.forEach((key, index) => {
+                const keyCenterX = key.x + key.width / 2;
+                const keyCenterY = key.y + key.height / 2;
+                const distance = Math.sqrt(
+                    Math.pow(point.x - keyCenterX, 2) + 
+                    Math.pow(point.y - keyCenterY, 2)
+                );
+                
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestKey = index;
+                }
+            });
+            
+            if (nearestKey !== null && keyElements[nearestKey]) {
+                keyElements[nearestKey].classList.add('active');
+            }
+        }
+        
+        // Clear key highlights
+        function clearHighlights() {
+            keyElements.forEach(key => key.classList.remove('active'));
+        }
+        
+        // Process swipe gesture
+        async function processSwipe(points) {
+            try {
+                updateStatus('🧠 Processing swipe gesture...', 'loading');
+                
+                debugLog(`Swipe points: ${points.length}`);
+                debugLog(`Duration: ${points[points.length - 1].t}ms`);
+                
+                const predictions = await decoder.decode(points);
+                displayPredictions(predictions);
+                
+                updateStatus('✅ Ready! Draw another swipe gesture', 'ready');
+                
+            } catch (error) {
+                console.error('Swipe processing failed:', error);
+                updateStatus('❌ Processing failed. Try again.', 'error');
+            }
+        }
+        
+        // Display predictions
+        function displayPredictions(predictions) {
+            predictionList.innerHTML = '';
+            
+            if (!predictions || predictions.length === 0) {
+                predictionList.innerHTML = '<div style="color: #6b7280; font-style: italic;">No predictions available</div>';
+                return;
+            }
+            
+            predictions.forEach((pred, index) => {
+                const item = document.createElement('div');
+                item.className = 'prediction-item';
+                item.innerHTML = `
+                    ${pred.word}
+                    <span class="score">${(pred.score * 100).toFixed(0)}%</span>
+                `;
+                
+                item.addEventListener('click', () => {
+                    console.log('Selected word:', pred.word);
+                    updateStatus(`✨ Selected: "${pred.word}"`, 'ready');
+                });
+                
+                predictionList.appendChild(item);
+            });
+        }
+        
+        // Clear predictions
+        function clearPredictions() {
+            predictionList.innerHTML = '<div style="color: #6b7280; font-style: italic;">Drawing swipe...</div>';
+        }
+        
+        // Update status display
+        function updateStatus(message, type) {
+            status.textContent = message;
+            status.className = `status-bar status-${type}`;
+        }
+        
+        // Debug logging
+        function debugLog(message) {
+            console.log(message);
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfo.textContent += `[${timestamp}] ${message}\\n`;
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+        }
+        
+        // Demo button handler
+        demoBtn.addEventListener('click', async () => {
+            // Simulate a swipe gesture for "hello"
+            const demoPoints = [
+                {x: 0.54, y: 0.45, t: 0},    // h
+                {x: 0.27, y: 0.2, t: 100},   // e  
+                {x: 0.81, y: 0.45, t: 200},  // l
+                {x: 0.81, y: 0.45, t: 300},  // l
+                {x: 0.77, y: 0.2, t: 400}    // o
+            ];
+            
+            // Animate the demo
+            updateStatus('🎬 Running demo swipe for "hello"...', 'loading');
+            
+            for (let i = 0; i < demoPoints.length; i++) {
+                const point = demoPoints[i];
+                addSwipeTrail(point);
+                highlightNearestKey(point);
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            
+            clearHighlights();
+            await processSwipe(demoPoints);
+        });
+        
+        // Clear button handler
+        clearBtn.addEventListener('click', () => {
+            clearPredictions();
+            clearHighlights();
+            
+            // Clear trails
+            const trails = keyboard.querySelectorAll('.swipe-trail');
+            trails.forEach(trail => trail.remove());
+            
+            updateStatus('✅ Ready! Draw a swipe gesture on the keyboard', 'ready');
+        });
+        
+        // Toggle debug info (double-click status)
+        status.addEventListener('dblclick', () => {
+            debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
+        });
+        
+        // Initialize when page loads
+        window.addEventListener('DOMContentLoaded', initialize);
+        
+    </script>
+</body>
+</html>
