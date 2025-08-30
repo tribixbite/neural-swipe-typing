@@ -1,8 +1,0 @@
-{
-  "total_swipes": 24081,
-  "train_samples": 15177,
-  "val_samples": 759,
-  "test_samples": 8145,
-  "unique_words": 7096,
-  "avg_samples_per_word": 3.3936020293122886
-}
