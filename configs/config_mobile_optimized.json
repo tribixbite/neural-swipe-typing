@@ -1,0 +1,87 @@
+{
+    "training_config": {
+        "model_architecture": "mobile_swipe_typing",
+        "model_params": {
+            "d_model": 64,
+            "vocab_size": 30,
+            "max_seq_len": 150,
+            "max_word_len": 20,
+            "nhead": 4,
+            "num_encoder_layers": 3,
+            "num_decoder_layers": 2,
+            "dropout": 0.1
+        },
+        "training_params": {
+            "batch_size": 32,
+            "learning_rate": 0.001,
+            "weight_decay": 0.0001,
+            "max_epochs": 50,
+            "early_stopping_patience": 5,
+            "gradient_clip_norm": 1.0,
+            "warmup_steps": 1000,
+            "scheduler": "cosine_annealing"
+        },
+        "data_params": {
+            "train_data": "./data/combined_dataset/cleaned_english_swipes_train.jsonl",
+            "val_data": "./data/combined_dataset/cleaned_english_swipes_val.jsonl",
+            "test_data": "./data/combined_dataset/cleaned_english_swipes_test.jsonl",
+            "vocab_path": "./data/data_preprocessed/voc.txt",
+            "grid_path": "./data/data_preprocessed/gridname_to_grid.json",
+            "max_sequence_length": 150,
+            "num_workers": 0,
+            "pin_memory": true
+        },
+        "feature_extraction": {
+            "include_coords": true,
+            "include_velocities": true,
+            "include_accelerations": true,
+            "include_time": false,
+            "normalize_coordinates": true,
+            "coordinate_bounds": [360, 215],
+            "velocity_clipping": 1000.0,
+            "acceleration_clipping": 500.0
+        },
+        "mobile_optimization": {
+            "target_vocab_size": 3000,
+            "inference_mode": "greedy",
+            "max_inference_steps": 20,
+            "export_formats": ["onnx", "executorch"],
+            "quantization": "dynamic",
+            "optimize_for_mobile": true
+        }
+    },
+    "export_config": {
+        "onnx": {
+            "opset_version": 11,
+            "dynamic_axes": {
+                "input": {"0": "batch_size", "1": "sequence_length"},
+                "output": {"0": "batch_size", "1": "word_length"}
+            },
+            "optimize": true,
+            "use_external_data": false
+        },
+        "executorch": {
+            "quantization": "dynamic",
+            "backend": "xnnpack",
+            "memory_planning": true,
+            "delegate_options": {
+                "use_fp16": false,
+                "use_int8": true
+            }
+        }
+    },
+    "deployment_targets": {
+        "android": {
+            "model_format": "executorch",
+            "max_model_size_mb": 10,
+            "max_inference_time_ms": 50,
+            "vocab_subset": "top_3k_english"
+        },
+        "web": {
+            "model_format": "onnx",
+            "runtime": "onnxjs",
+            "execution_providers": ["wasm", "webgl"],
+            "vocab_subset": "top_5k_english"
+        }
+    }
+}
