@@ -1,0 +1,14 @@
+{
+  "model_architecture": "EncoderDecoderTransformerLike",
+  "model_name": "v3_nearest_and_traj_transformer_bigger",
+  "export_approach": "inference_only",
+  "backend": "xnnpack",
+  "file_path": "exported_models_executorch/english-epoch=51-val_loss=1.248-val_word_acc=0.659_inference_only.pte",
+  "input_format": {
+    "traj_feats": "[seq_len, batch_size, 6]",
+    "kb_features": "[seq_len, batch_size, num_keys]"
+  },
+  "output_format": "[batch_size, vocab_size] (first character logits only)",
+  "dynamic_shapes": "{'traj_feats': {0: Dim('seq_len', min=10, max=299)}, 'kb_features': {0: Dim('seq_len', min=10, max=299)}}",
+  "pytorch_version": "2.8.0+cu128"
+}
