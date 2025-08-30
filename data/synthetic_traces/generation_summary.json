@@ -1,6 +1,6 @@
 {
-  "total_words_attempted": 20,
-  "total_traces_generated": 36,
+  "total_words_attempted": 10000,
+  "total_traces_generated": 39896,
   "failed_words_count": 0,
   "failed_words": [],
   "success_rate": 1.0,
@@ -11,5 +11,5 @@
     "2"
   ],
   "traces_per_word": 4,
-  "generation_timestamp": 1756435149.2529674
+  "generation_timestamp": 1756498906.5281494
 }
