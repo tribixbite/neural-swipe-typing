@@ -1,0 +1,57 @@
+{
+  "dataset_size": 86061,
+  "coordinate_bounds": {
+    "x_range": [
+      -303,
+      360.0
+    ],
+    "y_range": [
+      -200,
+      215
+    ],
+    "requires_normalization": false
+  },
+  "trajectory_characteristics": {
+    "avg_points_per_trace": 106.58102973472305,
+    "max_points_per_trace": 1134,
+    "avg_velocity_pps": 5771.26221155181,
+    "max_velocity_pps": 304157.0420002587
+  },
+  "vocabulary_optimization": {
+    "total_unique_words": 9974,
+    "top_3k_coverage": 0.10304319029525569,
+    "recommended_vocab_size": 3000,
+    "word_length_distribution": {
+      "6": 12036,
+      "3": 11746,
+      "5": 12450,
+      "10": 3942,
+      "9": 6264,
+      "12": 1285,
+      "7": 10581,
+      "4": 14502,
+      "11": 2474,
+      "14": 251,
+      "8": 8225,
+      "13": 631,
+      "2": 1584,
+      "15": 60,
+      "16": 23,
+      "18": 7
+    }
+  },
+  "mobile_performance_estimate": {
+    "avg_inference_points": 106.58102973472305,
+    "max_inference_points": 150,
+    "estimated_latency_ms": 53.29051486736152,
+    "memory_requirements_mb": 0.05204151842515774
+  },
+  "data_quality": {
+    "total_entries": 86061,
+    "invalid_coordinates": 39856,
+    "invalid_timing": 39896,
+    "invalid_words": 0,
+    "specific_issues": [],
+    "data_quality_score": 0.691102822416658
+  }
+}
