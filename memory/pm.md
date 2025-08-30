@@ -160,8 +160,40 @@ Once dimensional issue resolved:
 2. **Evaluation**: Test model performance on English swipe typing
 3. **Performance Optimization**: Fine-tune for best accuracy
 
+### ✅ Synthetic Dataset Integration (Complete)
+
+Successfully processed and integrated 39,896 synthetic trace samples with existing real data:
+
+**Dataset Processing:**
+- Combined 80 batch files from synthetic trace generation (39,896 total traces)
+- Converted synthetic API format to match existing real data format
+- Normalized coordinates: multiplied x by 360, y by 215 (as per requirements)
+- Combined with existing 46,165 real English swipe samples
+
+**Combined Dataset Statistics:**
+- **Total combined traces: 86,061** (39,896 synthetic + 46,165 real)
+- Train split: 68,848 samples (80%)
+- Validation split: 8,606 samples (10%)
+- Test split: 8,607 samples (10%)
+
+**Format Conversion:**
+- Converted synthetic format: `{"word_seq": {"time": [...], "x": [...], "y": [...]}, "word": "...", "std_dev": "..."}` 
+- To real format: `{"curve": {"x": [...], "y": [...], "t": [...], "grid_name": "qwerty_english"}, "word": "..."}`
+- Applied proper coordinate scaling and shuffling for data mixing
+
+**Generated Files:**
+- `data/combined_dataset/combined_english_swipes_train.jsonl` (68,848 samples)
+- `data/combined_dataset/combined_english_swipes_val.jsonl` (8,606 samples) 
+- `data/combined_dataset/combined_english_swipes_test.jsonl` (8,607 samples)
+
+**Technical Implementation:**
+- Created `process_synthetic_data.py` for automated processing pipeline
+- Reproducible shuffling with fixed random seed (42)
+- Maintained data integrity through format validation
+
 ### 📋 Future Enhancements
 - Experiment with different model architectures for English
 - Add data augmentation specific to English swipe patterns
 - Evaluate performance against baseline English typing models
 - Consider using trajectory similarity analysis for data augmentation
+- **Train models on expanded 86k sample combined dataset**
