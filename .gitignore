@@ -205,3 +205,10 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,python,jupyternotebooks
 
 curves/
+
+# Large dataset files (>50MB)
+data/combined_dataset/all_combined_traces.jsonl
+data/combined_dataset/all_synthetic_traces.jsonl
+data/combined_dataset/converted_synthetic_traces.jsonl
+data/combined_dataset/combined_english_swipes_train.jsonl
+data/combined_dataset/cleaned_english_swipes_train.jsonl
