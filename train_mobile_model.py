@@ -275,19 +275,21 @@ class MobileSwipeTrainer(pl.LightningModule):
         loss = self.criterion(logits.reshape(-1, logits.size(-1)),
                              output_targets.reshape(-1))
         
-        # Autoregressive generation for realistic accuracy measurement
-        generated = self._generate_autoregressive(features)
-        word_acc = self._calculate_word_accuracy(generated, targets)
-        
-        # Also calculate token-level accuracy for comparison
+        # Calculate token-level accuracy
         preds = torch.argmax(logits, dim=-1)
         mask = output_targets != 0
         token_acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
         
+        # Autoregressive generation only on first 10 batches per epoch for speed
+        word_acc = 0.0
+        if batch_idx < 10:
+            generated = self._generate_autoregressive(features)
+            word_acc = self._calculate_word_accuracy(generated, targets)
+            self.log('val_word_acc_sample', word_acc, prog_bar=False)
+        
         # Logging
         self.log('val_loss', loss, prog_bar=True)
-        self.log('val_word_acc', word_acc, prog_bar=True)
-        self.log('val_token_acc', token_acc, prog_bar=False)
+        self.log('val_token_acc', token_acc, prog_bar=True)
         
         return loss
     
@@ -303,14 +305,14 @@ class MobileSwipeTrainer(pl.LightningModule):
         loss = self.criterion(logits.reshape(-1, logits.size(-1)),
                              output_targets.reshape(-1))
         
-        # Autoregressive generation for realistic accuracy measurement
-        generated = self._generate_autoregressive(features)
-        word_acc = self._calculate_word_accuracy(generated, targets)
-        
-        # Also calculate token-level accuracy for comparison
+        # Calculate token-level accuracy
         preds = torch.argmax(logits, dim=-1)
         mask = output_targets != 0
         token_acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
+        
+        # Autoregressive generation for all test batches (testing is less frequent)
+        generated = self._generate_autoregressive(features)
+        word_acc = self._calculate_word_accuracy(generated, targets)
         
         # Logging
         self.log('test_loss', loss, prog_bar=True)
@@ -434,8 +436,8 @@ def train_mobile_model(config_path: str = 'configs/config_mobile_optimized.json'
     # Setup callbacks
     checkpoint_callback = ModelCheckpoint(
         dirpath='checkpoints/mobile_model',
-        filename='mobile-swipe-{epoch:02d}-{val_acc:.3f}',
-        monitor='val_acc',
+        filename='mobile-swipe-{epoch:02d}-{val_token_acc:.3f}',
+        monitor='val_token_acc',
         mode='max',
         save_top_k=3,
         save_last=True

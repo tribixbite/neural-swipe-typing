@@ -12,13 +12,13 @@
             "dropout": 0.1
         },
         "training_params": {
-            "batch_size": 32,
-            "learning_rate": 0.001,
+            "batch_size": 64,
+            "learning_rate": 0.005,
             "weight_decay": 0.0001,
             "max_epochs": 50,
-            "early_stopping_patience": 5,
+            "early_stopping_patience": 8,
             "gradient_clip_norm": 1.0,
-            "warmup_steps": 1000,
+            "warmup_steps": 500,
             "scheduler": "cosine_annealing"
         },
         "data_params": {
