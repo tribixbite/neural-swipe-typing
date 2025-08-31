@@ -266,58 +266,110 @@ class MobileSwipeTrainer(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         features, targets = batch
         
-        # Teacher forcing for loss calculation (still needed for training signal)
-        input_targets = targets[:, :-1]
-        output_targets = targets[:, 1:]
+        # REALISTIC VALIDATION: Use only autoregressive generation (no teacher forcing)
+        generated = self._generate_autoregressive(features)
+        word_acc = self._calculate_word_accuracy(generated, targets)
         
-        # Forward pass with teacher forcing for loss
+        # Calculate token-level accuracy from autoregressive generation (CORRECTED)
+        output_targets = targets[:, 1:]      # (B, T_target) - Remove SOS token
+        generated_trimmed = generated[:, 1:] # (B, T_gen) - Remove SOS token
+
+        # Pad the shorter sequence to match the longer one for comparison
+        len_target = output_targets.size(1)
+        len_gen = generated_trimmed.size(1)
+        max_len = max(len_target, len_gen)
+
+        # Pad generated sequence if it's shorter
+        if len_gen < max_len:
+            padding = torch.full(
+                (generated_trimmed.size(0), max_len - len_gen), 
+                self.char_to_idx['<pad>'], 
+                device=features.device, 
+                dtype=torch.long
+            )
+            generated_padded = torch.cat([generated_trimmed, padding], dim=1)
+        else:
+            generated_padded = generated_trimmed[:, :max_len]
+
+        # The target is already padded to a fixed length from the dataset
+        targets_padded = output_targets[:, :max_len]
+        
+        # Create a mask for valid tokens in the target (crucial part)
+        # We only evaluate accuracy on the non-padded tokens of the ground truth
+        target_mask = targets_padded != self.char_to_idx['<pad>']
+        
+        # Count correct tokens where the target is not padding
+        correct_tokens = ((generated_padded == targets_padded) & target_mask).sum()
+        total_tokens = target_mask.sum()
+
+        token_acc = correct_tokens.float() / total_tokens if total_tokens > 0 else torch.tensor(0.0, device=features.device)
+        
+        # Optional: Calculate loss using teacher forcing for training signal (but don't use for metrics)
+        input_targets = targets[:, :-1]
+        teacher_targets = targets[:, 1:]
         logits = self.model(features, input_targets)
         loss = self.criterion(logits.reshape(-1, logits.size(-1)),
-                             output_targets.reshape(-1))
+                             teacher_targets.reshape(-1))
         
-        # Calculate token-level accuracy
-        preds = torch.argmax(logits, dim=-1)
-        mask = output_targets != 0
-        token_acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
-        
-        # Autoregressive generation only on first 10 batches per epoch for speed
-        word_acc = 0.0
-        if batch_idx < 10:
-            generated = self._generate_autoregressive(features)
-            word_acc = self._calculate_word_accuracy(generated, targets)
-            self.log('val_word_acc_sample', word_acc, prog_bar=False)
-        
-        # Logging
+        # Logging - use realistic metrics
         self.log('val_loss', loss, prog_bar=True)
-        self.log('val_token_acc', token_acc, prog_bar=True)
+        self.log('val_token_acc', token_acc, prog_bar=True)  # Now realistic!
+        self.log('val_word_acc', word_acc, prog_bar=True)   # Word-level accuracy
         
         return loss
     
     def test_step(self, batch, batch_idx):
         features, targets = batch
         
-        # Teacher forcing for loss calculation
-        input_targets = targets[:, :-1]
-        output_targets = targets[:, 1:]
-        
-        # Forward pass with teacher forcing for loss
-        logits = self.model(features, input_targets)
-        loss = self.criterion(logits.reshape(-1, logits.size(-1)),
-                             output_targets.reshape(-1))
-        
-        # Calculate token-level accuracy
-        preds = torch.argmax(logits, dim=-1)
-        mask = output_targets != 0
-        token_acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
-        
-        # Autoregressive generation for all test batches (testing is less frequent)
+        # REALISTIC TESTING: Use only autoregressive generation (no teacher forcing)
         generated = self._generate_autoregressive(features)
         word_acc = self._calculate_word_accuracy(generated, targets)
         
-        # Logging
+        # Calculate token-level accuracy from autoregressive generation (CORRECTED)
+        output_targets = targets[:, 1:]      # (B, T_target) - Remove SOS token
+        generated_trimmed = generated[:, 1:] # (B, T_gen) - Remove SOS token
+
+        # Pad the shorter sequence to match the longer one for comparison
+        len_target = output_targets.size(1)
+        len_gen = generated_trimmed.size(1)
+        max_len = max(len_target, len_gen)
+
+        # Pad generated sequence if it's shorter
+        if len_gen < max_len:
+            padding = torch.full(
+                (generated_trimmed.size(0), max_len - len_gen), 
+                self.char_to_idx['<pad>'], 
+                device=features.device, 
+                dtype=torch.long
+            )
+            generated_padded = torch.cat([generated_trimmed, padding], dim=1)
+        else:
+            generated_padded = generated_trimmed[:, :max_len]
+
+        # The target is already padded to a fixed length from the dataset
+        targets_padded = output_targets[:, :max_len]
+        
+        # Create a mask for valid tokens in the target (crucial part)
+        # We only evaluate accuracy on the non-padded tokens of the ground truth
+        target_mask = targets_padded != self.char_to_idx['<pad>']
+        
+        # Count correct tokens where the target is not padding
+        correct_tokens = ((generated_padded == targets_padded) & target_mask).sum()
+        total_tokens = target_mask.sum()
+
+        token_acc = correct_tokens.float() / total_tokens if total_tokens > 0 else torch.tensor(0.0, device=features.device)
+        
+        # Optional: Calculate loss using teacher forcing for reference (but don't use for metrics)
+        input_targets = targets[:, :-1]
+        teacher_targets = targets[:, 1:]
+        logits = self.model(features, input_targets)
+        loss = self.criterion(logits.reshape(-1, logits.size(-1)),
+                             teacher_targets.reshape(-1))
+        
+        # Logging - use realistic metrics
         self.log('test_loss', loss, prog_bar=True)
-        self.log('test_word_acc', word_acc, prog_bar=True)
-        self.log('test_token_acc', token_acc, prog_bar=False)
+        self.log('test_token_acc', token_acc, prog_bar=True)  # Now realistic!
+        self.log('test_word_acc', word_acc, prog_bar=True)   # Word-level accuracy
         
         return loss
     
