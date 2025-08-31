@@ -222,6 +222,31 @@ class MobileSwipeTrainer(pl.LightningModule):
         
         return loss
     
+    def test_step(self, batch, batch_idx):
+        features, targets = batch
+        
+        # Teacher forcing for testing
+        input_targets = targets[:, :-1]
+        output_targets = targets[:, 1:]
+        
+        # Forward pass
+        logits = self.model(features, input_targets)
+        
+        # Calculate loss
+        loss = self.criterion(logits.reshape(-1, logits.size(-1)),
+                             output_targets.reshape(-1))
+        
+        # Calculate accuracy
+        preds = torch.argmax(logits, dim=-1)
+        mask = output_targets != 0
+        acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
+        
+        # Logging
+        self.log('test_loss', loss, prog_bar=True)
+        self.log('test_acc', acc, prog_bar=True)
+        
+        return loss
+    
     def configure_optimizers(self):
         # AdamW optimizer with weight decay
         optimizer = optim.AdamW(
