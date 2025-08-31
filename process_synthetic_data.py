@@ -36,8 +36,8 @@ def convert_synthetic_to_real_format(synthetic_entry: Dict) -> Dict:
     
     # Convert normalized coordinates to integer coordinates
     # Multiply x by 360, y by 215 (as specified in requirements)
-    x_coords = [int(x * 360) for x in word_seq["x"]]
-    y_coords = [int(y * 215) for y in word_seq["y"]]
+    x_coords = [int((x + 1) / 2 * 360) for x in word_seq["x"]]
+    y_coords = [int((y + 1) / 2 * 215) for y in word_seq["y"]]
     
     # Convert time to integer milliseconds (assuming time is in seconds)
     # Start from 0 for first timestamp

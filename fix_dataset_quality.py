@@ -83,26 +83,26 @@ def clean_dataset(input_file: str, output_file: str) -> Tuple[int, int]:
                 if not validate_entry(entry):
                     continue
                 
-                curve = entry['curve']
-                x, y, t = curve['x'], curve['y'], curve['t']
+                # curve = entry['curve']
+                # x, y, t = curve['x'], curve['y'], curve['t']
                 
-                # Fix coordinate bounds
-                fixed_x, fixed_y = fix_coordinate_bounds(x, y)
+                # # Fix coordinate bounds
+                # fixed_x, fixed_y = fix_coordinate_bounds(x, y)
                 
-                # Fix timing sequence
-                fixed_t = fix_timing_sequence(t)
+                # # Fix timing sequence
+                # fixed_t = fix_timing_sequence(t)
                 
-                # Check if we made fixes
-                if fixed_x != x or fixed_y != y or fixed_t != t:
-                    fixed_entries += 1
+                # # Check if we made fixes
+                # if fixed_x != x or fixed_y != y or fixed_t != t:
+                #     fixed_entries += 1
                 
-                # Update entry with fixed data
-                entry['curve']['x'] = fixed_x
-                entry['curve']['y'] = fixed_y
-                entry['curve']['t'] = fixed_t
+                # # Update entry with fixed data
+                # entry['curve']['x'] = fixed_x
+                # entry['curve']['y'] = fixed_y
+                # entry['curve']['t'] = fixed_t
                 
-                # Ensure grid_name is correct
-                entry['curve']['grid_name'] = 'qwerty_english'
+                # # Ensure grid_name is correct
+                # entry['curve']['grid_name'] = 'qwerty_english'
                 
                 # Write cleaned entry
                 outf.write(json.dumps(entry) + '\n')
