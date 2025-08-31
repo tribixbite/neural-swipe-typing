@@ -161,6 +161,11 @@ class MobileSwipeTrainer(pl.LightningModule):
         # Loss function
         self.criterion = nn.CrossEntropyLoss(ignore_index=0)  # Ignore padding
         
+        # Token mappings for autoregressive generation
+        self.char_to_idx = {'<pad>': 0, '<eos>': 1, '<unk>': 2, '<sos>': 3}
+        self.char_to_idx.update({chr(ord('a') + i): i + 4 for i in range(26)})
+        self.idx_to_char = {v: k for k, v in self.char_to_idx.items()}
+        
         # Metrics tracking
         self.train_correct = 0
         self.train_total = 0
@@ -168,6 +173,60 @@ class MobileSwipeTrainer(pl.LightningModule):
         self.val_total = 0
         
         self.save_hyperparameters()
+    
+    def _generate_autoregressive(self, features: torch.Tensor, max_len: int = 20) -> torch.Tensor:
+        """Generate word sequences autoregressively (no teacher forcing)"""
+        batch_size = features.size(0)
+        device = features.device
+        
+        # Start with SOS token
+        generated = torch.full((batch_size, 1), self.char_to_idx['<sos>'], 
+                              dtype=torch.long, device=device)
+        
+        for _ in range(max_len - 1):  # -1 because we start with SOS
+            # Get predictions for current sequence
+            with torch.no_grad():
+                logits = self.model(features, generated)
+                # Take the last timestep's predictions
+                next_token_logits = logits[:, -1, :]
+                # Greedy decoding (argmax)
+                next_tokens = next_token_logits.argmax(dim=-1, keepdim=True)
+                
+                # Append to generated sequence
+                generated = torch.cat([generated, next_tokens], dim=1)
+                
+                # Stop if all sequences have generated EOS
+                if (next_tokens.squeeze() == self.char_to_idx['<eos>']).all():
+                    break
+        
+        return generated
+    
+    def _tokens_to_word(self, tokens: torch.Tensor) -> str:
+        """Convert token sequence to word string"""
+        word_chars = []
+        for token_id in tokens:
+            token_id = token_id.item()
+            if token_id == self.char_to_idx['<eos>'] or token_id == self.char_to_idx['<pad>']:
+                break
+            elif token_id == self.char_to_idx['<sos>'] or token_id == self.char_to_idx['<unk>']:
+                continue
+            else:
+                word_chars.append(self.idx_to_char[token_id])
+        return ''.join(word_chars)
+    
+    def _calculate_word_accuracy(self, generated: torch.Tensor, targets: torch.Tensor) -> float:
+        """Calculate word-level accuracy (exact match)"""
+        batch_size = generated.size(0)
+        correct = 0
+        
+        for i in range(batch_size):
+            pred_word = self._tokens_to_word(generated[i])
+            target_word = self._tokens_to_word(targets[i])
+            
+            if pred_word == target_word:
+                correct += 1
+        
+        return correct / batch_size if batch_size > 0 else 0.0
     
     def forward(self, features: torch.Tensor, targets: Optional[torch.Tensor] = None):
         return self.model(features, targets)
@@ -186,64 +245,77 @@ class MobileSwipeTrainer(pl.LightningModule):
         loss = self.criterion(logits.reshape(-1, logits.size(-1)), 
                              output_targets.reshape(-1))
         
-        # Calculate accuracy
+        # Calculate token-level accuracy
         preds = torch.argmax(logits, dim=-1)
         mask = output_targets != 0  # Don't count padding in accuracy
-        acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
+        token_acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
+        
+        # Calculate word-level accuracy every 100 steps to avoid slowing training
+        word_acc = 0.0
+        if batch_idx % 100 == 0:
+            generated = self._generate_autoregressive(features)
+            word_acc = self._calculate_word_accuracy(generated, targets)
+            self.log('train_word_acc', word_acc, prog_bar=False)
         
         # Logging
         self.log('train_loss', loss, prog_bar=True)
-        self.log('train_acc', acc, prog_bar=True)
+        self.log('train_token_acc', token_acc, prog_bar=True)
         
         return loss
     
     def validation_step(self, batch, batch_idx):
         features, targets = batch
         
-        # Teacher forcing for validation
+        # Teacher forcing for loss calculation (still needed for training signal)
         input_targets = targets[:, :-1]
         output_targets = targets[:, 1:]
         
-        # Forward pass
+        # Forward pass with teacher forcing for loss
         logits = self.model(features, input_targets)
-        
-        # Calculate loss
         loss = self.criterion(logits.reshape(-1, logits.size(-1)),
                              output_targets.reshape(-1))
         
-        # Calculate accuracy
+        # Autoregressive generation for realistic accuracy measurement
+        generated = self._generate_autoregressive(features)
+        word_acc = self._calculate_word_accuracy(generated, targets)
+        
+        # Also calculate token-level accuracy for comparison
         preds = torch.argmax(logits, dim=-1)
         mask = output_targets != 0
-        acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
+        token_acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
         
         # Logging
         self.log('val_loss', loss, prog_bar=True)
-        self.log('val_acc', acc, prog_bar=True)
+        self.log('val_word_acc', word_acc, prog_bar=True)
+        self.log('val_token_acc', token_acc, prog_bar=False)
         
         return loss
     
     def test_step(self, batch, batch_idx):
         features, targets = batch
         
-        # Teacher forcing for testing
+        # Teacher forcing for loss calculation
         input_targets = targets[:, :-1]
         output_targets = targets[:, 1:]
         
-        # Forward pass
+        # Forward pass with teacher forcing for loss
         logits = self.model(features, input_targets)
-        
-        # Calculate loss
         loss = self.criterion(logits.reshape(-1, logits.size(-1)),
                              output_targets.reshape(-1))
         
-        # Calculate accuracy
+        # Autoregressive generation for realistic accuracy measurement
+        generated = self._generate_autoregressive(features)
+        word_acc = self._calculate_word_accuracy(generated, targets)
+        
+        # Also calculate token-level accuracy for comparison
         preds = torch.argmax(logits, dim=-1)
         mask = output_targets != 0
-        acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
+        token_acc = (preds == output_targets)[mask].float().mean() if mask.sum() > 0 else torch.tensor(0.0)
         
         # Logging
         self.log('test_loss', loss, prog_bar=True)
-        self.log('test_acc', acc, prog_bar=True)
+        self.log('test_word_acc', word_acc, prog_bar=True)
+        self.log('test_token_acc', token_acc, prog_bar=False)
         
         return loss
     
