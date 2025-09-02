@@ -1,0 +1,5 @@
+kb_vocab_size: 29
+word_vocab_size: 10000
+learning_rate: 0.0005
+weight_decay: 1.0e-05
+warmup_epochs: 5
