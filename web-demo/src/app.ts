@@ -1,10 +1,9 @@
-import * as ort from 'onnxruntime-web';
+// Use global ort if available, otherwise try to import
+declare const ort: any;
+
 import { KeyboardRenderer } from './keyboard';
 import { SwipePredictor } from './predictor';
 import { SwipeTracker } from './swipe-tracker';
-
-// Initialize ONNX Runtime to use WebAssembly backend
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/';
 
 class SwipeTypingApp {
     private canvas: HTMLCanvasElement;
@@ -111,8 +110,10 @@ class SwipeTypingApp {
                     console.log('Swipe points:', points);
                     console.log('Predictions:', predictions);
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Prediction error:', error);
+                console.error('Error stack:', error?.stack);
+                console.error('Error message:', error?.message);
                 this.showError();
             }
             

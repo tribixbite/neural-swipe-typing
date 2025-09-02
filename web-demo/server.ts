@@ -76,15 +76,31 @@ Bun.serve({
       }
     }
     
-    // Serve main app HTML
-    if (url.pathname === "/" || url.pathname === "") {
-      const htmlPath = join(import.meta.dir, "index.html");
-      const htmlFile = Bun.file(htmlPath);
-      return new Response(htmlFile, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8"
-        }
-      });
+    // Serve files from public directory
+    if (url.pathname.startsWith("/src/") || url.pathname === "/" || url.pathname === "") {
+      let filePath: string;
+      
+      if (url.pathname === "/" || url.pathname === "") {
+        filePath = join(import.meta.dir, "public", "index.html");
+      } else {
+        filePath = join(import.meta.dir, "public", url.pathname.slice(1));
+      }
+      
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        let contentType = "text/plain";
+        if (filePath.endsWith(".html")) contentType = "text/html; charset=utf-8";
+        else if (filePath.endsWith(".js")) contentType = "application/javascript";
+        else if (filePath.endsWith(".css")) contentType = "text/css";
+        else if (filePath.endsWith(".json")) contentType = "application/json";
+        
+        return new Response(file, {
+          headers: {
+            "Content-Type": contentType,
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      }
     }
     
     return new Response("Not found", { status: 404 });

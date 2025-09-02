@@ -1,4 +1,6 @@
-import * as ort from 'onnxruntime-web';
+// Use global ort
+declare const ort: any;
+
 import { SwipePoint } from './swipe-tracker';
 
 interface Beam {
@@ -87,7 +89,8 @@ export class SwipePredictor {
         // Prepare input features
         const features = this.extractFeatures(swipePoints);
         const nearestKeys = this.findNearestKeys(swipePoints);
-        const srcMask = new Float32Array(swipePoints.length).fill(0);
+        // Boolean masks must be Uint8Array for ONNX Runtime
+        const srcMask = new Uint8Array(swipePoints.length).fill(0);
         
         // Run encoder
         const encoderInputs = {
@@ -199,8 +202,9 @@ export class SwipePredictor {
                 
                 // Prepare decoder inputs
                 const tgtTokens = new BigInt64Array(beam.tokens.map(t => BigInt(t)));
-                const tgtMask = new Float32Array(beam.tokens.length).fill(0);
-                const srcMask = new Float32Array(memory.dims[1] as number).fill(0);
+                // Boolean masks must be Uint8Array
+                const tgtMask = new Uint8Array(beam.tokens.length).fill(0);
+                const srcMask = new Uint8Array(memory.dims[1] as number).fill(0);
                 
                 const decoderInputs = {
                     memory: memory,
