@@ -37,7 +37,7 @@ def load_best_checkpoint() -> Tuple[CharacterLevelSwipeModel, str]:
             raise FileNotFoundError("No checkpoint found! Please train the model first.")
     
     print(f"Loading checkpoint: {checkpoint_path}")
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     
     # Initialize model with same architecture as training
     tokenizer = CharTokenizer()
@@ -89,7 +89,7 @@ def export_to_onnx(model: CharacterLevelSwipeModel, output_dir: Path) -> Dict:
     
     # Create sample inputs
     batch_size = 1
-    seq_len = 50
+    seq_len = 150  # Max sequence length from model_config.json
     traj_features = torch.randn(batch_size, seq_len, 6)
     nearest_keys = torch.randint(0, 30, (batch_size, seq_len))  # 2D tensor
     src_mask = torch.zeros(batch_size, seq_len, dtype=torch.bool)
@@ -265,8 +265,8 @@ def export_to_executorch(model: CharacterLevelSwipeModel, output_dir: Path) -> D
         
         # Trace the model
         example_inputs = (
-            torch.randn(1, 50, 6),
-            torch.randint(0, 30, (1, 50))  # 2D tensor for nearest_keys
+            torch.randn(1, 150, 6),  # Max sequence length from model_config.json
+            torch.randint(0, 30, (1, 150))  # 2D tensor for nearest_keys
         )
         
         traced_model = torch.jit.trace(mobile_model, example_inputs)
