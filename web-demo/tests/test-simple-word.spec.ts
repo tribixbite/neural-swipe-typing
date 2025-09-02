@@ -18,11 +18,15 @@ test('test simple word "the"', async ({ page }) => {
   }
   
   // Create a swipe pattern for "the"
+  // Need to scale keyboard coordinates (360x215) to actual canvas size
+  const scaleX = box.width / 360;
+  const scaleY = box.height / 215;
+  
   // t -> h -> e
   const points = [
-    {x: box.x + 162, y: box.y + 53},   // t
-    {x: box.x + 216, y: box.y + 107},  // h  
-    {x: box.x + 90, y: box.y + 53}     // e
+    {x: box.x + 162 * scaleX, y: box.y + 53 * scaleY},   // t
+    {x: box.x + 216 * scaleX, y: box.y + 107 * scaleY},  // h  
+    {x: box.x + 90 * scaleX, y: box.y + 53 * scaleY}     // e
   ];
   
   console.log('Swiping pattern for "the"...');

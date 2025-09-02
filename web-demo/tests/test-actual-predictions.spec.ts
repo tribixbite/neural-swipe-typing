@@ -23,13 +23,17 @@ test('check actual word predictions', async ({ page }) => {
   }
   
   // Create a swipe pattern for "hello"
+  // Need to scale keyboard coordinates (360x215) to actual canvas size
+  const scaleX = box.width / 360;
+  const scaleY = box.height / 215;
+  
   // h -> e -> l -> l -> o
   const points = [
-    {x: box.x + 216, y: box.y + 107},  // h
-    {x: box.x + 90, y: box.y + 53},    // e
-    {x: box.x + 324, y: box.y + 107},  // l
-    {x: box.x + 324, y: box.y + 107},  // l (stay)
-    {x: box.x + 306, y: box.y + 53}    // o
+    {x: box.x + 216 * scaleX, y: box.y + 107 * scaleY},  // h
+    {x: box.x + 90 * scaleX, y: box.y + 53 * scaleY},    // e
+    {x: box.x + 324 * scaleX, y: box.y + 107 * scaleY},  // l
+    {x: box.x + 324 * scaleX, y: box.y + 107 * scaleY},  // l (stay)
+    {x: box.x + 306 * scaleX, y: box.y + 53 * scaleY}    // o
   ];
   
   console.log('Swiping pattern for "hello"...');
