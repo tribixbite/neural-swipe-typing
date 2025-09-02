@@ -14,6 +14,8 @@ class SwipeTypingApp {
     private predictionsEl: HTMLElement;
     private loadingEl: HTMLElement;
     private loadingProgressEl: HTMLElement;
+    private swipeCharsEl: HTMLElement;
+    private statusEl: HTMLElement;
     private debugMode: boolean = false;
 
     constructor() {
@@ -22,6 +24,8 @@ class SwipeTypingApp {
         this.predictionsEl = document.getElementById('predictions')!;
         this.loadingEl = document.getElementById('loading')!;
         this.loadingProgressEl = document.getElementById('loading-progress')!;
+        this.swipeCharsEl = document.getElementById('swipe-chars')!;
+        this.statusEl = document.getElementById('status')!;
         
         this.keyboard = new KeyboardRenderer(this.canvas, this.ctx);
         this.predictor = new SwipePredictor();
@@ -82,12 +86,17 @@ class SwipeTypingApp {
 
     private setupEventHandlers() {
         let loggedKeys: Set<string> = new Set();
+        let swipedChars: string[] = [];
         
         // Swipe tracking events
         this.swipeTracker.on('swipeStart', () => {
             this.keyboard.clearTrace();
             this.clearPredictions();
             loggedKeys.clear();  // Reset logged keys for new swipe
+            swipedChars = [];    // Reset swiped characters
+            this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Swiping...</span>';
+            this.statusEl.textContent = 'Swiping';
+            this.statusEl.className = 'text-sm font-semibold text-blue-600 dark:text-blue-400';
         });
 
         this.swipeTracker.on('swipeMove', (points) => {
@@ -100,6 +109,10 @@ class SwipeTypingApp {
                 if (key && !loggedKeys.has(key)) {
                     console.log(`Key: ${key.toUpperCase()}`);
                     loggedKeys.add(key);
+                    swipedChars.push(key.toUpperCase());
+                    
+                    // Update real-time display
+                    this.swipeCharsEl.innerHTML = swipedChars.join(' → ');
                 }
             }
         });
@@ -108,16 +121,23 @@ class SwipeTypingApp {
             if (points.length < 3) {
                 // Too short to be a meaningful swipe
                 this.keyboard.clearTrace();
+                this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Too short - try again</span>';
+                this.statusEl.textContent = 'Ready';
+                this.statusEl.className = 'text-sm font-semibold text-green-600 dark:text-green-400';
                 return;
             }
             
             // Show loading state
             this.showLoadingPredictions();
+            this.statusEl.textContent = 'Processing';
+            this.statusEl.className = 'text-sm font-semibold text-yellow-600 dark:text-yellow-400';
             
             try {
                 // Get predictions
                 const predictions = await this.predictor.predict(points, 5);
                 this.showPredictions(predictions);
+                this.statusEl.textContent = 'Ready';
+                this.statusEl.className = 'text-sm font-semibold text-green-600 dark:text-green-400';
                 
                 if (this.debugMode) {
                     console.log('Swipe points:', points);
@@ -128,6 +148,8 @@ class SwipeTypingApp {
                 console.error('Error stack:', error?.stack);
                 console.error('Error message:', error?.message);
                 this.showError();
+                this.statusEl.textContent = 'Error';
+                this.statusEl.className = 'text-sm font-semibold text-red-600 dark:text-red-400';
             }
             
             // Clear trace after a delay
@@ -140,20 +162,27 @@ class SwipeTypingApp {
         document.getElementById('clear-btn')?.addEventListener('click', () => {
             this.keyboard.clearTrace();
             this.clearPredictions();
+            this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Touch the keyboard to start swiping...</span>';
+            this.statusEl.textContent = 'Ready';
+            this.statusEl.className = 'text-sm font-semibold text-green-600 dark:text-green-400';
         });
 
         document.getElementById('debug-btn')?.addEventListener('click', () => {
             this.debugMode = !this.debugMode;
             const btn = document.getElementById('debug-btn') as HTMLButtonElement;
             btn.textContent = this.debugMode ? 'Debug: ON' : 'Debug: OFF';
-            btn.style.background = this.debugMode ? '#f44336' : '#667eea';
+            if (this.debugMode) {
+                btn.className = 'px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-all duration-150 active:scale-95';
+            } else {
+                btn.className = 'px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg transition-all duration-150 active:scale-95';
+            }
         });
 
         // Prediction click handler
         this.predictionsEl.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
-            if (target.classList.contains('prediction')) {
-                const word = target.textContent;
+            if (target.tagName === 'BUTTON') {
+                const word = target.textContent?.trim();
                 if (word) {
                     this.selectWord(word);
                 }
@@ -162,31 +191,34 @@ class SwipeTypingApp {
     }
 
     private clearPredictions() {
-        this.predictionsEl.innerHTML = '<div class="no-predictions">Swipe on the keyboard to see predictions</div>';
+        this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full py-8">Swipe on the keyboard to see predictions</p>';
     }
 
     private showLoadingPredictions() {
-        this.predictionsEl.innerHTML = '<div class="no-predictions">Processing...</div>';
+        this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full py-8 animate-pulse">Processing...</p>';
     }
 
     private showPredictions(predictions: Array<{word: string, score: number}>) {
         if (predictions.length === 0) {
-            this.predictionsEl.innerHTML = '<div class="no-predictions">No predictions found</div>';
+            this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full py-8">No predictions found</p>';
             return;
         }
 
         this.predictionsEl.innerHTML = predictions
             .map((pred, i) => `
-                <div class="prediction ${i === 0 ? 'primary' : ''}" 
-                     data-score="${pred.score.toFixed(3)}">
+                <button class="px-4 py-2 rounded-lg font-mono font-semibold transition-all duration-150
+                              ${i === 0 ? 
+                                'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' : 
+                                'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-gray-900 dark:text-gray-100'}"
+                        data-score="${pred.score.toFixed(3)}">
                     ${pred.word}
-                </div>
+                </button>
             `)
             .join('');
     }
 
     private showError() {
-        this.predictionsEl.innerHTML = '<div class="no-predictions">Error processing swipe</div>';
+        this.predictionsEl.innerHTML = '<p class="text-red-500 dark:text-red-400 text-center w-full py-8">Error processing swipe</p>';
     }
 
     private selectWord(word: string) {

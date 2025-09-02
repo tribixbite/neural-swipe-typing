@@ -65,8 +65,9 @@ export class KeyboardRenderer {
     }
 
     render() {
-        // Clear canvas
-        this.ctx.fillStyle = '#1a1a1a';
+        // Clear canvas - check dark mode
+        const isDark = document.documentElement.classList.contains('dark');
+        this.ctx.fillStyle = isDark ? '#111827' : '#f9fafb';  // gray-900 : gray-50
         this.ctx.fillRect(0, 0, this.width, this.height);
 
         // Draw keys
@@ -79,35 +80,53 @@ export class KeyboardRenderer {
     }
 
     private drawKeys() {
-        const keySize = 45 * this.scale;  // Increased from 30 to fill more space
-        const fontSize = 20 * this.scale;  // Increased proportionally
+        const keySize = 48 * this.scale;  // Larger keys for better touch targets
+        const fontSize = 22 * this.scale;  // Better readability
+        const isDark = document.documentElement.classList.contains('dark');
 
         for (const key of this.keys) {
             const x = key.x * this.scale;
             const y = key.y * this.scale;
 
-            // Key background
-            this.ctx.fillStyle = '#333';
-            this.ctx.fillRect(
+            // Key background with rounded corners effect
+            const gradient = this.ctx.createLinearGradient(
+                x - keySize / 2, y - keySize / 2,
+                x + keySize / 2, y + keySize / 2
+            );
+            
+            if (isDark) {
+                gradient.addColorStop(0, '#374151');  // gray-700
+                gradient.addColorStop(1, '#1f2937');  // gray-800
+            } else {
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(1, '#f3f4f6');  // gray-100
+            }
+            
+            this.ctx.fillStyle = gradient;
+            this.roundRect(
                 x - keySize / 2,
                 y - keySize / 2,
                 keySize,
-                keySize
+                keySize,
+                4 * this.scale
             );
+            this.ctx.fill();
 
             // Key border
-            this.ctx.strokeStyle = '#555';
-            this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(
+            this.ctx.strokeStyle = isDark ? '#4b5563' : '#d1d5db';  // gray-600 : gray-300
+            this.ctx.lineWidth = 1.5;
+            this.roundRect(
                 x - keySize / 2,
                 y - keySize / 2,
                 keySize,
-                keySize
+                keySize,
+                4 * this.scale
             );
+            this.ctx.stroke();
 
-            // Key text
-            this.ctx.fillStyle = '#fff';
-            this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+            // Key text with better contrast
+            this.ctx.fillStyle = isDark ? '#f3f4f6' : '#111827';  // gray-100 : gray-900
+            this.ctx.font = `bold ${fontSize}px 'JetBrains Mono', 'SF Mono', 'Consolas', monospace`;
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(key.char.toUpperCase(), x, y);
@@ -211,5 +230,20 @@ export class KeyboardRenderer {
     // Get keyboard layout for predictor
     getKeyboardLayout() {
         return this.KEYBOARD_LAYOUT;
+    }
+
+    // Helper method to draw rounded rectangles
+    private roundRect(x: number, y: number, width: number, height: number, radius: number) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + width - radius, y);
+        this.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        this.ctx.lineTo(x + width, y + height - radius);
+        this.ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        this.ctx.lineTo(x + radius, y + height);
+        this.ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.quadraticCurveTo(x, y, x + radius, y);
+        this.ctx.closePath();
     }
 }
