@@ -222,13 +222,20 @@ class MobileSwipeTypingModel(nn.Module):
 
 def create_mobile_model(vocab_size: int = 10000) -> MobileSwipeTypingModel:
     """Factory function to create mobile model with default settings."""
-    return MobileSwipeTypingModel(
+    model = MobileSwipeTypingModel(
         input_dim=6,  # x, y, vx, vy, ax, ay
         d_model=64,   # Smaller than original 128
         num_layers=2, # Fewer layers than original 4+3
         vocab_size=vocab_size,
         max_seq_len=150
     )
+    
+    # Initialize weights properly
+    for p in model.parameters():
+        if p.dim() > 1:
+            torch.nn.init.xavier_uniform_(p)
+    
+    return model
 
 
 # Model size calculation

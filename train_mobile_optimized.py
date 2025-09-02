@@ -6,6 +6,10 @@ Includes proper validation without teacher forcing.
 """
 
 import os
+import sys
+# Add src directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
 import json
 import torch
 import torch.nn as nn
@@ -22,11 +26,6 @@ from pathlib import Path
 
 # Import mobile model
 from mobile_model import create_mobile_model
-
-# Import existing utilities
-from src.dataset import JsonLinesDataset
-from src.feature_extraction.feature_extractors import TrajFeatsGetter
-from src.ns_tokenizers import ALL_ENGLISH_LETTERS_ALPHABET_ORD
 
 
 class VocabularyManager:
@@ -73,35 +72,73 @@ class MobileSwipeDataset(Dataset):
         self.vocab_manager = vocab_manager
         self.max_seq_len = max_seq_len
         
-        # Load trajectory feature extractor
-        with open("data/data_preprocessed/gridname_to_grid.json", 'r') as f:
-            grid_data = json.load(f)
+        # Get keyboard dimensions for normalization
+        self.width = 360  # Fixed width for English keyboard
+        self.height = 215  # Fixed height for English keyboard
         
-        self.feature_extractor = TrajFeatsGetter(
-            grid_data['qwerty_english'],
-            knn_num_neighbors=4,
-            add_velocity=True,
-            add_acceleration=True,
-            add_distance_to_nn=False
-        )
+        # Load dataset directly from JSONL
+        self.data = []
+        with open(data_path, 'r') as f:
+            for line in f:
+                self.data.append(json.loads(line))
         
-        # Load dataset
-        self.dataset = JsonLinesDataset(data_path)
-        print(f"Loaded {len(self.dataset)} samples from {data_path}")
+        print(f"Loaded {len(self.data)} samples from {data_path}")
     
     def __len__(self):
-        return len(self.dataset)
+        return len(self.data)
     
     def __getitem__(self, idx):
-        item = self.dataset[idx]
+        # Get data item
+        item = self.data[idx]
         
-        # Extract trajectory features (x, y, vx, vy, ax, ay)
+        # Extract coordinates
         x_coords = np.array(item['curve']['x'], dtype=np.float32)
         y_coords = np.array(item['curve']['y'], dtype=np.float32)
         t_coords = np.array(item['curve']['t'], dtype=np.float32)
         
-        # Get features
-        features = self.feature_extractor.get_traj_features(x_coords, y_coords, t_coords)
+        # Normalize coordinates (0-1 range)
+        x_norm = x_coords / self.width
+        y_norm = y_coords / self.height
+        
+        # Compute velocities
+        if len(x_coords) > 1:
+            dt = np.diff(t_coords)
+            dt[dt == 0] = 1  # Avoid division by zero
+            
+            vx = np.diff(x_norm) / dt * 1000  # Convert to per second
+            vy = np.diff(y_norm) / dt * 1000
+            
+            # Clip velocities to prevent extreme values
+            vx = np.clip(vx, -10, 10)
+            vy = np.clip(vy, -10, 10)
+            
+            # Pad velocities to match position length
+            vx = np.concatenate([vx, [vx[-1]]])
+            vy = np.concatenate([vy, [vy[-1]]])
+            
+            # Compute accelerations
+            dvx = np.diff(vx)
+            dvy = np.diff(vy)
+            
+            # Clip accelerations
+            dvx = np.clip(dvx, -10, 10)
+            dvy = np.clip(dvy, -10, 10)
+            
+            ax = np.concatenate([dvx, [dvx[-1] if len(dvx) > 0 else 0]])
+            ay = np.concatenate([dvy, [dvy[-1] if len(dvy) > 0 else 0]])
+        else:
+            # Single point - no velocity or acceleration
+            vx = np.zeros_like(x_norm)
+            vy = np.zeros_like(y_norm)
+            ax = np.zeros_like(x_norm)
+            ay = np.zeros_like(y_norm)
+        
+        # Stack features: [x, y, vx, vy, ax, ay]
+        features = np.stack([x_norm, y_norm, vx, vy, ax, ay], axis=1)
+        
+        # Check for NaN and replace with zeros
+        if np.any(np.isnan(features)):
+            features = np.nan_to_num(features, 0.0)
         
         # Pad or truncate to max_seq_len
         seq_len = features.shape[0]
@@ -115,8 +152,8 @@ class MobileSwipeDataset(Dataset):
         features_tensor = torch.from_numpy(features).float()
         
         # Get target word index
-        target_word = item['word'].lower()
-        target_idx = self.vocab_manager.encode(target_word)
+        target_word = item.get('word', '').lower()
+        target_idx = self.vocab_manager.encode(target_word) if target_word else 0
         
         return features_tensor, target_idx
 
@@ -328,7 +365,7 @@ def main():
     # Initialize model
     model = MobileSwipeTrainer(
         vocab_size=vocab_manager.size,
-        learning_rate=5e-4,
+        learning_rate=1e-4,  # Reduced learning rate for stability
         weight_decay=1e-5
     )
     
