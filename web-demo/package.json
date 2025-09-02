@@ -1,0 +1,17 @@
+{
+  "name": "swipe-typing-demo",
+  "module": "server.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot server.ts",
+    "build": "bun build ./src/app.ts --outdir ./dist --target browser"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.16.3"
+  }
+}
