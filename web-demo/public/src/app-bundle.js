@@ -230,22 +230,54 @@ class SwipePredictor {
       m: { x: 288, y: 199 }
     };
   }
+  padOrTruncatePoints(points, targetLength) {
+    if (points.length >= targetLength) {
+      return points.slice(0, targetLength);
+    }
+    const padded = [...points];
+    const lastPoint = points[points.length - 1] || { x: 0, y: 0, t: 0 };
+    while (padded.length < targetLength) {
+      padded.push({ ...lastPoint });
+    }
+    return padded;
+  }
   async predict(swipePoints, topK = 5) {
     if (!this.encoderSession || !this.decoderSession || !this.tokenizer) {
       throw new Error("Models not loaded");
     }
-    const features = this.extractFeatures(swipePoints);
-    const nearestKeys = this.findNearestKeys(swipePoints);
-    const srcMask = new Uint8Array(swipePoints.length).fill(0);
+    console.log("Starting prediction with", swipePoints.length, "points");
+    const FIXED_SEQ_LENGTH = 50;
+    const paddedPoints = this.padOrTruncatePoints(swipePoints, FIXED_SEQ_LENGTH);
+    const features = this.extractFeatures(paddedPoints);
+    const nearestKeys = this.findNearestKeys(paddedPoints);
+    const srcMask = new Uint8Array(FIXED_SEQ_LENGTH);
+    for (let i = swipePoints.length;i < FIXED_SEQ_LENGTH; i++) {
+      srcMask[i] = 1;
+    }
+    console.log("Features shape:", [1, FIXED_SEQ_LENGTH, 6]);
+    console.log("Nearest keys shape:", [1, FIXED_SEQ_LENGTH]);
+    console.log("Src mask shape:", [1, FIXED_SEQ_LENGTH]);
     const encoderInputs = {
-      trajectory_features: new ort.Tensor("float32", features, [1, swipePoints.length, 6]),
-      nearest_keys: new ort.Tensor("int64", nearestKeys, [1, swipePoints.length]),
-      src_mask: new ort.Tensor("bool", srcMask, [1, swipePoints.length])
+      trajectory_features: new ort.Tensor("float32", features, [1, FIXED_SEQ_LENGTH, 6]),
+      nearest_keys: new ort.Tensor("int64", nearestKeys, [1, FIXED_SEQ_LENGTH]),
+      src_mask: new ort.Tensor("bool", srcMask, [1, FIXED_SEQ_LENGTH])
     };
-    const encoderOutputs = await this.encoderSession.run(encoderInputs);
-    const memory = encoderOutputs.encoder_output;
-    const predictions = await this.beamSearchDecode(memory, topK);
-    return predictions;
+    console.log("Running encoder...");
+    try {
+      const encoderOutputs = await this.encoderSession.run(encoderInputs);
+      console.log("Encoder outputs:", Object.keys(encoderOutputs));
+      const memory = encoderOutputs.encoder_output;
+      console.log("Memory tensor shape:", memory.dims);
+      console.log("Starting beam search decode...");
+      const predictions = await this.beamSearchDecode(memory, topK);
+      console.log("Predictions:", predictions);
+      return predictions;
+    } catch (error) {
+      console.error("Encoder/Decoder error:", error);
+      console.error("Error message:", error?.message);
+      console.error("Error stack:", error?.stack);
+      throw error;
+    }
   }
   extractFeatures(points) {
     const features = [];
@@ -296,34 +328,66 @@ class SwipePredictor {
     return new BigInt64Array(nearestKeys);
   }
   async beamSearchDecode(memory, beamSize) {
-    const maxLength = 20;
+    const DECODER_SEQ_LENGTH = 20;
+    const maxGeneratedTokens = 15;
     let beams = [{
       tokens: [this.SOS_IDX],
       score: 0,
       finished: false
     }];
-    for (let step = 0;step < maxLength; step++) {
+    console.log("Beam search - memory shape:", memory.dims);
+    for (let step = 0;step < maxGeneratedTokens; step++) {
+      console.log(`Beam search step ${step}`);
       const allCandidates = [];
       for (const beam of beams) {
         if (beam.finished) {
           allCandidates.push(beam);
           continue;
         }
-        const tgtTokens = new BigInt64Array(beam.tokens.map((t) => BigInt(t)));
-        const tgtMask = new Uint8Array(beam.tokens.length).fill(0);
+        const paddedTokens = new BigInt64Array(DECODER_SEQ_LENGTH);
+        for (let i = 0;i < beam.tokens.length && i < DECODER_SEQ_LENGTH; i++) {
+          paddedTokens[i] = BigInt(beam.tokens[i]);
+        }
+        for (let i = beam.tokens.length;i < DECODER_SEQ_LENGTH; i++) {
+          paddedTokens[i] = BigInt(this.PAD_IDX);
+        }
+        const tgtMask = new Uint8Array(DECODER_SEQ_LENGTH);
+        for (let i = beam.tokens.length;i < DECODER_SEQ_LENGTH; i++) {
+          tgtMask[i] = 1;
+        }
         const srcMask = new Uint8Array(memory.dims[1]).fill(0);
+        console.log("Decoder input shapes:");
+        console.log("  target_tokens:", [1, DECODER_SEQ_LENGTH]);
+        console.log("  target_mask:", [1, DECODER_SEQ_LENGTH]);
+        console.log("  src_mask:", [1, memory.dims[1]]);
+        console.log("  Current token count:", beam.tokens.length);
         const decoderInputs = {
           memory,
-          target_tokens: new ort.Tensor("int64", tgtTokens, [1, beam.tokens.length]),
-          target_mask: new ort.Tensor("bool", tgtMask, [1, beam.tokens.length]),
+          target_tokens: new ort.Tensor("int64", paddedTokens, [1, DECODER_SEQ_LENGTH]),
+          target_mask: new ort.Tensor("bool", tgtMask, [1, DECODER_SEQ_LENGTH]),
           src_mask: new ort.Tensor("bool", srcMask, [1, memory.dims[1]])
         };
-        const decoderOutputs = await this.decoderSession.run(decoderInputs);
+        let decoderOutputs;
+        try {
+          console.log("Running decoder...");
+          decoderOutputs = await this.decoderSession.run(decoderInputs);
+          console.log("Decoder outputs:", Object.keys(decoderOutputs));
+          const logits2 = decoderOutputs.logits;
+          console.log("Logits shape:", logits2.dims);
+        } catch (decodeError) {
+          console.error("Decoder run failed:", decodeError);
+          console.error("Error details:", decodeError?.message);
+          throw decodeError;
+        }
         const logits = decoderOutputs.logits;
         const logitsData = logits.data;
         const vocabSize = 30;
-        const lastLogits = logitsData.slice(-vocabSize);
-        const probs = this.softmax(lastLogits);
+        const tokenPosition = Math.min(beam.tokens.length - 1, DECODER_SEQ_LENGTH - 1);
+        const startIdx = tokenPosition * vocabSize;
+        const endIdx = startIdx + vocabSize;
+        const relevantLogits = logitsData.slice(startIdx, endIdx);
+        console.log(`Getting logits for position ${tokenPosition}, indices ${startIdx}-${endIdx}`);
+        const probs = this.softmax(relevantLogits);
         const topK = this.getTopK(probs, Math.min(beamSize, vocabSize));
         for (const { idx, prob } of topK) {
           allCandidates.push({
@@ -659,4 +723,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=327C2B5E4644481A64756E2164756E21
+//# debugId=25737B8E9235B6BE64756E2164756E21

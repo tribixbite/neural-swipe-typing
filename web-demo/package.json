@@ -19,6 +19,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "onnxruntime-node": "^1.22.0-rev",
     "onnxruntime-web": "^1.16.3"
   }
 }
