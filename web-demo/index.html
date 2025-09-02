@@ -268,6 +268,16 @@
         <div class="loading-progress" id="loading-progress">Initializing ONNX Runtime</div>
     </div>
     
-    <script type="module" src="./src/app.ts"></script>
+    <script type="module">
+        // Import the bundled app
+        import('./src/app.js').catch(err => {
+            console.error('Failed to load app:', err);
+            // Fallback: try loading TypeScript directly if supported
+            import('./src/app.ts').catch(err2 => {
+                console.error('Failed to load TypeScript:', err2);
+                document.getElementById('loading-progress').textContent = 'Error: Failed to load application';
+            });
+        });
+    </script>
 </body>
 </html>

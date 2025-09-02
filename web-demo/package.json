@@ -4,8 +4,10 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --hot server.ts",
-    "build": "bun build ./src/app.ts --outdir ./dist --target browser",
+    "dev": "bun run build.ts && concurrently \"bun run build.ts --watch\" \"bun --hot server.ts\"",
+    "server": "bun --hot server.ts",
+    "build": "bun run build.ts",
+    "build:watch": "bun run build.ts --watch",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed"
