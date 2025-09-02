@@ -125,8 +125,8 @@ export class SwipePredictor {
         
         console.log('Starting prediction with', swipePoints.length, 'points');
         
-        // Model expects fixed sequence length of 50
-        const FIXED_SEQ_LENGTH = 50;
+        // ONNX models now support the full 150 sequence length from training
+        const FIXED_SEQ_LENGTH = 150;
         const paddedPoints = this.padOrTruncatePoints(swipePoints, FIXED_SEQ_LENGTH);
         
         // Prepare input features

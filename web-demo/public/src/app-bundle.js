@@ -246,7 +246,7 @@ class SwipePredictor {
       throw new Error("Models not loaded");
     }
     console.log("Starting prediction with", swipePoints.length, "points");
-    const FIXED_SEQ_LENGTH = 50;
+    const FIXED_SEQ_LENGTH = 150;
     const paddedPoints = this.padOrTruncatePoints(swipePoints, FIXED_SEQ_LENGTH);
     const features = this.extractFeatures(paddedPoints);
     const nearestKeys = this.findNearestKeys(paddedPoints);
@@ -731,4 +731,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=8F39688BD1CAA48564756E2164756E21
+//# debugId=A474DCE1471476AD64756E2164756E21
