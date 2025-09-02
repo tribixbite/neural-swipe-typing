@@ -20,11 +20,11 @@ export class SwipePredictor {
     private tokenizer?: Tokenizer;
     private keyboardLayout?: Record<string, {x: number, y: number}>;
     
-    // Special tokens
+    // Special tokens - Fixed to match deployment_package/tokenizer_config.json
     private readonly PAD_IDX = 0;
-    private readonly EOS_IDX = 1;
-    private readonly UNK_IDX = 2;
-    private readonly SOS_IDX = 3;
+    private readonly UNK_IDX = 1;
+    private readonly SOS_IDX = 2;
+    private readonly EOS_IDX = 3;
     
     constructor() {}
     
@@ -48,6 +48,20 @@ export class SwipePredictor {
         
         this.decoderSession = await ort.InferenceSession.create(url, options);
         console.log('Decoder loaded');
+    }
+    
+    // Load a single combined model (for mobile version)
+    async loadSingleModel(url: string) {
+        console.log('Loading combined model...');
+        const options: ort.InferenceSession.SessionOptions = {
+            executionProviders: ['wasm'],
+            graphOptimizationLevel: 'all'
+        };
+        
+        this.encoderSession = await ort.InferenceSession.create(url, options);
+        // For single model, encoder does both encoding and decoding
+        this.decoderSession = this.encoderSession;
+        console.log('Combined model loaded');
     }
     
     async loadTokenizer(url: string) {
@@ -236,10 +250,10 @@ export class SwipePredictor {
             finished: false
         }];
         
-        console.log('Beam search - memory shape:', memory.dims);
+        // console.log('Beam search - memory shape:', memory.dims);
         
         for (let step = 0; step < maxGeneratedTokens; step++) {
-            console.log(`Beam search step ${step}`);
+            // console.log(`Beam search step ${step}`);
             const allCandidates: Beam[] = [];
             
             for (const beam of beams) {
@@ -266,11 +280,11 @@ export class SwipePredictor {
                 }
                 const srcMask = new Uint8Array(memory.dims[1] as number).fill(0);
                 
-                console.log('Decoder input shapes:');
-                console.log('  target_tokens:', [1, DECODER_SEQ_LENGTH]);
-                console.log('  target_mask:', [1, DECODER_SEQ_LENGTH]);
-                console.log('  src_mask:', [1, memory.dims[1]]);
-                console.log('  Current token count:', beam.tokens.length);
+                // console.log('Decoder input shapes:');
+                // console.log('  target_tokens:', [1, DECODER_SEQ_LENGTH]);
+                // console.log('  target_mask:', [1, DECODER_SEQ_LENGTH]);
+                // console.log('  src_mask:', [1, memory.dims[1]]);
+                // console.log('  Current token count:', beam.tokens.length);
                 
                 const decoderInputs = {
                     memory: memory,
@@ -282,11 +296,11 @@ export class SwipePredictor {
                 // Run decoder
                 let decoderOutputs: any;
                 try {
-                    console.log('Running decoder...');
+                    // console.log('Running decoder...');
                     decoderOutputs = await this.decoderSession!.run(decoderInputs);
-                    console.log('Decoder outputs:', Object.keys(decoderOutputs));
-                    const logits = decoderOutputs.logits;
-                    console.log('Logits shape:', logits.dims);
+                    // console.log('Decoder outputs:', Object.keys(decoderOutputs));
+                    // const logits = decoderOutputs.logits;
+                    // console.log('Logits shape:', logits.dims);
                 } catch (decodeError: any) {
                     console.error('Decoder run failed:', decodeError);
                     console.error('Error details:', decodeError?.message);
@@ -303,7 +317,7 @@ export class SwipePredictor {
                 const startIdx = tokenPosition * vocabSize;
                 const endIdx = startIdx + vocabSize;
                 const relevantLogits = logitsData.slice(startIdx, endIdx);
-                console.log(`Getting logits for position ${tokenPosition}, indices ${startIdx}-${endIdx}`);
+                // console.log(`Getting logits for position ${tokenPosition}, indices ${startIdx}-${endIdx}`);
                 
                 // Apply softmax and get top k
                 const probs = this.softmax(relevantLogits);
@@ -311,10 +325,19 @@ export class SwipePredictor {
                 
                 // Create new beams
                 for (const {idx, prob} of topK) {
+                    const newTokens = [...beam.tokens, idx];
+                    const finished = idx === this.EOS_IDX;
+                    
+                    // Debug: log what character we're adding
+                    if (step < 3) {  // Only log first few steps
+                        const char = this.tokenizer?.idxToChar[idx] || `<${idx}>`;
+                        console.log(`Step ${step}, beam: adding token ${idx} = "${char}", prob=${prob.toFixed(3)}`);
+                    }
+                    
                     allCandidates.push({
-                        tokens: [...beam.tokens, idx],
+                        tokens: newTokens,
                         score: beam.score + Math.log(prob),
-                        finished: idx === this.EOS_IDX
+                        finished: finished
                     });
                 }
             }
@@ -329,10 +352,14 @@ export class SwipePredictor {
         }
         
         // Decode and return predictions
-        const predictions = beams.map(beam => ({
-            word: this.decodeTokens(beam.tokens),
-            score: Math.exp(beam.score / beam.tokens.length) // Normalize by length
-        }));
+        const predictions = beams.map(beam => {
+            const word = this.decodeTokens(beam.tokens);
+            console.log(`Beam tokens: [${beam.tokens.join(',')}] -> "${word}"`);
+            return {
+                word: word,
+                score: Math.exp(beam.score / beam.tokens.length) // Normalize by length
+            };
+        });
         
         // Filter out empty predictions
         return predictions.filter(p => p.word.length > 0);

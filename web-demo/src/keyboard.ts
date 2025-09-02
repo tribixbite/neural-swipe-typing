@@ -14,28 +14,23 @@ export class KeyboardRenderer {
     private tracePoints: Array<{x: number, y: number}> = [];
     
     // QWERTY layout matching training data (360x215 coordinate space)
+    // Layout fills entire canvas without number row
     private readonly KEYBOARD_LAYOUT = {
-        // First row (numbers) - y ~= 67
-        '1': {x: 18, y: 67}, '2': {x: 54, y: 67}, '3': {x: 90, y: 67},
-        '4': {x: 126, y: 67}, '5': {x: 162, y: 67}, '6': {x: 198, y: 67},
-        '7': {x: 234, y: 67}, '8': {x: 270, y: 67}, '9': {x: 306, y: 67},
-        '0': {x: 342, y: 67},
+        // First row (qwerty) - top third of canvas
+        'q': {x: 18, y: 53}, 'w': {x: 54, y: 53}, 'e': {x: 90, y: 53},
+        'r': {x: 126, y: 53}, 't': {x: 162, y: 53}, 'y': {x: 198, y: 53},
+        'u': {x: 234, y: 53}, 'i': {x: 270, y: 53}, 'o': {x: 306, y: 53},
+        'p': {x: 342, y: 53},
         
-        // Second row (qwerty) - y ~= 111
-        'q': {x: 18, y: 111}, 'w': {x: 54, y: 111}, 'e': {x: 90, y: 111},
-        'r': {x: 126, y: 111}, 't': {x: 162, y: 111}, 'y': {x: 198, y: 111},
-        'u': {x: 234, y: 111}, 'i': {x: 270, y: 111}, 'o': {x: 306, y: 111},
-        'p': {x: 342, y: 111},
+        // Second row (asdf) - middle third of canvas
+        'a': {x: 36, y: 107}, 's': {x: 72, y: 107}, 'd': {x: 108, y: 107},
+        'f': {x: 144, y: 107}, 'g': {x: 180, y: 107}, 'h': {x: 216, y: 107},
+        'j': {x: 252, y: 107}, 'k': {x: 288, y: 107}, 'l': {x: 324, y: 107},
         
-        // Third row (asdf) - y ~= 155
-        'a': {x: 36, y: 155}, 's': {x: 72, y: 155}, 'd': {x: 108, y: 155},
-        'f': {x: 144, y: 155}, 'g': {x: 180, y: 155}, 'h': {x: 216, y: 155},
-        'j': {x: 252, y: 155}, 'k': {x: 288, y: 155}, 'l': {x: 324, y: 155},
-        
-        // Fourth row (zxcv) - y ~= 199
-        'z': {x: 72, y: 199}, 'x': {x: 108, y: 199}, 'c': {x: 144, y: 199},
-        'v': {x: 180, y: 199}, 'b': {x: 216, y: 199}, 'n': {x: 252, y: 199},
-        'm': {x: 288, y: 199}
+        // Third row (zxcv) - bottom third of canvas
+        'z': {x: 72, y: 161}, 'x': {x: 108, y: 161}, 'c': {x: 144, y: 161},
+        'v': {x: 180, y: 161}, 'b': {x: 216, y: 161}, 'n': {x: 252, y: 161},
+        'm': {x: 288, y: 161}
     };
 
     constructor(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {

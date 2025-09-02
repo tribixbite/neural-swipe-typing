@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Predictions</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js"></script>
+    <script>
+        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/';
+    </script>
+</head>
+<body>
+    <h1>Testing Swipe Predictions</h1>
+    <button onclick="testSwipe()">Test Swipe for "hello"</button>
+    <div id="status">Ready</div>
+    <pre id="output"></pre>
+    
+    <script type="module">
+        window.testSwipe = async function() {
+            const statusEl = document.getElementById('status');
+            const outputEl = document.getElementById('output');
+            
+            statusEl.textContent = 'Loading app...';
+            
+            try {
+                const module = await import('./src/app-bundle.js');
+                
+                // Wait for models to load
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Create predictor
+                const { SwipePredictor } = await import('./src/predictor-bundle.js');
+                const predictor = new SwipePredictor();
+                
+                statusEl.textContent = 'Loading models...';
+                await predictor.loadEncoder('/models/swipe_model_character.onnx');
+                await predictor.loadDecoder('/models/swipe_decoder_character.onnx');
+                await predictor.loadTokenizer('/models/tokenizer_config.json');
+                
+                // Create a swipe pattern for "hello"
+                // h -> e -> l -> l -> o
+                const swipePoints = [
+                    {x: 216, y: 155, t: 0},    // h
+                    {x: 180, y: 140, t: 50},   // between h and e
+                    {x: 90, y: 111, t: 100},   // e
+                    {x: 200, y: 133, t: 150},  // between e and l
+                    {x: 324, y: 155, t: 200},  // l
+                    {x: 324, y: 155, t: 250},  // l (stay)
+                    {x: 315, y: 133, t: 300},  // between l and o
+                    {x: 306, y: 111, t: 350}   // o
+                ];
+                
+                statusEl.textContent = 'Getting predictions...';
+                const predictions = await predictor.predict(swipePoints, 5);
+                
+                outputEl.textContent = 'Predictions:\n';
+                predictions.forEach((pred, i) => {
+                    outputEl.textContent += `${i+1}. "${pred.word}" (score: ${pred.score.toFixed(3)})\n`;
+                });
+                
+                statusEl.textContent = 'Done!';
+                
+            } catch (error) {
+                outputEl.textContent = 'Error: ' + error.message + '\n' + error.stack;
+                statusEl.textContent = 'Failed';
+            }
+        }
+    </script>
+</body>
+</html>

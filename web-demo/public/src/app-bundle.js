@@ -167,9 +167,9 @@ class SwipePredictor {
   tokenizer;
   keyboardLayout;
   PAD_IDX = 0;
-  EOS_IDX = 1;
-  UNK_IDX = 2;
-  SOS_IDX = 3;
+  UNK_IDX = 1;
+  SOS_IDX = 2;
+  EOS_IDX = 3;
   constructor() {}
   async loadEncoder(url) {
     console.log("Loading encoder model...");
@@ -188,6 +188,16 @@ class SwipePredictor {
     };
     this.decoderSession = await ort.InferenceSession.create(url, options);
     console.log("Decoder loaded");
+  }
+  async loadSingleModel(url) {
+    console.log("Loading combined model...");
+    const options = {
+      executionProviders: ["wasm"],
+      graphOptimizationLevel: "all"
+    };
+    this.encoderSession = await ort.InferenceSession.create(url, options);
+    this.decoderSession = this.encoderSession;
+    console.log("Combined model loaded");
   }
   async loadTokenizer(url) {
     console.log("Loading tokenizer...");
@@ -335,9 +345,7 @@ class SwipePredictor {
       score: 0,
       finished: false
     }];
-    console.log("Beam search - memory shape:", memory.dims);
     for (let step = 0;step < maxGeneratedTokens; step++) {
-      console.log(`Beam search step ${step}`);
       const allCandidates = [];
       for (const beam of beams) {
         if (beam.finished) {
@@ -356,11 +364,6 @@ class SwipePredictor {
           tgtMask[i] = 1;
         }
         const srcMask = new Uint8Array(memory.dims[1]).fill(0);
-        console.log("Decoder input shapes:");
-        console.log("  target_tokens:", [1, DECODER_SEQ_LENGTH]);
-        console.log("  target_mask:", [1, DECODER_SEQ_LENGTH]);
-        console.log("  src_mask:", [1, memory.dims[1]]);
-        console.log("  Current token count:", beam.tokens.length);
         const decoderInputs = {
           memory,
           target_tokens: new ort.Tensor("int64", paddedTokens, [1, DECODER_SEQ_LENGTH]),
@@ -369,11 +372,7 @@ class SwipePredictor {
         };
         let decoderOutputs;
         try {
-          console.log("Running decoder...");
           decoderOutputs = await this.decoderSession.run(decoderInputs);
-          console.log("Decoder outputs:", Object.keys(decoderOutputs));
-          const logits2 = decoderOutputs.logits;
-          console.log("Logits shape:", logits2.dims);
         } catch (decodeError) {
           console.error("Decoder run failed:", decodeError);
           console.error("Error details:", decodeError?.message);
@@ -386,14 +385,19 @@ class SwipePredictor {
         const startIdx = tokenPosition * vocabSize;
         const endIdx = startIdx + vocabSize;
         const relevantLogits = logitsData.slice(startIdx, endIdx);
-        console.log(`Getting logits for position ${tokenPosition}, indices ${startIdx}-${endIdx}`);
         const probs = this.softmax(relevantLogits);
         const topK = this.getTopK(probs, Math.min(beamSize, vocabSize));
         for (const { idx, prob } of topK) {
+          const newTokens = [...beam.tokens, idx];
+          const finished = idx === this.EOS_IDX;
+          if (step < 3) {
+            const char = this.tokenizer?.idxToChar[idx] || `<${idx}>`;
+            console.log(`Step ${step}, beam: adding token ${idx} = "${char}", prob=${prob.toFixed(3)}`);
+          }
           allCandidates.push({
-            tokens: [...beam.tokens, idx],
+            tokens: newTokens,
             score: beam.score + Math.log(prob),
-            finished: idx === this.EOS_IDX
+            finished
           });
         }
       }
@@ -401,10 +405,14 @@ class SwipePredictor {
       if (beams.every((b) => b.finished))
         break;
     }
-    const predictions = beams.map((beam) => ({
-      word: this.decodeTokens(beam.tokens),
-      score: Math.exp(beam.score / beam.tokens.length)
-    }));
+    const predictions = beams.map((beam) => {
+      const word = this.decodeTokens(beam.tokens);
+      console.log(`Beam tokens: [${beam.tokens.join(",")}] -> "${word}"`);
+      return {
+        word,
+        score: Math.exp(beam.score / beam.tokens.length)
+      };
+    });
     return predictions.filter((p) => p.word.length > 0);
   }
   softmax(logits) {
@@ -723,4 +731,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=25737B8E9235B6BE64756E2164756E21
+//# debugId=BAD6BC6378FF451F64756E2164756E21
