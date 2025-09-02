@@ -8,42 +8,32 @@ class KeyboardRenderer {
   keys = [];
   tracePoints = [];
   KEYBOARD_LAYOUT = {
-    "1": { x: 18, y: 67 },
-    "2": { x: 54, y: 67 },
-    "3": { x: 90, y: 67 },
-    "4": { x: 126, y: 67 },
-    "5": { x: 162, y: 67 },
-    "6": { x: 198, y: 67 },
-    "7": { x: 234, y: 67 },
-    "8": { x: 270, y: 67 },
-    "9": { x: 306, y: 67 },
-    "0": { x: 342, y: 67 },
-    q: { x: 18, y: 111 },
-    w: { x: 54, y: 111 },
-    e: { x: 90, y: 111 },
-    r: { x: 126, y: 111 },
-    t: { x: 162, y: 111 },
-    y: { x: 198, y: 111 },
-    u: { x: 234, y: 111 },
-    i: { x: 270, y: 111 },
-    o: { x: 306, y: 111 },
-    p: { x: 342, y: 111 },
-    a: { x: 36, y: 155 },
-    s: { x: 72, y: 155 },
-    d: { x: 108, y: 155 },
-    f: { x: 144, y: 155 },
-    g: { x: 180, y: 155 },
-    h: { x: 216, y: 155 },
-    j: { x: 252, y: 155 },
-    k: { x: 288, y: 155 },
-    l: { x: 324, y: 155 },
-    z: { x: 72, y: 199 },
-    x: { x: 108, y: 199 },
-    c: { x: 144, y: 199 },
-    v: { x: 180, y: 199 },
-    b: { x: 216, y: 199 },
-    n: { x: 252, y: 199 },
-    m: { x: 288, y: 199 }
+    q: { x: 18, y: 53 },
+    w: { x: 54, y: 53 },
+    e: { x: 90, y: 53 },
+    r: { x: 126, y: 53 },
+    t: { x: 162, y: 53 },
+    y: { x: 198, y: 53 },
+    u: { x: 234, y: 53 },
+    i: { x: 270, y: 53 },
+    o: { x: 306, y: 53 },
+    p: { x: 342, y: 53 },
+    a: { x: 36, y: 107 },
+    s: { x: 72, y: 107 },
+    d: { x: 108, y: 107 },
+    f: { x: 144, y: 107 },
+    g: { x: 180, y: 107 },
+    h: { x: 216, y: 107 },
+    j: { x: 252, y: 107 },
+    k: { x: 288, y: 107 },
+    l: { x: 324, y: 107 },
+    z: { x: 72, y: 161 },
+    x: { x: 108, y: 161 },
+    c: { x: 144, y: 161 },
+    v: { x: 180, y: 161 },
+    b: { x: 216, y: 161 },
+    n: { x: 252, y: 161 },
+    m: { x: 288, y: 161 }
   };
   constructor(canvas, ctx) {
     this.canvas = canvas;
@@ -80,8 +70,8 @@ class KeyboardRenderer {
     }
   }
   drawKeys() {
-    const keySize = 30 * this.scale;
-    const fontSize = 16 * this.scale;
+    const keySize = 45 * this.scale;
+    const fontSize = 20 * this.scale;
     for (const key of this.keys) {
       const x = key.x * this.scale;
       const y = key.y * this.scale;
@@ -643,12 +633,22 @@ class SwipeTypingApp {
     this.loadingProgressEl.textContent = "Models loaded successfully!";
   }
   setupEventHandlers() {
+    let loggedKeys = new Set;
     this.swipeTracker.on("swipeStart", () => {
       this.keyboard.clearTrace();
       this.clearPredictions();
+      loggedKeys.clear();
     });
     this.swipeTracker.on("swipeMove", (points) => {
       this.keyboard.drawTrace(points);
+      if (points.length > 0) {
+        const lastPoint = points[points.length - 1];
+        const key = this.keyboard.getKeyAt(lastPoint.x * (this.canvas.width / 360), lastPoint.y * (this.canvas.height / 215));
+        if (key && !loggedKeys.has(key)) {
+          console.log(`Key: ${key.toUpperCase()}`);
+          loggedKeys.add(key);
+        }
+      }
     });
     this.swipeTracker.on("swipeEnd", async (points) => {
       if (points.length < 3) {
@@ -731,4 +731,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=BAD6BC6378FF451F64756E2164756E21
+//# debugId=277A2561B9B2530B64756E2164756E21

@@ -81,14 +81,27 @@ class SwipeTypingApp {
     }
 
     private setupEventHandlers() {
+        let loggedKeys: Set<string> = new Set();
+        
         // Swipe tracking events
         this.swipeTracker.on('swipeStart', () => {
             this.keyboard.clearTrace();
             this.clearPredictions();
+            loggedKeys.clear();  // Reset logged keys for new swipe
         });
 
         this.swipeTracker.on('swipeMove', (points) => {
             this.keyboard.drawTrace(points);
+            
+            // Log unique keys as they're touched
+            if (points.length > 0) {
+                const lastPoint = points[points.length - 1];
+                const key = this.keyboard.getKeyAt(lastPoint.x * (this.canvas.width / 360), lastPoint.y * (this.canvas.height / 215));
+                if (key && !loggedKeys.has(key)) {
+                    console.log(`Key: ${key.toUpperCase()}`);
+                    loggedKeys.add(key);
+                }
+            }
         });
 
         this.swipeTracker.on('swipeEnd', async (points) => {

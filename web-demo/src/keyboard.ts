@@ -79,8 +79,8 @@ export class KeyboardRenderer {
     }
 
     private drawKeys() {
-        const keySize = 30 * this.scale;
-        const fontSize = 16 * this.scale;
+        const keySize = 45 * this.scale;  // Increased from 30 to fill more space
+        const fontSize = 20 * this.scale;  // Increased proportionally
 
         for (const key of this.keys) {
             const x = key.x * this.scale;
