@@ -40,12 +40,21 @@ jobs:
           mv public/src/app.js public/src/app-bundle.js
           mv public/src/app.js.map public/src/app-bundle.js.map
       
-      - name: Copy deployment models
+      - name: Prepare deployment models
         run: |
+          # Remove any existing models directory (might be symlink or have old files)
+          rm -rf web-demo/public/models
+          
+          # Create fresh models directory
           mkdir -p web-demo/public/models
+          
+          # Copy model files
           cp deployment_package/swipe_model_character.onnx web-demo/public/models/
           cp deployment_package/swipe_decoder_character.onnx web-demo/public/models/
           cp deployment_package/tokenizer_config.json web-demo/public/models/
+          
+          echo "Models copied successfully"
+          ls -la web-demo/public/models/
       
       - name: Setup Pages
         uses: actions/configure-pages@v4
