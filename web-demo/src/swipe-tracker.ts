@@ -47,11 +47,9 @@ export class SwipeTracker {
         
         const touch = e.touches[0];
         const rect = this.canvas.getBoundingClientRect();
-        // Scale from CSS pixels to canvas pixels
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
-        const x = (touch.clientX - rect.left) * scaleX;
-        const y = (touch.clientY - rect.top) * scaleY;
+        // Canvas is always 360x215, scale from CSS pixels to canvas coordinates
+        const x = (touch.clientX - rect.left) * (360 / rect.width);
+        const y = (touch.clientY - rect.top) * (215 / rect.height);
         
         this.startSwipe(x, y);
     }
@@ -62,11 +60,9 @@ export class SwipeTracker {
         
         const touch = e.touches[0];
         const rect = this.canvas.getBoundingClientRect();
-        // Scale from CSS pixels to canvas pixels
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
-        const x = (touch.clientX - rect.left) * scaleX;
-        const y = (touch.clientY - rect.top) * scaleY;
+        // Canvas is always 360x215, scale from CSS pixels to canvas coordinates
+        const x = (touch.clientX - rect.left) * (360 / rect.width);
+        const y = (touch.clientY - rect.top) * (215 / rect.height);
         
         this.addPoint(x, y);
     }
@@ -80,26 +76,9 @@ export class SwipeTracker {
 
     private handleMouseDown(e: MouseEvent) {
         const rect = this.canvas.getBoundingClientRect();
-        // Scale from CSS pixels to canvas pixels
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
-        
-        console.log('Mouse down debug:', {
-            clientX: e.clientX,
-            clientY: e.clientY,
-            rectLeft: rect.left,
-            rectTop: rect.top,
-            rectWidth: rect.width,
-            rectHeight: rect.height,
-            canvasWidth: this.canvas.width,
-            canvasHeight: this.canvas.height,
-            scaleX,
-            scaleY,
-            finalX: x,
-            finalY: y
-        });
+        // Canvas is always 360x215, scale from CSS pixels to canvas coordinates
+        const x = (e.clientX - rect.left) * (360 / rect.width);
+        const y = (e.clientY - rect.top) * (215 / rect.height);
         
         this.startSwipe(x, y);
     }
@@ -108,11 +87,9 @@ export class SwipeTracker {
         if (!this.isTracking) return;
         
         const rect = this.canvas.getBoundingClientRect();
-        // Scale from CSS pixels to canvas pixels
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
+        // Canvas is always 360x215, scale from CSS pixels to canvas coordinates
+        const x = (e.clientX - rect.left) * (360 / rect.width);
+        const y = (e.clientY - rect.top) * (215 / rect.height);
         
         this.addPoint(x, y);
     }
@@ -123,36 +100,33 @@ export class SwipeTracker {
         this.endSwipe();
     }
 
-    private startSwipe(canvasX: number, canvasY: number) {
+    private startSwipe(x: number, y: number) {
         this.isTracking = true;
         this.points = [];
         this.startTime = Date.now();
         
-        // Convert to keyboard coordinates
-        const keyboardCoords = this.keyboard.canvasToKeyboard(canvasX, canvasY);
-        
+        // x and y are already in keyboard coordinates (360x215 space)
         this.points.push({
-            x: keyboardCoords.x,
-            y: keyboardCoords.y,
+            x: x,
+            y: y,
             t: 0
         });
         
         this.emit('swipeStart', this.points);
     }
 
-    private addPoint(canvasX: number, canvasY: number) {
+    private addPoint(x: number, y: number) {
         if (!this.isTracking) return;
         
-        // Convert to keyboard coordinates
-        const keyboardCoords = this.keyboard.canvasToKeyboard(canvasX, canvasY);
+        // x and y are already in keyboard coordinates (360x215 space)
         const elapsed = Date.now() - this.startTime;
         
         // Filter out points that are too close (noise reduction)
         if (this.points.length > 0) {
             const lastPoint = this.points[this.points.length - 1];
             const distance = Math.sqrt(
-                Math.pow(keyboardCoords.x - lastPoint.x, 2) + 
-                Math.pow(keyboardCoords.y - lastPoint.y, 2)
+                Math.pow(x - lastPoint.x, 2) + 
+                Math.pow(y - lastPoint.y, 2)
             );
             
             // Skip if too close (less than 2 pixels in keyboard space)
@@ -160,8 +134,8 @@ export class SwipeTracker {
         }
         
         this.points.push({
-            x: keyboardCoords.x,
-            y: keyboardCoords.y,
+            x: x,
+            y: y,
             t: elapsed
         });
         

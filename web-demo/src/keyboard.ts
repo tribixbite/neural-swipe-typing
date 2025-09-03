@@ -53,23 +53,15 @@ export class KeyboardRenderer {
     }
 
     private updateScale() {
-        // Calculate scale factor to map 360x215 coordinate space to canvas size
-        // We need to maintain the keyboard layout proportions
-        // Use the minimum scale to ensure all keys fit
-        const scaleX = this.width / 360;
-        const scaleY = this.height / 215;
+        // Canvas is always 360x215, so scale is always 1
+        // Keys are drawn at their natural positions
+        this.scale = 1;
         
-        // Use the minimum scale to ensure keyboard fits without distortion
-        // This maintains aspect ratio and prevents overflow
-        this.scale = Math.min(scaleX, scaleY);
-        
-        // Calculate actual keyboard dimensions with proper aspect ratio
-        this.keyboardWidth = 360 * this.scale;
-        this.keyboardHeight = 215 * this.scale;
-        
-        // Calculate offset to center the keyboard if needed
-        this.offsetX = (this.width - this.keyboardWidth) / 2;
-        this.offsetY = (this.height - this.keyboardHeight) / 2;
+        // No offsets needed
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.keyboardWidth = 360;
+        this.keyboardHeight = 215;
     }
 
     private initializeKeys() {
@@ -114,8 +106,8 @@ export class KeyboardRenderer {
         const isDark = document.documentElement.classList.contains('dark');
 
         for (const key of this.keys) {
-            const x = key.x * this.scale + this.offsetX;
-            const y = key.y * this.scale + this.offsetY;
+            const x = key.x * this.scale;
+            const y = key.y * this.scale;
 
             // Save context for shadows
             this.ctx.save();
@@ -203,8 +195,8 @@ export class KeyboardRenderer {
 
     drawTrace(points: Array<{x: number, y: number, t: number}>) {
         this.tracePoints = points.map(p => ({
-            x: p.x * this.scale + this.offsetX,
-            y: p.y * this.scale + this.offsetY
+            x: p.x * this.scale,
+            y: p.y * this.scale
         }));
         this.render();
     }
@@ -340,8 +332,8 @@ export class KeyboardRenderer {
     // Convert canvas coordinates to keyboard space (360x215)
     canvasToKeyboard(canvasX: number, canvasY: number): {x: number, y: number} {
         return {
-            x: (canvasX - this.offsetX) / this.scale,
-            y: (canvasY - this.offsetY) / this.scale
+            x: canvasX / this.scale,
+            y: canvasY / this.scale
         };
     }
 

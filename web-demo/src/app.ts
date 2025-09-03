@@ -62,41 +62,26 @@ class SwipeTypingApp {
         const container = this.canvas.parentElement!;
         const rect = container.getBoundingClientRect();
         
-        // Use consistent aspect ratio for proper key mapping
-        // Original keyboard is 360x215, aspect ratio ~1.67
-        // For mobile we want wider aspect ratio: 1.4:1 (width:height)
-        const isMobile = window.innerWidth < 640;
-        const targetAspectRatio = isMobile ? 1.4 : (360 / 215); // 1.4 for mobile, 1.67 for desktop
+        // Always use 360:215 ratio internally for consistent coordinate mapping
+        const KEYBOARD_WIDTH = 360;
+        const KEYBOARD_HEIGHT = 215;
         
-        if (isMobile) {
-            // Full viewport width on mobile with 1.4:1 aspect ratio
-            this.canvas.style.width = '100%';
-            // Set height based on aspect ratio
-            const desiredHeight = rect.width / targetAspectRatio;
-            
-            // If desired height fits in container, use it
-            if (desiredHeight <= rect.height) {
-                this.canvas.width = rect.width;
-                this.canvas.height = desiredHeight;
-                this.canvas.style.height = desiredHeight + 'px';
-            } else {
-                // Height is limiting, scale width accordingly
-                this.canvas.height = rect.height;
-                this.canvas.width = rect.height * targetAspectRatio;
-                this.canvas.style.height = '100%';
-                this.canvas.style.width = (rect.height * targetAspectRatio) + 'px';
-            }
+        // Set canvas internal dimensions to keyboard space
+        this.canvas.width = KEYBOARD_WIDTH;
+        this.canvas.height = KEYBOARD_HEIGHT;
+        
+        // Set CSS dimensions to fill container while maintaining aspect ratio
+        const containerAspect = rect.width / rect.height;
+        const keyboardAspect = KEYBOARD_WIDTH / KEYBOARD_HEIGHT;
+        
+        if (containerAspect > keyboardAspect) {
+            // Container is wider - fit by height
+            this.canvas.style.height = '100%';
+            this.canvas.style.width = 'auto';
         } else {
-            // Desktop: maintain original aspect ratio
-            if (rect.width / rect.height > targetAspectRatio) {
-                // Height is limiting factor
-                this.canvas.height = rect.height;
-                this.canvas.width = rect.height * targetAspectRatio;
-            } else {
-                // Width is limiting factor
-                this.canvas.width = rect.width;
-                this.canvas.height = rect.width / targetAspectRatio;
-            }
+            // Container is taller - fit by width
+            this.canvas.style.width = '100%';
+            this.canvas.style.height = 'auto';
         }
         
         // Update keyboard renderer with new dimensions
