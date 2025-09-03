@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alignment Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: monospace;
+        }
+        #container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        #canvas {
+            border: 2px solid blue;
+            display: block;
+            width: 100%;
+        }
+        #info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas" width="360" height="215"></canvas>
+        <div id="info">Click and drag to test alignment</div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const info = document.getElementById('info');
+        
+        // Draw grid
+        ctx.strokeStyle = '#ccc';
+        for (let x = 0; x <= 360; x += 36) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, 215);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= 215; y += 21.5) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(360, y);
+            ctx.stroke();
+        }
+        
+        let isDrawing = false;
+        let points = [];
+        
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            const x = (clientX - rect.left) * scaleX;
+            const y = (clientY - rect.top) * scaleY;
+            
+            return {x, y, scaleX, scaleY, rectWidth: rect.width, rectHeight: rect.height};
+        }
+        
+        function startDrawing(e) {
+            isDrawing = true;
+            points = [];
+            const coords = getCanvasCoords(e);
+            points.push({x: coords.x, y: coords.y});
+            info.innerHTML = `Start: x=${coords.x.toFixed(1)}, y=${coords.y.toFixed(1)}<br>
+                             Scale: ${coords.scaleX.toFixed(2)}x${coords.scaleY.toFixed(2)}<br>
+                             Canvas: ${canvas.width}x${canvas.height}<br>
+                             Rect: ${coords.rectWidth.toFixed(1)}x${coords.rectHeight.toFixed(1)}`;
+        }
+        
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            
+            const coords = getCanvasCoords(e);
+            points.push({x: coords.x, y: coords.y});
+            
+            // Clear and redraw
+            ctx.clearRect(0, 0, 360, 215);
+            
+            // Redraw grid
+            ctx.strokeStyle = '#ccc';
+            for (let x = 0; x <= 360; x += 36) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, 215);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= 215; y += 21.5) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(360, y);
+                ctx.stroke();
+            }
+            
+            // Draw trace
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.stroke();
+            
+            // Draw cursor position
+            ctx.fillStyle = 'blue';
+            ctx.beginPath();
+            ctx.arc(coords.x, coords.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            info.innerHTML = `Current: x=${coords.x.toFixed(1)}, y=${coords.y.toFixed(1)}<br>
+                             Points: ${points.length}`;
+        }
+        
+        function stopDrawing(e) {
+            isDrawing = false;
+        }
+        
+        // Mouse events
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+        
+        // Touch events
+        canvas.addEventListener('touchstart', startDrawing);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', stopDrawing);
+    </script>
+</body>
+</html>

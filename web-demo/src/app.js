@@ -5,6 +5,10 @@ class KeyboardRenderer {
   width;
   height;
   scale = 1;
+  keyboardWidth = 360;
+  keyboardHeight = 215;
+  offsetX = 0;
+  offsetY = 0;
   keys = [];
   tracePoints = [];
   KEYBOARD_LAYOUT = {
@@ -51,7 +55,11 @@ class KeyboardRenderer {
   updateScale() {
     const scaleX = this.width / 360;
     const scaleY = this.height / 215;
-    this.scale = scaleX;
+    this.scale = Math.min(scaleX, scaleY);
+    this.keyboardWidth = 360 * this.scale;
+    this.keyboardHeight = 215 * this.scale;
+    this.offsetX = (this.width - this.keyboardWidth) / 2;
+    this.offsetY = (this.height - this.keyboardHeight) / 2;
   }
   initializeKeys() {
     this.keys = [];
@@ -85,8 +93,8 @@ class KeyboardRenderer {
     const fontSize = 16 * this.scale;
     const isDark = document.documentElement.classList.contains("dark");
     for (const key of this.keys) {
-      const x = key.x * this.scale;
-      const y = key.y * this.scale;
+      const x = key.x * this.scale + this.offsetX;
+      const y = key.y * this.scale + this.offsetY;
       this.ctx.save();
       this.ctx.shadowColor = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)";
       this.ctx.shadowBlur = 4 * this.scale;
@@ -135,8 +143,8 @@ class KeyboardRenderer {
   }
   drawTrace(points) {
     this.tracePoints = points.map((p) => ({
-      x: p.x * this.scale,
-      y: p.y * this.scale
+      x: p.x * this.scale + this.offsetX,
+      y: p.y * this.scale + this.offsetY
     }));
     this.render();
   }
@@ -221,8 +229,8 @@ class KeyboardRenderer {
   }
   canvasToKeyboard(canvasX, canvasY) {
     return {
-      x: canvasX / this.scale,
-      y: canvasY / this.scale
+      x: (canvasX - this.offsetX) / this.scale,
+      y: (canvasY - this.offsetY) / this.scale
     };
   }
   getKeyboardLayout() {
@@ -587,6 +595,20 @@ class SwipeTracker {
     const scaleY = this.canvas.height / rect.height;
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
+    console.log("Mouse down debug:", {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      rectLeft: rect.left,
+      rectTop: rect.top,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
+      canvasWidth: this.canvas.width,
+      canvasHeight: this.canvas.height,
+      scaleX,
+      scaleY,
+      finalX: x,
+      finalY: y
+    });
     this.startSwipe(x, y);
   }
   handleMouseMove(e) {
@@ -883,4 +905,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=F3C32F6FA90A3C8E64756E2164756E21
+//# debugId=F59C903D8D6AD9C764756E2164756E21

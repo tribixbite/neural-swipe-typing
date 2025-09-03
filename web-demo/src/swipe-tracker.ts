@@ -86,6 +86,21 @@ export class SwipeTracker {
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
         
+        console.log('Mouse down debug:', {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            rectLeft: rect.left,
+            rectTop: rect.top,
+            rectWidth: rect.width,
+            rectHeight: rect.height,
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            scaleX,
+            scaleY,
+            finalX: x,
+            finalY: y
+        });
+        
         this.startSwipe(x, y);
     }
 
