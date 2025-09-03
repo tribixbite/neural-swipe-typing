@@ -109,10 +109,10 @@ class SwipeTypingApp {
         const basePath = window.location.hostname === 'localhost' ? '' : '.';
         
         this.loadingProgressEl.textContent = 'Loading encoder model...';
-        await this.predictor.loadEncoder(`${basePath}/models/swipe_model_character.onnx`);
+        await this.predictor.loadEncoder(`${basePath}/models/swipe_model_character_quant.onnx`);
         
         this.loadingProgressEl.textContent = 'Loading decoder model...';
-        await this.predictor.loadDecoder(`${basePath}/models/swipe_decoder_character.onnx`);
+        await this.predictor.loadDecoder(`${basePath}/models/swipe_decoder_character_quant.onnx`);
         
         this.loadingProgressEl.textContent = 'Loading tokenizer...';
         await this.predictor.loadTokenizer(`${basePath}/models/tokenizer_config.json`);

@@ -72,9 +72,19 @@ export class KeyboardRenderer {
     }
 
     render() {
-        // Clear canvas - check dark mode
+        // Clear canvas with gradient background
         const isDark = document.documentElement.classList.contains('dark');
-        this.ctx.fillStyle = isDark ? '#111827' : '#f9fafb';  // gray-900 : gray-50
+        
+        // Create gradient background
+        const bgGradient = this.ctx.createLinearGradient(0, 0, this.width, this.height);
+        if (isDark) {
+            bgGradient.addColorStop(0, '#1e293b');  // slate-800
+            bgGradient.addColorStop(1, '#0f172a');  // slate-900
+        } else {
+            bgGradient.addColorStop(0, '#e2e8f0');  // slate-200
+            bgGradient.addColorStop(1, '#cbd5e1');  // slate-300
+        }
+        this.ctx.fillStyle = bgGradient;
         this.ctx.fillRect(0, 0, this.width, this.height);
 
         // Draw keys
@@ -95,18 +105,29 @@ export class KeyboardRenderer {
             const x = key.x * this.scale;
             const y = key.y * this.scale;
 
-            // Key background with rounded corners effect
+            // Save context for shadows
+            this.ctx.save();
+            
+            // Add shadow for depth effect
+            this.ctx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.2)';
+            this.ctx.shadowBlur = 4 * this.scale;
+            this.ctx.shadowOffsetX = 0;
+            this.ctx.shadowOffsetY = 2 * this.scale;
+
+            // Key background with enhanced gradient
             const gradient = this.ctx.createLinearGradient(
                 x - keySize / 2, y - keySize / 2,
                 x + keySize / 2, y + keySize / 2
             );
             
             if (isDark) {
-                gradient.addColorStop(0, '#374151');  // gray-700
-                gradient.addColorStop(1, '#1f2937');  // gray-800
+                gradient.addColorStop(0, '#475569');  // slate-600
+                gradient.addColorStop(0.5, '#334155');  // slate-700
+                gradient.addColorStop(1, '#1e293b');  // slate-800
             } else {
                 gradient.addColorStop(0, '#ffffff');
-                gradient.addColorStop(1, '#f3f4f6');  // gray-100
+                gradient.addColorStop(0.5, '#f8fafc');  // slate-50
+                gradient.addColorStop(1, '#f1f5f9');  // slate-100
             }
             
             this.ctx.fillStyle = gradient;
@@ -115,28 +136,49 @@ export class KeyboardRenderer {
                 y - keySize / 2,
                 keySize,
                 keySize,
-                4 * this.scale
+                5 * this.scale
             );
             this.ctx.fill();
 
-            // Key border
-            this.ctx.strokeStyle = isDark ? '#4b5563' : '#d1d5db';  // gray-600 : gray-300
-            this.ctx.lineWidth = 1.5;
+            // Restore context to remove shadow for border
+            this.ctx.restore();
+
+            // Key border with subtle gradient
+            const borderGradient = this.ctx.createLinearGradient(
+                x - keySize / 2, y - keySize / 2,
+                x + keySize / 2, y + keySize / 2
+            );
+            if (isDark) {
+                borderGradient.addColorStop(0, '#64748b');  // slate-500
+                borderGradient.addColorStop(1, '#475569');  // slate-600
+            } else {
+                borderGradient.addColorStop(0, '#cbd5e1');  // slate-300
+                borderGradient.addColorStop(1, '#94a3b8');  // slate-400
+            }
+            this.ctx.strokeStyle = borderGradient;
+            this.ctx.lineWidth = 1;
             this.roundRect(
                 x - keySize / 2,
                 y - keySize / 2,
                 keySize,
                 keySize,
-                4 * this.scale
+                5 * this.scale
             );
             this.ctx.stroke();
 
-            // Key text with better contrast
-            this.ctx.fillStyle = isDark ? '#f3f4f6' : '#111827';  // gray-100 : gray-900
+            // Key text with subtle shadow
+            this.ctx.save();
+            this.ctx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)';
+            this.ctx.shadowBlur = 1;
+            this.ctx.shadowOffsetY = 1;
+            
+            this.ctx.fillStyle = isDark ? '#f8fafc' : '#0f172a';  // slate-50 : slate-900
             this.ctx.font = `bold ${fontSize}px 'JetBrains Mono', 'SF Mono', 'Consolas', monospace`;
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(key.char.toUpperCase(), x, y);
+            
+            this.ctx.restore();
         }
     }
 
@@ -151,48 +193,99 @@ export class KeyboardRenderer {
     private drawTraceInternal() {
         if (this.tracePoints.length < 2) return;
 
-        // Draw trace line
-        this.ctx.strokeStyle = 'rgba(102, 126, 234, 0.8)';
-        this.ctx.lineWidth = 3 * this.scale;
+        // Save context for effects
+        this.ctx.save();
+
+        // Add glow effect for the trace
+        this.ctx.shadowColor = 'rgba(99, 102, 241, 0.6)';  // indigo-500
+        this.ctx.shadowBlur = 10 * this.scale;
+        
+        // Draw trace line with enhanced gradient
+        this.ctx.lineWidth = 4 * this.scale;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
 
-        // Create gradient effect
+        // Create multi-color gradient effect
         const gradient = this.ctx.createLinearGradient(
             this.tracePoints[0].x,
             this.tracePoints[0].y,
             this.tracePoints[this.tracePoints.length - 1].x,
             this.tracePoints[this.tracePoints.length - 1].y
         );
-        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.4)');
-        gradient.addColorStop(1, 'rgba(118, 75, 162, 0.8)');
+        gradient.addColorStop(0, 'rgba(34, 197, 94, 0.9)');   // green-500
+        gradient.addColorStop(0.5, 'rgba(99, 102, 241, 0.9)'); // indigo-500
+        gradient.addColorStop(1, 'rgba(168, 85, 247, 0.9)');   // purple-500
         this.ctx.strokeStyle = gradient;
 
-        // Draw the path
+        // Draw the main path
         this.ctx.beginPath();
         this.ctx.moveTo(this.tracePoints[0].x, this.tracePoints[0].y);
         
-        for (let i = 1; i < this.tracePoints.length; i++) {
-            this.ctx.lineTo(this.tracePoints[i].x, this.tracePoints[i].y);
+        // Use quadratic curves for smoother lines
+        if (this.tracePoints.length === 2) {
+            this.ctx.lineTo(this.tracePoints[1].x, this.tracePoints[1].y);
+        } else {
+            for (let i = 1; i < this.tracePoints.length - 1; i++) {
+                const cp = this.tracePoints[i];
+                const next = this.tracePoints[i + 1];
+                const midX = (cp.x + next.x) / 2;
+                const midY = (cp.y + next.y) / 2;
+                this.ctx.quadraticCurveTo(cp.x, cp.y, midX, midY);
+            }
+            // Last segment
+            const last = this.tracePoints[this.tracePoints.length - 1];
+            this.ctx.lineTo(last.x, last.y);
         }
         
         this.ctx.stroke();
+        this.ctx.restore();
 
-        // Draw points
+        // Draw points with enhanced effects
         for (let i = 0; i < this.tracePoints.length; i++) {
             const point = this.tracePoints[i];
-            const radius = (i === 0 || i === this.tracePoints.length - 1) ? 
-                          5 * this.scale : 2 * this.scale;
+            const isEndpoint = i === 0 || i === this.tracePoints.length - 1;
+            const radius = isEndpoint ? 6 * this.scale : 2 * this.scale;
             
+            if (isEndpoint) {
+                // Draw glow for endpoints
+                this.ctx.save();
+                const glowGradient = this.ctx.createRadialGradient(
+                    point.x, point.y, 0,
+                    point.x, point.y, radius * 2
+                );
+                
+                if (i === 0) {
+                    glowGradient.addColorStop(0, 'rgba(34, 197, 94, 0.8)');
+                    glowGradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
+                } else {
+                    glowGradient.addColorStop(0, 'rgba(168, 85, 247, 0.8)');
+                    glowGradient.addColorStop(1, 'rgba(168, 85, 247, 0)');
+                }
+                
+                this.ctx.fillStyle = glowGradient;
+                this.ctx.beginPath();
+                this.ctx.arc(point.x, point.y, radius * 2, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.restore();
+            }
+            
+            // Draw the actual point
             this.ctx.fillStyle = i === 0 ? 
-                                'rgba(102, 234, 126, 0.8)' : 
+                                'rgb(34, 197, 94)' :     // green-500
                                 (i === this.tracePoints.length - 1 ? 
-                                 'rgba(234, 102, 102, 0.8)' : 
-                                 'rgba(255, 255, 255, 0.5)');
+                                 'rgb(168, 85, 247)' :    // purple-500
+                                 'rgba(255, 255, 255, 0.6)');
             
             this.ctx.beginPath();
             this.ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
             this.ctx.fill();
+            
+            // Add border to endpoints
+            if (isEndpoint) {
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                this.ctx.lineWidth = 1;
+                this.ctx.stroke();
+            }
         }
     }
 

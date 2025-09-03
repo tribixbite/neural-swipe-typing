@@ -65,7 +65,15 @@ class KeyboardRenderer {
   }
   render() {
     const isDark = document.documentElement.classList.contains("dark");
-    this.ctx.fillStyle = isDark ? "#111827" : "#f9fafb";
+    const bgGradient = this.ctx.createLinearGradient(0, 0, this.width, this.height);
+    if (isDark) {
+      bgGradient.addColorStop(0, "#1e293b");
+      bgGradient.addColorStop(1, "#0f172a");
+    } else {
+      bgGradient.addColorStop(0, "#e2e8f0");
+      bgGradient.addColorStop(1, "#cbd5e1");
+    }
+    this.ctx.fillStyle = bgGradient;
     this.ctx.fillRect(0, 0, this.width, this.height);
     this.drawKeys();
     if (this.tracePoints.length > 0) {
@@ -79,26 +87,47 @@ class KeyboardRenderer {
     for (const key of this.keys) {
       const x = key.x * this.scale;
       const y = key.y * this.scale;
+      this.ctx.save();
+      this.ctx.shadowColor = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)";
+      this.ctx.shadowBlur = 4 * this.scale;
+      this.ctx.shadowOffsetX = 0;
+      this.ctx.shadowOffsetY = 2 * this.scale;
       const gradient = this.ctx.createLinearGradient(x - keySize / 2, y - keySize / 2, x + keySize / 2, y + keySize / 2);
       if (isDark) {
-        gradient.addColorStop(0, "#374151");
-        gradient.addColorStop(1, "#1f2937");
+        gradient.addColorStop(0, "#475569");
+        gradient.addColorStop(0.5, "#334155");
+        gradient.addColorStop(1, "#1e293b");
       } else {
         gradient.addColorStop(0, "#ffffff");
-        gradient.addColorStop(1, "#f3f4f6");
+        gradient.addColorStop(0.5, "#f8fafc");
+        gradient.addColorStop(1, "#f1f5f9");
       }
       this.ctx.fillStyle = gradient;
-      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 4 * this.scale);
+      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5 * this.scale);
       this.ctx.fill();
-      this.ctx.strokeStyle = isDark ? "#4b5563" : "#d1d5db";
-      this.ctx.lineWidth = 1.5;
-      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 4 * this.scale);
+      this.ctx.restore();
+      const borderGradient = this.ctx.createLinearGradient(x - keySize / 2, y - keySize / 2, x + keySize / 2, y + keySize / 2);
+      if (isDark) {
+        borderGradient.addColorStop(0, "#64748b");
+        borderGradient.addColorStop(1, "#475569");
+      } else {
+        borderGradient.addColorStop(0, "#cbd5e1");
+        borderGradient.addColorStop(1, "#94a3b8");
+      }
+      this.ctx.strokeStyle = borderGradient;
+      this.ctx.lineWidth = 1;
+      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5 * this.scale);
       this.ctx.stroke();
-      this.ctx.fillStyle = isDark ? "#f3f4f6" : "#111827";
+      this.ctx.save();
+      this.ctx.shadowColor = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.3)";
+      this.ctx.shadowBlur = 1;
+      this.ctx.shadowOffsetY = 1;
+      this.ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
       this.ctx.font = `bold ${fontSize}px 'JetBrains Mono', 'SF Mono', 'Consolas', monospace`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
       this.ctx.fillText(key.char.toUpperCase(), x, y);
+      this.ctx.restore();
     }
   }
   drawTrace(points) {
@@ -111,27 +140,63 @@ class KeyboardRenderer {
   drawTraceInternal() {
     if (this.tracePoints.length < 2)
       return;
-    this.ctx.strokeStyle = "rgba(102, 126, 234, 0.8)";
-    this.ctx.lineWidth = 3 * this.scale;
+    this.ctx.save();
+    this.ctx.shadowColor = "rgba(99, 102, 241, 0.6)";
+    this.ctx.shadowBlur = 10 * this.scale;
+    this.ctx.lineWidth = 4 * this.scale;
     this.ctx.lineCap = "round";
     this.ctx.lineJoin = "round";
     const gradient = this.ctx.createLinearGradient(this.tracePoints[0].x, this.tracePoints[0].y, this.tracePoints[this.tracePoints.length - 1].x, this.tracePoints[this.tracePoints.length - 1].y);
-    gradient.addColorStop(0, "rgba(102, 126, 234, 0.4)");
-    gradient.addColorStop(1, "rgba(118, 75, 162, 0.8)");
+    gradient.addColorStop(0, "rgba(34, 197, 94, 0.9)");
+    gradient.addColorStop(0.5, "rgba(99, 102, 241, 0.9)");
+    gradient.addColorStop(1, "rgba(168, 85, 247, 0.9)");
     this.ctx.strokeStyle = gradient;
     this.ctx.beginPath();
     this.ctx.moveTo(this.tracePoints[0].x, this.tracePoints[0].y);
-    for (let i = 1;i < this.tracePoints.length; i++) {
-      this.ctx.lineTo(this.tracePoints[i].x, this.tracePoints[i].y);
+    if (this.tracePoints.length === 2) {
+      this.ctx.lineTo(this.tracePoints[1].x, this.tracePoints[1].y);
+    } else {
+      for (let i = 1;i < this.tracePoints.length - 1; i++) {
+        const cp = this.tracePoints[i];
+        const next = this.tracePoints[i + 1];
+        const midX = (cp.x + next.x) / 2;
+        const midY = (cp.y + next.y) / 2;
+        this.ctx.quadraticCurveTo(cp.x, cp.y, midX, midY);
+      }
+      const last = this.tracePoints[this.tracePoints.length - 1];
+      this.ctx.lineTo(last.x, last.y);
     }
     this.ctx.stroke();
+    this.ctx.restore();
     for (let i = 0;i < this.tracePoints.length; i++) {
       const point = this.tracePoints[i];
-      const radius = i === 0 || i === this.tracePoints.length - 1 ? 5 * this.scale : 2 * this.scale;
-      this.ctx.fillStyle = i === 0 ? "rgba(102, 234, 126, 0.8)" : i === this.tracePoints.length - 1 ? "rgba(234, 102, 102, 0.8)" : "rgba(255, 255, 255, 0.5)";
+      const isEndpoint = i === 0 || i === this.tracePoints.length - 1;
+      const radius = isEndpoint ? 6 * this.scale : 2 * this.scale;
+      if (isEndpoint) {
+        this.ctx.save();
+        const glowGradient = this.ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius * 2);
+        if (i === 0) {
+          glowGradient.addColorStop(0, "rgba(34, 197, 94, 0.8)");
+          glowGradient.addColorStop(1, "rgba(34, 197, 94, 0)");
+        } else {
+          glowGradient.addColorStop(0, "rgba(168, 85, 247, 0.8)");
+          glowGradient.addColorStop(1, "rgba(168, 85, 247, 0)");
+        }
+        this.ctx.fillStyle = glowGradient;
+        this.ctx.beginPath();
+        this.ctx.arc(point.x, point.y, radius * 2, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
+      this.ctx.fillStyle = i === 0 ? "rgb(34, 197, 94)" : i === this.tracePoints.length - 1 ? "rgb(168, 85, 247)" : "rgba(255, 255, 255, 0.6)";
       this.ctx.beginPath();
       this.ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
       this.ctx.fill();
+      if (isEndpoint) {
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+        this.ctx.lineWidth = 1;
+        this.ctx.stroke();
+      }
     }
   }
   clearTrace() {
@@ -679,9 +744,9 @@ class SwipeTypingApp {
   async loadModels() {
     const basePath = window.location.hostname === "localhost" ? "" : ".";
     this.loadingProgressEl.textContent = "Loading encoder model...";
-    await this.predictor.loadEncoder(`${basePath}/models/swipe_model_character.onnx`);
+    await this.predictor.loadEncoder(`${basePath}/models/swipe_model_character_quant.onnx`);
     this.loadingProgressEl.textContent = "Loading decoder model...";
-    await this.predictor.loadDecoder(`${basePath}/models/swipe_decoder_character.onnx`);
+    await this.predictor.loadDecoder(`${basePath}/models/swipe_decoder_character_quant.onnx`);
     this.loadingProgressEl.textContent = "Loading tokenizer...";
     await this.predictor.loadTokenizer(`${basePath}/models/tokenizer_config.json`);
     this.loadingProgressEl.textContent = "Models loaded successfully!";
@@ -812,5 +877,5 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=A96B0F71516B324564756E2164756E21
+//# debugId=A5BB01F6BE1B68CA64756E2164756E21
 //# sourceMappingURL=app.js.map
