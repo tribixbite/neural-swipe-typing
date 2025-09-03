@@ -59,33 +59,13 @@ class SwipeTypingApp {
     }
 
     private setupCanvas() {
-        const container = this.canvas.parentElement!;
-        const rect = container.getBoundingClientRect();
+        // Canvas dimensions are fixed at 360x215 for consistent coordinate mapping
+        // CSS handles the display sizing
+        this.canvas.width = 360;
+        this.canvas.height = 215;
         
-        // Always use 360:215 ratio internally for consistent coordinate mapping
-        const KEYBOARD_WIDTH = 360;
-        const KEYBOARD_HEIGHT = 215;
-        
-        // Set canvas internal dimensions to keyboard space
-        this.canvas.width = KEYBOARD_WIDTH;
-        this.canvas.height = KEYBOARD_HEIGHT;
-        
-        // Set CSS dimensions to fill container while maintaining aspect ratio
-        const containerAspect = rect.width / rect.height;
-        const keyboardAspect = KEYBOARD_WIDTH / KEYBOARD_HEIGHT;
-        
-        if (containerAspect > keyboardAspect) {
-            // Container is wider - fit by height
-            this.canvas.style.height = '100%';
-            this.canvas.style.width = 'auto';
-        } else {
-            // Container is taller - fit by width
-            this.canvas.style.width = '100%';
-            this.canvas.style.height = 'auto';
-        }
-        
-        // Update keyboard renderer with new dimensions
-        this.keyboard.updateDimensions(this.canvas.width, this.canvas.height);
+        // Update keyboard renderer
+        this.keyboard.updateDimensions(360, 215);
         this.keyboard.render();
     }
 

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Scaling</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: monospace;
+            background: #222;
+            color: #0f0;
+        }
+        #container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            border: 2px solid #0f0;
+        }
+        #canvas {
+            border: 2px solid #f00;
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #000;
+        }
+        #info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #111;
+            font-size: 12px;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        .dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #0ff;
+            border-radius: 50%;
+            margin: -5px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas" width="360" height="215"></canvas>
+        <div id="info">Click to test...</div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const info = document.getElementById('info');
+        
+        // Draw debug grid
+        function drawGrid() {
+            ctx.clearRect(0, 0, 360, 215);
+            
+            // Draw background
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, 360, 215);
+            
+            // Draw grid lines
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            
+            // Vertical lines every 36 pixels
+            for (let x = 0; x <= 360; x += 36) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, 215);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = 0; y <= 215; y += 21.5) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(360, y);
+                ctx.stroke();
+            }
+            
+            // Draw center crosshair
+            ctx.strokeStyle = '#0f0';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(180, 0);
+            ctx.lineTo(180, 215);
+            ctx.moveTo(0, 107.5);
+            ctx.lineTo(360, 107.5);
+            ctx.stroke();
+            
+            // Label corners
+            ctx.fillStyle = '#0f0';
+            ctx.font = '12px monospace';
+            ctx.fillText('(0,0)', 5, 15);
+            ctx.fillText('(360,0)', 320, 15);
+            ctx.fillText('(0,215)', 5, 210);
+            ctx.fillText('(360,215)', 310, 210);
+            ctx.fillText('CENTER: 180,107.5', 120, 107.5);
+        }
+        
+        drawGrid();
+        
+        // Track mouse/touch
+        let isDrawing = false;
+        let points = [];
+        
+        function getDebugInfo(e) {
+            const rect = canvas.getBoundingClientRect();
+            const computedStyle = window.getComputedStyle(canvas);
+            
+            // Get client coordinates
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            // Different scaling methods
+            const method1 = {
+                x: (clientX - rect.left) * (canvas.width / rect.width),
+                y: (clientY - rect.top) * (canvas.height / rect.height)
+            };
+            
+            const method2 = {
+                x: (clientX - rect.left) * (360 / rect.width),
+                y: (clientY - rect.top) * (215 / rect.height)
+            };
+            
+            const method3 = {
+                x: (clientX - rect.left) / rect.width * 360,
+                y: (clientY - rect.top) / rect.height * 215
+            };
+            
+            // CSS pixel to canvas pixel
+            const cssWidth = parseFloat(computedStyle.width);
+            const cssHeight = parseFloat(computedStyle.height);
+            
+            const method4 = {
+                x: (clientX - rect.left) * (canvas.width / cssWidth),
+                y: (clientY - rect.top) * (canvas.height / cssHeight)
+            };
+            
+            return {
+                devicePixelRatio: window.devicePixelRatio,
+                
+                canvas: {
+                    width: canvas.width,
+                    height: canvas.height,
+                    clientWidth: canvas.clientWidth,
+                    clientHeight: canvas.clientHeight,
+                    offsetWidth: canvas.offsetWidth,
+                    offsetHeight: canvas.offsetHeight
+                },
+                
+                rect: {
+                    width: rect.width,
+                    height: rect.height,
+                    left: rect.left,
+                    top: rect.top
+                },
+                
+                computed: {
+                    width: cssWidth,
+                    height: cssHeight
+                },
+                
+                mouse: {
+                    clientX: clientX,
+                    clientY: clientY,
+                    relativeX: clientX - rect.left,
+                    relativeY: clientY - rect.top
+                },
+                
+                scaled: {
+                    method1: method1,
+                    method2: method2,
+                    method3: method3,
+                    method4: method4
+                }
+            };
+        }
+        
+        function handleStart(e) {
+            e.preventDefault();
+            isDrawing = true;
+            points = [];
+            
+            const debug = getDebugInfo(e);
+            info.textContent = JSON.stringify(debug, null, 2);
+            
+            // Draw dot at each calculated position
+            drawGrid();
+            
+            // Draw dots for each method
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(debug.scaled.method1.x - 2, debug.scaled.method1.y - 2, 4, 4);
+            
+            ctx.fillStyle = '#0f0';
+            ctx.fillRect(debug.scaled.method2.x - 2, debug.scaled.method2.y - 2, 4, 4);
+            
+            ctx.fillStyle = '#00f';
+            ctx.fillRect(debug.scaled.method3.x - 2, debug.scaled.method3.y - 2, 4, 4);
+            
+            ctx.fillStyle = '#ff0';
+            ctx.fillRect(debug.scaled.method4.x - 2, debug.scaled.method4.y - 2, 4, 4);
+            
+            // Add visual dot at mouse position
+            const dot = document.createElement('div');
+            dot.className = 'dot';
+            dot.style.left = e.clientX + 'px';
+            dot.style.top = e.clientY + 'px';
+            dot.id = 'cursor-dot';
+            document.body.appendChild(dot);
+        }
+        
+        function handleMove(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            
+            const debug = getDebugInfo(e);
+            info.textContent = JSON.stringify(debug, null, 2);
+            
+            // Update visual dot
+            const dot = document.getElementById('cursor-dot');
+            if (dot) {
+                if (e.touches) {
+                    dot.style.left = e.touches[0].clientX + 'px';
+                    dot.style.top = e.touches[0].clientY + 'px';
+                } else {
+                    dot.style.left = e.clientX + 'px';
+                    dot.style.top = e.clientY + 'px';
+                }
+            }
+            
+            // Draw trace with method2 (seems most logical)
+            const point = debug.scaled.method2;
+            points.push(point);
+            
+            if (points.length > 1) {
+                ctx.strokeStyle = '#0f0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
+                ctx.stroke();
+            }
+        }
+        
+        function handleEnd(e) {
+            e.preventDefault();
+            isDrawing = false;
+            
+            const dot = document.getElementById('cursor-dot');
+            if (dot) dot.remove();
+        }
+        
+        // Mouse events
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('mouseup', handleEnd);
+        canvas.addEventListener('mouseleave', handleEnd);
+        
+        // Touch events
+        canvas.addEventListener('touchstart', handleStart);
+        canvas.addEventListener('touchmove', handleMove);
+        canvas.addEventListener('touchend', handleEnd);
+        
+        // Add device info
+        const deviceInfo = document.createElement('div');
+        deviceInfo.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #000; color: #0f0; padding: 10px; font-family: monospace; font-size: 12px;';
+        deviceInfo.innerHTML = `
+DPR: ${window.devicePixelRatio}<br>
+Screen: ${screen.width}x${screen.height}<br>
+Window: ${window.innerWidth}x${window.innerHeight}<br>
+UserAgent: ${navigator.userAgent.substring(0, 50)}...
+        `;
+        document.body.appendChild(deviceInfo);
+    </script>
+</body>
+</html>

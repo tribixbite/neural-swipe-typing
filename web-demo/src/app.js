@@ -564,24 +564,40 @@ class SwipeTracker {
     this.canvas.addEventListener("gesturechange", (e) => e.preventDefault());
     this.canvas.addEventListener("gestureend", (e) => e.preventDefault());
   }
+  getCanvasCoordinates(e) {
+    const canvas = this.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const style = window.getComputedStyle(canvas);
+    const borderLeftWidth = parseFloat(style.borderLeftWidth) || 0;
+    const borderTopWidth = parseFloat(style.borderTopWidth) || 0;
+    const paddingLeft = parseFloat(style.paddingLeft) || 0;
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const cssContentWidth = parseFloat(style.width);
+    const cssContentHeight = parseFloat(style.height);
+    const xRelativeToElement = clientX - rect.left;
+    const yRelativeToElement = clientY - rect.top;
+    const xRelativeToContent = xRelativeToElement - borderLeftWidth - paddingLeft;
+    const yRelativeToContent = yRelativeToElement - borderTopWidth - paddingTop;
+    const scaleX = canvas.width / cssContentWidth;
+    const scaleY = canvas.height / cssContentHeight;
+    const canvasX = xRelativeToContent * scaleX;
+    const canvasY = yRelativeToContent * scaleY;
+    return { x: canvasX, y: canvasY };
+  }
   handleTouchStart(e) {
     e.preventDefault();
     if (e.touches.length !== 1)
       return;
-    const touch = e.touches[0];
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (touch.clientX - rect.left) * (360 / rect.width);
-    const y = (touch.clientY - rect.top) * (215 / rect.height);
+    const { x, y } = this.getCanvasCoordinates(e);
     this.startSwipe(x, y);
   }
   handleTouchMove(e) {
     e.preventDefault();
     if (!this.isTracking || e.touches.length !== 1)
       return;
-    const touch = e.touches[0];
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (touch.clientX - rect.left) * (360 / rect.width);
-    const y = (touch.clientY - rect.top) * (215 / rect.height);
+    const { x, y } = this.getCanvasCoordinates(e);
     this.addPoint(x, y);
   }
   handleTouchEnd(e) {
@@ -591,27 +607,13 @@ class SwipeTracker {
     this.endSwipe();
   }
   handleMouseDown(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (360 / rect.width);
-    const y = (e.clientY - rect.top) * (215 / rect.height);
-    console.log("DEBUG: Mouse down", {
-      canvasWidth: this.canvas.width,
-      canvasHeight: this.canvas.height,
-      cssWidth: rect.width,
-      cssHeight: rect.height,
-      mouseX: e.clientX - rect.left,
-      mouseY: e.clientY - rect.top,
-      scaledX: x,
-      scaledY: y
-    });
+    const { x, y } = this.getCanvasCoordinates(e);
     this.startSwipe(x, y);
   }
   handleMouseMove(e) {
     if (!this.isTracking)
       return;
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (360 / rect.width);
-    const y = (e.clientY - rect.top) * (215 / rect.height);
+    const { x, y } = this.getCanvasCoordinates(e);
     this.addPoint(x, y);
   }
   handleMouseUp(e) {
@@ -734,22 +736,9 @@ class SwipeTypingApp {
     }
   }
   setupCanvas() {
-    const container = this.canvas.parentElement;
-    const rect = container.getBoundingClientRect();
-    const KEYBOARD_WIDTH = 360;
-    const KEYBOARD_HEIGHT = 215;
-    this.canvas.width = KEYBOARD_WIDTH;
-    this.canvas.height = KEYBOARD_HEIGHT;
-    const containerAspect = rect.width / rect.height;
-    const keyboardAspect = KEYBOARD_WIDTH / KEYBOARD_HEIGHT;
-    if (containerAspect > keyboardAspect) {
-      this.canvas.style.height = "100%";
-      this.canvas.style.width = "auto";
-    } else {
-      this.canvas.style.width = "100%";
-      this.canvas.style.height = "auto";
-    }
-    this.keyboard.updateDimensions(this.canvas.width, this.canvas.height);
+    this.canvas.width = 360;
+    this.canvas.height = 215;
+    this.keyboard.updateDimensions(360, 215);
     this.keyboard.render();
   }
   async loadModels() {
@@ -885,4 +874,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=74325519E2BCA6EC64756E2164756E21
+//# debugId=F817CA40D13463E064756E2164756E21
