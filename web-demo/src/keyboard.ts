@@ -80,8 +80,8 @@ export class KeyboardRenderer {
     }
 
     private drawKeys() {
-        const keySize = 48 * this.scale;  // Larger keys for better touch targets
-        const fontSize = 22 * this.scale;  // Better readability
+        const keySize = 30 * this.scale;  // Balanced size to prevent overlap
+        const fontSize = 16 * this.scale;  // Proportional font size
         const isDark = document.documentElement.classList.contains('dark');
 
         for (const key of this.keys) {

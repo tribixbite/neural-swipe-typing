@@ -71,8 +71,8 @@ class KeyboardRenderer {
     }
   }
   drawKeys() {
-    const keySize = 48 * this.scale;
-    const fontSize = 22 * this.scale;
+    const keySize = 30 * this.scale;
+    const fontSize = 16 * this.scale;
     const isDark = document.documentElement.classList.contains("dark");
     for (const key of this.keys) {
       const x = key.x * this.scale;
@@ -784,5 +784,5 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=D3B02B864B89DAA764756E2164756E21
+//# debugId=D6599CB10B81445E64756E2164756E21
 //# sourceMappingURL=app.js.map
