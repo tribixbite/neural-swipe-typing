@@ -16,6 +16,7 @@ export class KeyboardRenderer {
     private offsetY: number = 0;
     private keys: KeyPosition[] = [];
     private tracePoints: Array<{x: number, y: number}> = [];
+    private activeKey: string | null = null;
     
     // QWERTY layout matching training data (360x215 coordinate space)
     // Layout fills entire canvas without number row
@@ -115,6 +116,11 @@ export class KeyboardRenderer {
         for (const key of this.keys) {
             const x = key.x;
             const y = key.y;
+            const isActive = this.activeKey === key.char;
+            
+            // Scale up active key
+            const currentKeySize = isActive ? keySize * 1.15 : keySize;
+            const currentFontSize = isActive ? fontSize * 1.1 : fontSize;
 
             // Save context for shadows
             this.ctx.save();
@@ -143,10 +149,10 @@ export class KeyboardRenderer {
             
             this.ctx.fillStyle = gradient;
             this.roundRect(
-                x - keySize / 2,
-                y - keySize / 2,
-                keySize,
-                keySize,
+                x - currentKeySize / 2,
+                y - currentKeySize / 2,
+                currentKeySize,
+                currentKeySize,
                 5
             );
             this.ctx.fill();
@@ -166,13 +172,13 @@ export class KeyboardRenderer {
                 borderGradient.addColorStop(0, '#cbd5e1');  // slate-300
                 borderGradient.addColorStop(1, '#94a3b8');  // slate-400
             }
-            this.ctx.strokeStyle = borderGradient;
-            this.ctx.lineWidth = 1;
+            this.ctx.strokeStyle = isActive ? '#6366f1' : borderGradient;  // indigo-500 for active
+            this.ctx.lineWidth = isActive ? 2 : 1;
             this.roundRect(
-                x - keySize / 2,
-                y - keySize / 2,
-                keySize,
-                keySize,
+                x - currentKeySize / 2,
+                y - currentKeySize / 2,
+                currentKeySize,
+                currentKeySize,
                 5
             );
             this.ctx.stroke();
@@ -180,9 +186,11 @@ export class KeyboardRenderer {
             // Key text - ensure visibility with high contrast
             this.ctx.save();
             
-            // Text with high contrast
-            this.ctx.fillStyle = isDark ? '#ffffff' : '#000000';  // Pure white/black for maximum contrast
-            this.ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+            // Text with high contrast (use same color scheme as advanced predictor)
+            this.ctx.fillStyle = isActive ? 
+                (isDark ? '#ffffff' : '#6366f1') :  // White in dark, indigo for active
+                (isDark ? '#e5e7eb' : '#374151');   // gray-200 in dark, gray-700 in light
+            this.ctx.font = `600 ${currentFontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             
@@ -206,7 +214,48 @@ export class KeyboardRenderer {
             x: p.x,
             y: p.y
         }));
+        
+        // Update active key based on latest point
+        if (points.length > 0) {
+            const lastPoint = points[points.length - 1];
+            const nearestKey = this.getKeyAt(lastPoint.x, lastPoint.y);
+            if (nearestKey !== this.activeKey) {
+                this.activeKey = nearestKey;
+            }
+            this.addSwipeTrail(lastPoint);
+        }
+        
         this.render();
+    }
+    
+    private addSwipeTrail(point: {x: number, y: number}) {
+        // Create trail element with cloud effect
+        const trail = document.createElement('div');
+        trail.className = 'swipe-trail';
+        
+        // Convert from 360x215 to percentage of canvas element
+        const rect = this.canvas.getBoundingClientRect();
+        const percentX = (point.x / 360) * 100;
+        const percentY = (point.y / 215) * 100;
+        
+        trail.style.left = `${percentX}%`;
+        trail.style.top = `${percentY}%`;
+        
+        // Add to canvas parent container
+        const container = this.canvas.parentElement;
+        if (container) {
+            trail.style.position = 'absolute';
+            trail.style.pointerEvents = 'none';
+            container.style.position = 'relative';
+            container.appendChild(trail);
+            
+            // Remove after animation
+            setTimeout(() => {
+                if (trail.parentNode) {
+                    trail.remove();
+                }
+            }, 1000);
+        }
     }
 
     private drawTraceInternal() {
@@ -310,6 +359,7 @@ export class KeyboardRenderer {
 
     clearTrace() {
         this.tracePoints = [];
+        this.activeKey = null;
         this.render();
     }
 

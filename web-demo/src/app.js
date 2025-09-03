@@ -11,6 +11,7 @@ class KeyboardRenderer {
   offsetY = 0;
   keys = [];
   tracePoints = [];
+  activeKey = null;
   KEYBOARD_LAYOUT = {
     q: { x: 18, y: 53 },
     w: { x: 54, y: 53 },
@@ -100,6 +101,9 @@ class KeyboardRenderer {
     for (const key of this.keys) {
       const x = key.x;
       const y = key.y;
+      const isActive = this.activeKey === key.char;
+      const currentKeySize = isActive ? keySize * 1.15 : keySize;
+      const currentFontSize = isActive ? fontSize * 1.1 : fontSize;
       this.ctx.save();
       this.ctx.shadowColor = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)";
       this.ctx.shadowBlur = 4;
@@ -116,7 +120,7 @@ class KeyboardRenderer {
         gradient.addColorStop(1, "#f1f5f9");
       }
       this.ctx.fillStyle = gradient;
-      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5);
+      this.roundRect(x - currentKeySize / 2, y - currentKeySize / 2, currentKeySize, currentKeySize, 5);
       this.ctx.fill();
       this.ctx.restore();
       const borderGradient = this.ctx.createLinearGradient(x - keySize / 2, y - keySize / 2, x + keySize / 2, y + keySize / 2);
@@ -127,13 +131,13 @@ class KeyboardRenderer {
         borderGradient.addColorStop(0, "#cbd5e1");
         borderGradient.addColorStop(1, "#94a3b8");
       }
-      this.ctx.strokeStyle = borderGradient;
-      this.ctx.lineWidth = 1;
-      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5);
+      this.ctx.strokeStyle = isActive ? "#6366f1" : borderGradient;
+      this.ctx.lineWidth = isActive ? 2 : 1;
+      this.roundRect(x - currentKeySize / 2, y - currentKeySize / 2, currentKeySize, currentKeySize, 5);
       this.ctx.stroke();
       this.ctx.save();
-      this.ctx.fillStyle = isDark ? "#ffffff" : "#000000";
-      this.ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+      this.ctx.fillStyle = isActive ? isDark ? "#ffffff" : "#6366f1" : isDark ? "#e5e7eb" : "#374151";
+      this.ctx.font = `600 ${currentFontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
       if (isDark) {
@@ -151,7 +155,36 @@ class KeyboardRenderer {
       x: p.x,
       y: p.y
     }));
+    if (points.length > 0) {
+      const lastPoint = points[points.length - 1];
+      const nearestKey = this.getKeyAt(lastPoint.x, lastPoint.y);
+      if (nearestKey !== this.activeKey) {
+        this.activeKey = nearestKey;
+      }
+      this.addSwipeTrail(lastPoint);
+    }
     this.render();
+  }
+  addSwipeTrail(point) {
+    const trail = document.createElement("div");
+    trail.className = "swipe-trail";
+    const rect = this.canvas.getBoundingClientRect();
+    const percentX = point.x / 360 * 100;
+    const percentY = point.y / 215 * 100;
+    trail.style.left = `${percentX}%`;
+    trail.style.top = `${percentY}%`;
+    const container = this.canvas.parentElement;
+    if (container) {
+      trail.style.position = "absolute";
+      trail.style.pointerEvents = "none";
+      container.style.position = "relative";
+      container.appendChild(trail);
+      setTimeout(() => {
+        if (trail.parentNode) {
+          trail.remove();
+        }
+      }, 1000);
+    }
   }
   drawTraceInternal() {
     if (this.tracePoints.length < 2)
@@ -217,6 +250,7 @@ class KeyboardRenderer {
   }
   clearTrace() {
     this.tracePoints = [];
+    this.activeKey = null;
     this.render();
   }
   getKeyAt(x, y) {
@@ -565,26 +599,14 @@ class SwipeTracker {
     this.canvas.addEventListener("gestureend", (e) => e.preventDefault());
   }
   getCanvasCoordinates(e) {
-    const canvas = this.canvas;
-    const rect = canvas.getBoundingClientRect();
+    const rect = this.canvas.getBoundingClientRect();
     const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
     const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    const style = window.getComputedStyle(canvas);
-    const borderLeftWidth = parseFloat(style.borderLeftWidth) || 0;
-    const borderTopWidth = parseFloat(style.borderTopWidth) || 0;
-    const paddingLeft = parseFloat(style.paddingLeft) || 0;
-    const paddingTop = parseFloat(style.paddingTop) || 0;
-    const cssContentWidth = parseFloat(style.width);
-    const cssContentHeight = parseFloat(style.height);
-    const xRelativeToElement = clientX - rect.left;
-    const yRelativeToElement = clientY - rect.top;
-    const xRelativeToContent = xRelativeToElement - borderLeftWidth - paddingLeft;
-    const yRelativeToContent = yRelativeToElement - borderTopWidth - paddingTop;
-    const scaleX = canvas.width / cssContentWidth;
-    const scaleY = canvas.height / cssContentHeight;
-    const canvasX = xRelativeToContent * scaleX;
-    const canvasY = yRelativeToContent * scaleY;
-    return { x: canvasX, y: canvasY };
+    const normalizedX = (clientX - rect.left) / rect.width;
+    const normalizedY = (clientY - rect.top) / rect.height;
+    const x = normalizedX * 360;
+    const y = normalizedY * 215;
+    return { x, y };
   }
   handleTouchStart(e) {
     e.preventDefault();
@@ -874,4 +896,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=F817CA40D13463E064756E2164756E21
+//# debugId=609EC1E446B4A31E64756E2164756E21

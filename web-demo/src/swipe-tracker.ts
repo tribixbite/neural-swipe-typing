@@ -42,43 +42,22 @@ export class SwipeTracker {
     }
 
     private getCanvasCoordinates(e: MouseEvent | TouchEvent): { x: number; y: number } {
-        const canvas = this.canvas;
-        const rect = canvas.getBoundingClientRect();
-
-        // Determine the correct clientX/Y for mouse vs. touch events
+        const rect = this.canvas.getBoundingClientRect();
+        
+        // Get client coordinates
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-        // Get the computed styles to account for border and padding
-        const style = window.getComputedStyle(canvas);
-        const borderLeftWidth = parseFloat(style.borderLeftWidth) || 0;
-        const borderTopWidth = parseFloat(style.borderTopWidth) || 0;
-        const paddingLeft = parseFloat(style.paddingLeft) || 0;
-        const paddingTop = parseFloat(style.paddingTop) || 0;
-
-        // This is the actual rendered size of the content-box in CSS pixels
-        const cssContentWidth = parseFloat(style.width);
-        const cssContentHeight = parseFloat(style.height);
-
-        // 1. Calculate pointer position relative to the canvas element's border-box
-        const xRelativeToElement = clientX - rect.left;
-        const yRelativeToElement = clientY - rect.top;
-
-        // 2. Adjust for border and padding to get the position relative to the content-box
-        const xRelativeToContent = xRelativeToElement - borderLeftWidth - paddingLeft;
-        const yRelativeToContent = yRelativeToElement - borderTopWidth - paddingTop;
-
-        // 3. Calculate the scaling ratio
-        // canvas.width is the internal resolution (360)
-        // cssContentWidth is the displayed size of the content area in CSS pixels
-        const scaleX = canvas.width / cssContentWidth;
-        const scaleY = canvas.height / cssContentHeight;
-
-        // 4. Apply the scaling factor to get the final coordinates
-        const canvasX = xRelativeToContent * scaleX;
-        const canvasY = yRelativeToContent * scaleY;
-
-        return { x: canvasX, y: canvasY };
+        
+        // Simple normalized coordinates (0-1) like in advanced_swipe_predictor
+        // Then scale to 360x215 for our keyboard space
+        const normalizedX = (clientX - rect.left) / rect.width;
+        const normalizedY = (clientY - rect.top) / rect.height;
+        
+        // Convert to keyboard space (360x215)
+        const x = normalizedX * 360;
+        const y = normalizedY * 215;
+        
+        return { x, y };
     }
 
     private handleTouchStart(e: TouchEvent) {
