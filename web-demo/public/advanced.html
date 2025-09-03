@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Neural Swipe Typing - ONNX</title>
+    
+    <!-- Load ONNX Runtime -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            padding: 30px;
+        }
+        
+        .status-bar {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 30px;
+            font-weight: 600;
+            text-align: center;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .status-loading { border-color: #ffc107; color: #856404; }
+        .status-ready { border-color: #28a745; color: #155724; }
+        .status-error { border-color: #dc3545; color: #721c24; }
+        .status-processing { border-color: #17a2b8; color: #0c5460; }
+        
+        .keyboard-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            position: relative;
+            height: 300px;
+            border: 2px solid #dee2e6;
+            overflow: hidden;
+        }
+        
+        #keyboard-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+            background: linear-gradient(145deg, #e2e8f0, #cbd5e0);
+            cursor: pointer;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr auto auto auto;
+            gap: 15px;
+            margin: 20px 0;
+            align-items: center;
+        }
+        
+        .btn {
+            background: linear-gradient(145deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(145deg, #6b7280, #4b5563);
+            box-shadow: 0 4px 8px rgba(107, 114, 128, 0.3);
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: linear-gradient(145deg, #4b5563, #374151);
+            box-shadow: 0 6px 12px rgba(107, 114, 128, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(145deg, #ef4444, #dc2626);
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+        }
+        
+        .predictions {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 120px;
+        }
+        
+        .predictions h3 {
+            margin-bottom: 15px;
+            color: #374151;
+            font-size: 1.2rem;
+        }
+        
+        .prediction-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .prediction-item {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 25px;
+            padding: 8px 16px;
+            font-weight: 600;
+            color: #374151;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .prediction-item:first-child {
+            background: linear-gradient(145deg, #3b82f6, #2563eb);
+            color: white;
+            border-color: #2563eb;
+        }
+        
+        .prediction-item:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-1px);
+        }
+        
+        .prediction-item:first-child:hover {
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
+        }
+        
+        .prediction-item .score {
+            font-size: 0.75em;
+            opacity: 0.8;
+            margin-left: 8px;
+            font-weight: normal;
+        }
+        
+        .swipe-info {
+            background: #e0f2fe;
+            border: 2px solid #0284c7;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #075985;
+            display: none;
+        }
+        
+        .swipe-info.active {
+            display: block;
+        }
+        
+        .swipe-info h4 {
+            margin-bottom: 10px;
+            color: #075985;
+        }
+        
+        .swipe-path {
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            margin: 10px 0;
+            color: #0c4a6e;
+        }
+        
+        .debug-info {
+            background: #1f2937;
+            color: #f9fafb;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            display: none;
+        }
+        
+        .debug-info.active {
+            display: block;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .loading-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .instructions {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            color: #92400e;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #92400e;
+        }
+        
+        .instructions ul {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 5px 0;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .controls {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .prediction-list {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <h2>Loading Neural Models...</h2>
+            <p id="loading-status">Initializing ONNX Runtime...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Advanced Neural Swipe Typing</h1>
+            <p>Real ONNX Neural Network • 70.1% Accuracy</p>
+        </div>
+        
+        <div class="main-content">
+            <div id="status" class="status-bar status-loading">
+                Initializing neural network...
+            </div>
+            
+            <div class="instructions">
+                <h3>🎯 How to Use</h3>
+                <ul>
+                    <li><strong>Swipe:</strong> Click and drag across the keyboard to form words</li>
+                    <li><strong>Neural Network:</strong> Real ONNX model trained on 40,000+ swipe patterns</li>
+                    <li><strong>Predictions:</strong> Top 5 predictions with confidence scores</li>
+                    <li><strong>Demo Words:</strong> Try "hello", "world", "quick", "typing"</li>
+                </ul>
+            </div>
+            
+            <div class="keyboard-container">
+                <canvas id="keyboard-canvas"></canvas>
+            </div>
+            
+            <div class="controls">
+                <div></div>
+                <button id="demo-btn" class="btn" disabled>
+                    ✨ Demo
+                </button>
+                <button id="clear-btn" class="btn btn-secondary">
+                    🗑️ Clear
+                </button>
+                <button id="debug-btn" class="btn btn-secondary">
+                    🐛 Debug
+                </button>
+            </div>
+            
+            <div id="swipe-info" class="swipe-info">
+                <h4>Swipe Path</h4>
+                <div id="swipe-path" class="swipe-path"></div>
+                <div id="swipe-details"></div>
+            </div>
+            
+            <div class="predictions">
+                <h3>🎯 Neural Network Predictions</h3>
+                <div id="prediction-list" class="prediction-list">
+                    <div style="color: #6b7280; font-style: italic;">
+                        Swipe on the keyboard to see predictions...
+                    </div>
+                </div>
+            </div>
+            
+            <div id="debug-info" class="debug-info">
+                Debug information will appear here...
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import the same modules used in the main app
+        import { KeyboardRenderer } from './src/app-bundle.js';
+        import { SwipePredictor } from './src/app-bundle.js';
+        import { SwipeTracker } from './src/app-bundle.js';
+        
+        class AdvancedSwipeTypingApp {
+            constructor() {
+                this.canvas = document.getElementById('keyboard-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.statusEl = document.getElementById('status');
+                this.loadingOverlay = document.getElementById('loading-overlay');
+                this.loadingStatus = document.getElementById('loading-status');
+                this.predictionList = document.getElementById('prediction-list');
+                this.swipeInfo = document.getElementById('swipe-info');
+                this.swipePath = document.getElementById('swipe-path');
+                this.swipeDetails = document.getElementById('swipe-details');
+                this.debugInfo = document.getElementById('debug-info');
+                this.debugMode = false;
+                
+                this.keyboard = null;
+                this.predictor = null;
+                this.swipeTracker = null;
+                
+                this.init();
+            }
+            
+            async init() {
+                try {
+                    // Setup canvas dimensions
+                    this.setupCanvas();
+                    window.addEventListener('resize', () => this.setupCanvas());
+                    
+                    // Initialize components
+                    this.keyboard = new KeyboardRenderer(this.canvas, this.ctx);
+                    this.predictor = new SwipePredictor();
+                    this.swipeTracker = new SwipeTracker(this.canvas, this.keyboard);
+                    
+                    // Load models
+                    await this.loadModels();
+                    
+                    // Setup event handlers
+                    this.setupEventHandlers();
+                    
+                    // Initial render
+                    this.keyboard.render();
+                    
+                    // Hide loading overlay
+                    this.loadingOverlay.style.display = 'none';
+                    this.updateStatus('✅ Neural Network Ready! Draw a swipe gesture.', 'ready');
+                    document.getElementById('demo-btn').disabled = false;
+                    
+                } catch (error) {
+                    console.error('Failed to initialize:', error);
+                    this.loadingStatus.textContent = 'Failed to load models. Please refresh.';
+                    this.loadingStatus.style.color = '#ff5252';
+                }
+            }
+            
+            setupCanvas() {
+                const container = this.canvas.parentElement;
+                const rect = container.getBoundingClientRect();
+                
+                // Maintain keyboard aspect ratio
+                const aspectRatio = 360 / 215;
+                
+                if (rect.width / rect.height > aspectRatio) {
+                    this.canvas.height = rect.height;
+                    this.canvas.width = rect.height * aspectRatio;
+                } else {
+                    this.canvas.width = rect.width;
+                    this.canvas.height = rect.width / aspectRatio;
+                }
+                
+                if (this.keyboard) {
+                    this.keyboard.updateDimensions(this.canvas.width, this.canvas.height);
+                    this.keyboard.render();
+                }
+            }
+            
+            async loadModels() {
+                const basePath = window.location.hostname === 'localhost' ? '' : '.';
+                
+                this.loadingStatus.textContent = 'Loading encoder model...';
+                await this.predictor.loadEncoder(`${basePath}/models/swipe_model_character.onnx`);
+                
+                this.loadingStatus.textContent = 'Loading decoder model...';
+                await this.predictor.loadDecoder(`${basePath}/models/swipe_decoder_character.onnx`);
+                
+                this.loadingStatus.textContent = 'Loading tokenizer...';
+                await this.predictor.loadTokenizer(`${basePath}/models/tokenizer_config.json`);
+                
+                this.loadingStatus.textContent = 'Models loaded successfully!';
+            }
+            
+            setupEventHandlers() {
+                let swipedChars = [];
+                
+                this.swipeTracker.on('swipeStart', () => {
+                    this.keyboard.clearTrace();
+                    this.clearPredictions();
+                    swipedChars = [];
+                    this.swipeInfo.classList.remove('active');
+                    this.updateStatus('Swiping...', 'processing');
+                });
+                
+                this.swipeTracker.on('swipeMove', (points) => {
+                    this.keyboard.drawTrace(points);
+                    
+                    // Track touched keys
+                    if (points.length > 0) {
+                        const lastPoint = points[points.length - 1];
+                        const scale = this.canvas.width / 360;
+                        const canvasX = lastPoint.x * scale;
+                        const canvasY = lastPoint.y * scale;
+                        const key = this.keyboard.getKeyAt(canvasX, canvasY);
+                        
+                        if (key && !swipedChars.includes(key)) {
+                            swipedChars.push(key.toUpperCase());
+                            this.swipePath.textContent = swipedChars.join(' → ');
+                            this.swipeInfo.classList.add('active');
+                        }
+                    }
+                });
+                
+                this.swipeTracker.on('swipeEnd', async (points) => {
+                    if (points.length < 3) {
+                        this.keyboard.clearTrace();
+                        this.updateStatus('Swipe too short. Try again.', 'error');
+                        this.swipeInfo.classList.remove('active');
+                        setTimeout(() => {
+                            this.updateStatus('Ready! Draw a swipe gesture.', 'ready');
+                        }, 2000);
+                        return;
+                    }
+                    
+                    this.updateStatus('🧠 Running neural network inference...', 'processing');
+                    
+                    try {
+                        const startTime = performance.now();
+                        const predictions = await this.predictor.predict(points, 5);
+                        const inferenceTime = performance.now() - startTime;
+                        
+                        this.showPredictions(predictions);
+                        
+                        if (this.debugMode) {
+                            this.logDebug(`Inference time: ${inferenceTime.toFixed(2)}ms`);
+                            this.logDebug(`Swipe points: ${points.length}`);
+                            this.logDebug(`Path: ${swipedChars.join(' → ')}`);
+                            this.logDebug(`Predictions: ${predictions.map(p => `${p.word} (${(p.score * 100).toFixed(1)}%)`).join(', ')}`);
+                        }
+                        
+                        this.swipeDetails.innerHTML = `
+                            <small>
+                                Points: ${points.length} | 
+                                Inference: ${inferenceTime.toFixed(0)}ms | 
+                                Top: "${predictions[0]?.word}" (${(predictions[0]?.score * 100).toFixed(1)}%)
+                            </small>
+                        `;
+                        
+                        this.updateStatus('✅ Analysis complete! Draw another swipe.', 'ready');
+                        
+                    } catch (error) {
+                        console.error('Prediction error:', error);
+                        this.updateStatus('Error during inference. Try again.', 'error');
+                        this.logDebug(`Error: ${error.message}`);
+                    }
+                    
+                    // Clear trace after delay
+                    setTimeout(() => {
+                        this.keyboard.clearTrace();
+                    }, 1500);
+                });
+                
+                // Control buttons
+                document.getElementById('clear-btn').addEventListener('click', () => {
+                    this.keyboard.clearTrace();
+                    this.clearPredictions();
+                    this.swipeInfo.classList.remove('active');
+                    this.updateStatus('Ready! Draw a swipe gesture.', 'ready');
+                });
+                
+                document.getElementById('debug-btn').addEventListener('click', () => {
+                    this.debugMode = !this.debugMode;
+                    this.debugInfo.classList.toggle('active');
+                    const btn = document.getElementById('debug-btn');
+                    if (this.debugMode) {
+                        btn.classList.add('btn-danger');
+                        btn.classList.remove('btn-secondary');
+                        btn.textContent = '🐛 Debug ON';
+                        this.logDebug('Debug mode enabled');
+                    } else {
+                        btn.classList.remove('btn-danger');
+                        btn.classList.add('btn-secondary');
+                        btn.textContent = '🐛 Debug';
+                        this.debugInfo.textContent = '';
+                    }
+                });
+                
+                document.getElementById('demo-btn').addEventListener('click', () => {
+                    this.runDemo();
+                });
+                
+                // Prediction selection
+                this.predictionList.addEventListener('click', (e) => {
+                    const item = e.target.closest('.prediction-item');
+                    if (item) {
+                        const word = item.dataset.word;
+                        this.updateStatus(`Selected: "${word}"`, 'ready');
+                        console.log('Selected word:', word);
+                    }
+                });
+            }
+            
+            async runDemo() {
+                // Demo swipe for "hello"
+                const demoPoints = [
+                    {x: 216, y: 107, t: 0},    // h
+                    {x: 90, y: 53, t: 100},     // e
+                    {x: 324, y: 107, t: 200},   // l
+                    {x: 324, y: 107, t: 300},   // l
+                    {x: 306, y: 53, t: 400}     // o
+                ];
+                
+                this.keyboard.clearTrace();
+                this.clearPredictions();
+                this.swipeInfo.classList.add('active');
+                this.swipePath.textContent = 'H → E → L → L → O';
+                
+                // Animate the swipe
+                this.updateStatus('Running demo...', 'processing');
+                
+                // Draw the trace gradually
+                for (let i = 2; i <= demoPoints.length; i++) {
+                    this.keyboard.drawTrace(demoPoints.slice(0, i));
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+                
+                // Get predictions
+                try {
+                    const predictions = await this.predictor.predict(demoPoints, 5);
+                    this.showPredictions(predictions);
+                    this.updateStatus('Demo complete! Try your own swipe.', 'ready');
+                } catch (error) {
+                    console.error('Demo error:', error);
+                    this.updateStatus('Demo failed. Try again.', 'error');
+                }
+                
+                // Clear after delay
+                setTimeout(() => {
+                    this.keyboard.clearTrace();
+                }, 2000);
+            }
+            
+            clearPredictions() {
+                this.predictionList.innerHTML = `
+                    <div style="color: #6b7280; font-style: italic;">
+                        Swipe on the keyboard to see predictions...
+                    </div>
+                `;
+            }
+            
+            showPredictions(predictions) {
+                if (!predictions || predictions.length === 0) {
+                    this.predictionList.innerHTML = `
+                        <div style="color: #6b7280; font-style: italic;">
+                            No predictions available
+                        </div>
+                    `;
+                    return;
+                }
+                
+                this.predictionList.innerHTML = predictions
+                    .map((pred, i) => `
+                        <div class="prediction-item" data-word="${pred.word}">
+                            ${pred.word}
+                            <span class="score">${(pred.score * 100).toFixed(1)}%</span>
+                        </div>
+                    `)
+                    .join('');
+            }
+            
+            updateStatus(message, type) {
+                this.statusEl.textContent = message;
+                this.statusEl.className = `status-bar status-${type}`;
+            }
+            
+            logDebug(message) {
+                if (!this.debugMode) return;
+                const timestamp = new Date().toLocaleTimeString();
+                this.debugInfo.textContent += `[${timestamp}] ${message}\n`;
+                this.debugInfo.scrollTop = this.debugInfo.scrollHeight;
+            }
+        }
+        
+        // Configure ONNX Runtime
+        if (typeof ort !== 'undefined') {
+            ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/';
+        }
+        
+        // Initialize app when ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => new AdvancedSwipeTypingApp());
+        } else {
+            new AdvancedSwipeTypingApp();
+        }
+    </script>
+</body>
+</html>
