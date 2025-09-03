@@ -653,12 +653,13 @@ class SwipeTypingApp {
     this.keyboard.render();
   }
   async loadModels() {
+    const basePath = window.location.hostname === "localhost" ? "" : ".";
     this.loadingProgressEl.textContent = "Loading encoder model...";
-    await this.predictor.loadEncoder("/models/swipe_model_character.onnx");
+    await this.predictor.loadEncoder(`${basePath}/models/swipe_model_character.onnx`);
     this.loadingProgressEl.textContent = "Loading decoder model...";
-    await this.predictor.loadDecoder("/models/swipe_decoder_character.onnx");
+    await this.predictor.loadDecoder(`${basePath}/models/swipe_decoder_character.onnx`);
     this.loadingProgressEl.textContent = "Loading tokenizer...";
-    await this.predictor.loadTokenizer("/models/tokenizer_config.json");
+    await this.predictor.loadTokenizer(`${basePath}/models/tokenizer_config.json`);
     this.loadingProgressEl.textContent = "Models loaded successfully!";
   }
   setupEventHandlers() {
@@ -746,14 +747,14 @@ class SwipeTypingApp {
     });
   }
   clearPredictions() {
-    this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full py-8">Swipe on the keyboard to see predictions</p>';
+    this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full">Swipe on the keyboard to see predictions</p>';
   }
   showLoadingPredictions() {
-    this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full py-8 animate-pulse">Processing...</p>';
+    this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full animate-pulse">Processing...</p>';
   }
   showPredictions(predictions) {
     if (predictions.length === 0) {
-      this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full py-8">No predictions found</p>';
+      this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full">No predictions found</p>';
       return;
     }
     this.predictionsEl.innerHTML = predictions.map((pred, i) => `
@@ -765,7 +766,7 @@ class SwipeTypingApp {
             `).join("");
   }
   showError() {
-    this.predictionsEl.innerHTML = '<p class="text-red-500 dark:text-red-400 text-center w-full py-8">Error processing swipe</p>';
+    this.predictionsEl.innerHTML = '<p class="text-red-500 dark:text-red-400 text-center w-full">Error processing swipe</p>';
   }
   selectWord(word) {
     console.log("Selected word:", word);
@@ -784,5 +785,5 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=D6599CB10B81445E64756E2164756E21
+//# debugId=DFB78C28F8D7F9AC64756E2164756E21
 //# sourceMappingURL=app.js.map

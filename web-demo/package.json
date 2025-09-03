@@ -8,6 +8,7 @@
     "server": "bun --hot server.ts",
     "build": "bun run build.ts",
     "build:watch": "bun run build.ts --watch",
+    "build:prod": "bun build src/app.ts --outdir public/src --format esm --sourcemap --target browser && mv public/src/app.js public/src/app-bundle.js && mv public/src/app.js.map public/src/app-bundle.js.map",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed"

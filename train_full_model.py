@@ -34,7 +34,7 @@ def train_full_model():
     batch_size = 64  # Larger batch for better gradient estimates
     learning_rate = 5e-4  # Slightly higher LR for faster convergence
     num_epochs = 50  # More epochs to reach target
-    patience = 5  # Early stopping patience
+    patience = 15  # Early stopping patience
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     print("="*60)
@@ -244,7 +244,7 @@ def train_full_model():
             print(f"  ✓ New best model saved: {checkpoint_path}")
             
             # Check if target reached
-            if val_word_acc >= 0.70:
+            if val_word_acc >= 0.99:
                 print("\n" + "="*60)
                 print(f"🎉 TARGET ACHIEVED! {val_word_acc:.1%} word accuracy!")
                 print("Successfully matched original model performance!")
