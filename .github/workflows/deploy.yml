@@ -48,10 +48,14 @@ jobs:
           # Create fresh models directory
           mkdir -p web-demo/public/models
           
-          # Copy model files
+          # Copy quantized model files (smaller, faster)
+          cp deployment_package/swipe_model_character_quant.onnx web-demo/public/models/
+          cp deployment_package/swipe_decoder_character_quant.onnx web-demo/public/models/
+          cp deployment_package/tokenizer_config.json web-demo/public/models/
+          
+          # Also copy full models as fallback
           cp deployment_package/swipe_model_character.onnx web-demo/public/models/
           cp deployment_package/swipe_decoder_character.onnx web-demo/public/models/
-          cp deployment_package/tokenizer_config.json web-demo/public/models/
           
           echo "Models copied successfully"
           ls -la web-demo/public/models/
