@@ -26,16 +26,16 @@
         }
     </script>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 h-screen overflow-hidden flex flex-col">
     <!-- Header -->
-    <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div class="max-w-4xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+    <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div class="max-w-6xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">Neural Swipe Typing</h1>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">ONNX Character-Level Model • 70.1% Accuracy</p>
+                    <h1 class="text-lg sm:text-xl md:text-2xl font-bold text-indigo-600 dark:text-indigo-400">Neural Swipe Typing</h1>
+                    <p class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hidden sm:block">ONNX Model • 70.1% Accuracy</p>
                 </div>
-                <button id="theme-toggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                <button id="theme-toggle" class="p-1.5 sm:p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                     <svg class="w-6 h-6 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
                     </svg>
@@ -59,63 +59,59 @@
     </div>
 
     <!-- Main Content -->
-    <main class="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <!-- Status Bar -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Status:</span>
-                    <span id="status" class="text-sm font-semibold text-green-600 dark:text-green-400">Ready</span>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <button id="clear-btn" class="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg transition-all duration-150 active:scale-95">
-                        Clear
-                    </button>
-                    <button id="debug-btn" class="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg transition-all duration-150 active:scale-95">
-                        Debug: OFF
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Swipe Path Display -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
-            <h2 class="text-lg font-semibold mb-2">Swipe Path</h2>
-            <div id="swipe-chars" class="min-h-[40px] p-3 bg-gray-50 dark:bg-gray-900 rounded-lg font-mono text-xl tracking-wider text-indigo-600 dark:text-indigo-400">
-                <span class="text-gray-400 dark:text-gray-600 text-base">Touch the keyboard to start swiping...</span>
-            </div>
-        </div>
-
-        <!-- Keyboard Container -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-            <div class="relative mx-auto" style="max-width: 720px;">
-                <div class="relative w-full" style="padding-bottom: 59.72%;">
-                    <canvas 
-                        id="keyboard-canvas" 
-                        width="360" 
-                        height="215"
-                        class="absolute inset-0 w-full h-full rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900"
-                        role="application" 
-                        aria-label="Swipe keyboard - draw gestures to input text"
-                    ></canvas>
+    <main class="flex-1 flex flex-col overflow-hidden">
+        <div class="flex-1 flex flex-col max-w-6xl w-full mx-auto px-2 sm:px-4 py-2 sm:py-4 gap-2 sm:gap-3">
+            <!-- Status and Swipe Path Row -->
+            <div class="flex gap-2 flex-shrink-0">
+                <!-- Status Bar -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-2 sm:p-3 flex items-center justify-between flex-1">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Status:</span>
+                        <span id="status" class="text-xs sm:text-sm font-semibold text-green-600 dark:text-green-400">Ready</span>
+                    </div>
+                    <div class="flex items-center space-x-1 sm:space-x-2">
+                        <button id="clear-btn" class="px-2 py-1 sm:px-3 sm:py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium rounded-lg transition-all duration-150 active:scale-95">
+                            Clear
+                        </button>
+                        <button id="debug-btn" class="px-2 py-1 sm:px-3 sm:py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium rounded-lg transition-all duration-150 active:scale-95">
+                            Debug: OFF
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Predictions -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <h2 class="text-lg font-semibold mb-4">Predictions</h2>
-            <div id="predictions" class="flex flex-wrap gap-2 min-h-[80px] items-center">
-                <p class="text-gray-500 dark:text-gray-400 text-center w-full">
-                    Swipe on the keyboard to see predictions
-                </p>
+            <!-- Swipe Characters Display -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-2 sm:p-3 flex-shrink-0">
+                <div id="swipe-chars" class="font-mono text-sm sm:text-lg tracking-wider text-indigo-600 dark:text-indigo-400 text-center min-h-[24px]">
+                    <span class="text-gray-400 dark:text-gray-600 text-xs sm:text-sm">Touch the keyboard to start swiping...</span>
+                </div>
             </div>
-        </div>
 
-        <!-- Info Footer -->
-        <div class="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
-            <p>Model: Character-level Transformer (ONNX) | Sequence Length: 150 | Beam Size: 5</p>
-            <p class="mt-2">Swipe across letters to form words. The model predicts based on your gesture pattern.</p>
+            <!-- Keyboard Container - Takes up most space -->
+            <div class="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-2 sm:p-4 flex items-center justify-center min-h-0">
+                <div class="w-full h-full max-w-full sm:max-w-2xl">
+                    <div class="relative w-full h-full">
+                        <canvas 
+                            id="keyboard-canvas" 
+                            width="360" 
+                            height="215"
+                            class="w-full h-full rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900"
+                            style="max-height: 100%; object-fit: contain;"
+                            role="application" 
+                            aria-label="Swipe keyboard - draw gestures to input text"
+                        ></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Predictions -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-2 sm:p-3 flex-shrink-0">
+                <div id="predictions" class="flex flex-wrap gap-1 sm:gap-2 min-h-[40px] sm:min-h-[50px] items-center justify-center">
+                    <p class="text-gray-500 dark:text-gray-400 text-center w-full text-xs sm:text-sm">
+                        Swipe on the keyboard to see predictions
+                    </p>
+                </div>
+            </div>
         </div>
     </main>
 

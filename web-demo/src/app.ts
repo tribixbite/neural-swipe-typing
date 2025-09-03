@@ -62,9 +62,29 @@ class SwipeTypingApp {
         const container = this.canvas.parentElement!;
         const rect = container.getBoundingClientRect();
         
-        // Set canvas size to match container while maintaining aspect ratio
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.width * (215 / 360);
+        // On mobile, use full width. On desktop, maintain aspect ratio
+        const isMobile = window.innerWidth < 640;
+        
+        if (isMobile) {
+            // Full viewport width on mobile
+            this.canvas.style.width = '100%';
+            this.canvas.style.height = '100%';
+            // Actual canvas resolution
+            this.canvas.width = rect.width;
+            this.canvas.height = rect.height;
+        } else {
+            // Maintain aspect ratio on desktop
+            const aspectRatio = 215 / 360;
+            if (rect.width / rect.height > 360 / 215) {
+                // Height is limiting factor
+                this.canvas.height = rect.height;
+                this.canvas.width = rect.height / aspectRatio;
+            } else {
+                // Width is limiting factor
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.width * aspectRatio;
+            }
+        }
         
         // Update keyboard renderer with new dimensions
         this.keyboard.updateDimensions(this.canvas.width, this.canvas.height);
@@ -209,7 +229,7 @@ class SwipeTypingApp {
 
         this.predictionsEl.innerHTML = predictions
             .map((pred, i) => `
-                <button class="px-4 py-2 rounded-lg font-mono font-semibold transition-all duration-150
+                <button class="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg font-mono text-xs sm:text-sm font-semibold transition-all duration-150
                               ${i === 0 ? 
                                 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' : 
                                 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-gray-900 dark:text-gray-100'}"
