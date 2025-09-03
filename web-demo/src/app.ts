@@ -142,11 +142,8 @@ class SwipeTypingApp {
             if (points.length > 0) {
                 const lastPoint = points[points.length - 1];
                 // Points are already in keyboard space (360x215)
-                // getKeyAt expects canvas coordinates, so we need to scale them
-                const scale = this.canvas.width / 360; // Use same scale calculation as keyboard
-                const canvasX = lastPoint.x * scale;
-                const canvasY = lastPoint.y * scale;
-                const key = this.keyboard.getKeyAt(canvasX, canvasY);
+                // getKeyAt also expects keyboard space coordinates
+                const key = this.keyboard.getKeyAt(lastPoint.x, lastPoint.y);
                 if (key && !loggedKeys.has(key)) {
                     console.log(`Key: ${key.toUpperCase()}`);
                     loggedKeys.add(key);

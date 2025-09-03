@@ -302,9 +302,8 @@ export class KeyboardRenderer {
     }
 
     getKeyAt(x: number, y: number): string | null {
-        // Convert canvas coordinates to keyboard space
-        const keyX = x / this.scale;
-        const keyY = y / this.scale;
+        // x and y are already in keyboard space (360x215)
+        // No conversion needed
         
         // Find nearest key within threshold
         const threshold = 20; // pixels in keyboard space
@@ -313,8 +312,8 @@ export class KeyboardRenderer {
 
         for (const key of this.keys) {
             const distance = Math.sqrt(
-                Math.pow(keyX - key.x, 2) + 
-                Math.pow(keyY - key.y, 2)
+                Math.pow(x - key.x, 2) + 
+                Math.pow(y - key.y, 2)
             );
             
             if (distance < minDistance) {
