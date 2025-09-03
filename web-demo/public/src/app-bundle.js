@@ -49,7 +49,9 @@ class KeyboardRenderer {
     this.updateScale();
   }
   updateScale() {
-    this.scale = this.width / 360;
+    const scaleX = this.width / 360;
+    const scaleY = this.height / 215;
+    this.scale = scaleX;
   }
   initializeKeys() {
     this.keys = [];
@@ -648,19 +650,27 @@ class SwipeTypingApp {
     const container = this.canvas.parentElement;
     const rect = container.getBoundingClientRect();
     const isMobile = window.innerWidth < 640;
+    const targetAspectRatio = isMobile ? 1.4 : 360 / 215;
     if (isMobile) {
       this.canvas.style.width = "100%";
-      this.canvas.style.height = "100%";
-      this.canvas.width = rect.width;
-      this.canvas.height = rect.height;
-    } else {
-      const aspectRatio = 215 / 360;
-      if (rect.width / rect.height > 360 / 215) {
+      const desiredHeight = rect.width / targetAspectRatio;
+      if (desiredHeight <= rect.height) {
+        this.canvas.width = rect.width;
+        this.canvas.height = desiredHeight;
+        this.canvas.style.height = desiredHeight + "px";
+      } else {
         this.canvas.height = rect.height;
-        this.canvas.width = rect.height / aspectRatio;
+        this.canvas.width = rect.height * targetAspectRatio;
+        this.canvas.style.height = "100%";
+        this.canvas.style.width = rect.height * targetAspectRatio + "px";
+      }
+    } else {
+      if (rect.width / rect.height > targetAspectRatio) {
+        this.canvas.height = rect.height;
+        this.canvas.width = rect.height * targetAspectRatio;
       } else {
         this.canvas.width = rect.width;
-        this.canvas.height = rect.width * aspectRatio;
+        this.canvas.height = rect.width / targetAspectRatio;
       }
     }
     this.keyboard.updateDimensions(this.canvas.width, this.canvas.height);
@@ -692,7 +702,10 @@ class SwipeTypingApp {
       this.keyboard.drawTrace(points);
       if (points.length > 0) {
         const lastPoint = points[points.length - 1];
-        const key = this.keyboard.getKeyAt(lastPoint.x * (this.canvas.width / 360), lastPoint.y * (this.canvas.height / 215));
+        const scale = this.canvas.width / 360;
+        const canvasX = lastPoint.x * scale;
+        const canvasY = lastPoint.y * scale;
+        const key = this.keyboard.getKeyAt(canvasX, canvasY);
         if (key && !loggedKeys.has(key)) {
           console.log(`Key: ${key.toUpperCase()}`);
           loggedKeys.add(key);
@@ -799,5 +812,5 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=5DB8559F74B55DAD64756E2164756E21
+//# debugId=A96B0F71516B324564756E2164756E21
 //# sourceMappingURL=app.js.map

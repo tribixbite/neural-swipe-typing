@@ -50,7 +50,14 @@ export class KeyboardRenderer {
 
     private updateScale() {
         // Calculate scale factor to map 360x215 coordinate space to canvas size
-        this.scale = this.width / 360;
+        // We need to maintain the keyboard layout proportions
+        // Use the minimum scale to ensure all keys fit
+        const scaleX = this.width / 360;
+        const scaleY = this.height / 215;
+        
+        // Use uniform scaling based on width to maintain key positions
+        // This ensures coordinate mapping stays consistent
+        this.scale = scaleX;
     }
 
     private initializeKeys() {

@@ -62,27 +62,40 @@ class SwipeTypingApp {
         const container = this.canvas.parentElement!;
         const rect = container.getBoundingClientRect();
         
-        // On mobile, use full width. On desktop, maintain aspect ratio
+        // Use consistent aspect ratio for proper key mapping
+        // Original keyboard is 360x215, aspect ratio ~1.67
+        // For mobile we want wider aspect ratio: 1.4:1 (width:height)
         const isMobile = window.innerWidth < 640;
+        const targetAspectRatio = isMobile ? 1.4 : (360 / 215); // 1.4 for mobile, 1.67 for desktop
         
         if (isMobile) {
-            // Full viewport width on mobile
+            // Full viewport width on mobile with 1.4:1 aspect ratio
             this.canvas.style.width = '100%';
-            this.canvas.style.height = '100%';
-            // Actual canvas resolution
-            this.canvas.width = rect.width;
-            this.canvas.height = rect.height;
+            // Set height based on aspect ratio
+            const desiredHeight = rect.width / targetAspectRatio;
+            
+            // If desired height fits in container, use it
+            if (desiredHeight <= rect.height) {
+                this.canvas.width = rect.width;
+                this.canvas.height = desiredHeight;
+                this.canvas.style.height = desiredHeight + 'px';
+            } else {
+                // Height is limiting, scale width accordingly
+                this.canvas.height = rect.height;
+                this.canvas.width = rect.height * targetAspectRatio;
+                this.canvas.style.height = '100%';
+                this.canvas.style.width = (rect.height * targetAspectRatio) + 'px';
+            }
         } else {
-            // Maintain aspect ratio on desktop
-            const aspectRatio = 215 / 360;
-            if (rect.width / rect.height > 360 / 215) {
+            // Desktop: maintain original aspect ratio
+            if (rect.width / rect.height > targetAspectRatio) {
                 // Height is limiting factor
                 this.canvas.height = rect.height;
-                this.canvas.width = rect.height / aspectRatio;
+                this.canvas.width = rect.height * targetAspectRatio;
             } else {
                 // Width is limiting factor
                 this.canvas.width = rect.width;
-                this.canvas.height = rect.width * aspectRatio;
+                this.canvas.height = rect.width / targetAspectRatio;
             }
         }
         
@@ -128,7 +141,12 @@ class SwipeTypingApp {
             // Log unique keys as they're touched
             if (points.length > 0) {
                 const lastPoint = points[points.length - 1];
-                const key = this.keyboard.getKeyAt(lastPoint.x * (this.canvas.width / 360), lastPoint.y * (this.canvas.height / 215));
+                // Points are already in keyboard space (360x215)
+                // getKeyAt expects canvas coordinates, so we need to scale them
+                const scale = this.canvas.width / 360; // Use same scale calculation as keyboard
+                const canvasX = lastPoint.x * scale;
+                const canvasY = lastPoint.y * scale;
+                const key = this.keyboard.getKeyAt(canvasX, canvasY);
                 if (key && !loggedKeys.has(key)) {
                     console.log(`Key: ${key.toUpperCase()}`);
                     loggedKeys.add(key);
