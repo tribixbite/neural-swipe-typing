@@ -44,10 +44,17 @@ class KeyboardRenderer {
     this.ctx = ctx;
     this.width = canvas.width;
     this.height = canvas.height;
+    console.log("KeyboardRenderer initialized with:", {
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      expectedWidth: 360,
+      expectedHeight: 215
+    });
     this.updateScale();
     this.initializeKeys();
   }
   updateDimensions(width, height) {
+    console.log("updateDimensions called with:", width, height);
     this.width = width;
     this.height = height;
     this.updateScale();
@@ -87,17 +94,17 @@ class KeyboardRenderer {
     }
   }
   drawKeys() {
-    const keySize = 30 * this.scale;
-    const fontSize = 16 * this.scale;
+    const keySize = 30;
+    const fontSize = 16;
     const isDark = document.documentElement.classList.contains("dark");
     for (const key of this.keys) {
-      const x = key.x * this.scale;
-      const y = key.y * this.scale;
+      const x = key.x;
+      const y = key.y;
       this.ctx.save();
       this.ctx.shadowColor = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)";
-      this.ctx.shadowBlur = 4 * this.scale;
+      this.ctx.shadowBlur = 4;
       this.ctx.shadowOffsetX = 0;
-      this.ctx.shadowOffsetY = 2 * this.scale;
+      this.ctx.shadowOffsetY = 2;
       const gradient = this.ctx.createLinearGradient(x - keySize / 2, y - keySize / 2, x + keySize / 2, y + keySize / 2);
       if (isDark) {
         gradient.addColorStop(0, "#475569");
@@ -109,7 +116,7 @@ class KeyboardRenderer {
         gradient.addColorStop(1, "#f1f5f9");
       }
       this.ctx.fillStyle = gradient;
-      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5 * this.scale);
+      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5);
       this.ctx.fill();
       this.ctx.restore();
       const borderGradient = this.ctx.createLinearGradient(x - keySize / 2, y - keySize / 2, x + keySize / 2, y + keySize / 2);
@@ -122,7 +129,7 @@ class KeyboardRenderer {
       }
       this.ctx.strokeStyle = borderGradient;
       this.ctx.lineWidth = 1;
-      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5 * this.scale);
+      this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5);
       this.ctx.stroke();
       this.ctx.save();
       this.ctx.fillStyle = isDark ? "#ffffff" : "#000000";
@@ -141,8 +148,8 @@ class KeyboardRenderer {
   }
   drawTrace(points) {
     this.tracePoints = points.map((p) => ({
-      x: p.x * this.scale,
-      y: p.y * this.scale
+      x: p.x,
+      y: p.y
     }));
     this.render();
   }
@@ -151,8 +158,8 @@ class KeyboardRenderer {
       return;
     this.ctx.save();
     this.ctx.shadowColor = "rgba(99, 102, 241, 0.6)";
-    this.ctx.shadowBlur = 10 * this.scale;
-    this.ctx.lineWidth = 4 * this.scale;
+    this.ctx.shadowBlur = 10;
+    this.ctx.lineWidth = 4;
     this.ctx.lineCap = "round";
     this.ctx.lineJoin = "round";
     const gradient = this.ctx.createLinearGradient(this.tracePoints[0].x, this.tracePoints[0].y, this.tracePoints[this.tracePoints.length - 1].x, this.tracePoints[this.tracePoints.length - 1].y);
@@ -180,7 +187,7 @@ class KeyboardRenderer {
     for (let i = 0;i < this.tracePoints.length; i++) {
       const point = this.tracePoints[i];
       const isEndpoint = i === 0 || i === this.tracePoints.length - 1;
-      const radius = isEndpoint ? 6 * this.scale : 2 * this.scale;
+      const radius = isEndpoint ? 6 : 2;
       if (isEndpoint) {
         this.ctx.save();
         const glowGradient = this.ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius * 2);
@@ -587,6 +594,16 @@ class SwipeTracker {
     const rect = this.canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (360 / rect.width);
     const y = (e.clientY - rect.top) * (215 / rect.height);
+    console.log("DEBUG: Mouse down", {
+      canvasWidth: this.canvas.width,
+      canvasHeight: this.canvas.height,
+      cssWidth: rect.width,
+      cssHeight: rect.height,
+      mouseX: e.clientX - rect.left,
+      mouseY: e.clientY - rect.top,
+      scaledX: x,
+      scaledY: y
+    });
     this.startSwipe(x, y);
   }
   handleMouseMove(e) {
@@ -868,4 +885,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=5A8B520CDC81B5D064756E2164756E21
+//# debugId=74325519E2BCA6EC64756E2164756E21

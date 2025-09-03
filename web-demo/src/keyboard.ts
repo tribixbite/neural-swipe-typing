@@ -42,11 +42,18 @@ export class KeyboardRenderer {
         this.ctx = ctx;
         this.width = canvas.width;
         this.height = canvas.height;
+        console.log('KeyboardRenderer initialized with:', {
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+            expectedWidth: 360,
+            expectedHeight: 215
+        });
         this.updateScale();
         this.initializeKeys();
     }
 
     updateDimensions(width: number, height: number) {
+        console.log('updateDimensions called with:', width, height);
         this.width = width;
         this.height = height;
         this.updateScale();
@@ -101,22 +108,22 @@ export class KeyboardRenderer {
     }
 
     private drawKeys() {
-        const keySize = 30 * this.scale;  // Balanced size to prevent overlap
-        const fontSize = 16 * this.scale;  // Proportional font size
+        const keySize = 30;  // Fixed size in 360x215 space
+        const fontSize = 16;  // Fixed font size
         const isDark = document.documentElement.classList.contains('dark');
 
         for (const key of this.keys) {
-            const x = key.x * this.scale;
-            const y = key.y * this.scale;
+            const x = key.x;
+            const y = key.y;
 
             // Save context for shadows
             this.ctx.save();
             
             // Add shadow for depth effect
             this.ctx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.2)';
-            this.ctx.shadowBlur = 4 * this.scale;
+            this.ctx.shadowBlur = 4;
             this.ctx.shadowOffsetX = 0;
-            this.ctx.shadowOffsetY = 2 * this.scale;
+            this.ctx.shadowOffsetY = 2;
 
             // Key background with enhanced gradient
             const gradient = this.ctx.createLinearGradient(
@@ -140,7 +147,7 @@ export class KeyboardRenderer {
                 y - keySize / 2,
                 keySize,
                 keySize,
-                5 * this.scale
+                5
             );
             this.ctx.fill();
 
@@ -166,7 +173,7 @@ export class KeyboardRenderer {
                 y - keySize / 2,
                 keySize,
                 keySize,
-                5 * this.scale
+                5
             );
             this.ctx.stroke();
 
@@ -194,9 +201,10 @@ export class KeyboardRenderer {
     }
 
     drawTrace(points: Array<{x: number, y: number, t: number}>) {
+        // Points are already in 360x215 space, no scaling needed
         this.tracePoints = points.map(p => ({
-            x: p.x * this.scale,
-            y: p.y * this.scale
+            x: p.x,
+            y: p.y
         }));
         this.render();
     }
@@ -209,10 +217,10 @@ export class KeyboardRenderer {
 
         // Add glow effect for the trace
         this.ctx.shadowColor = 'rgba(99, 102, 241, 0.6)';  // indigo-500
-        this.ctx.shadowBlur = 10 * this.scale;
+        this.ctx.shadowBlur = 10;
         
         // Draw trace line with enhanced gradient
-        this.ctx.lineWidth = 4 * this.scale;
+        this.ctx.lineWidth = 4;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
 
@@ -255,7 +263,7 @@ export class KeyboardRenderer {
         for (let i = 0; i < this.tracePoints.length; i++) {
             const point = this.tracePoints[i];
             const isEndpoint = i === 0 || i === this.tracePoints.length - 1;
-            const radius = isEndpoint ? 6 * this.scale : 2 * this.scale;
+            const radius = isEndpoint ? 6 : 2;
             
             if (isEndpoint) {
                 // Draw glow for endpoints

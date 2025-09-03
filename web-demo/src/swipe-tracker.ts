@@ -80,6 +80,17 @@ export class SwipeTracker {
         const x = (e.clientX - rect.left) * (360 / rect.width);
         const y = (e.clientY - rect.top) * (215 / rect.height);
         
+        console.log('DEBUG: Mouse down', {
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            cssWidth: rect.width,
+            cssHeight: rect.height,
+            mouseX: e.clientX - rect.left,
+            mouseY: e.clientY - rect.top,
+            scaledX: x,
+            scaledY: y
+        });
+        
         this.startSwipe(x, y);
     }
 
