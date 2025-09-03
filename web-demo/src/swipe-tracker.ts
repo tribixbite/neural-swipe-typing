@@ -47,8 +47,11 @@ export class SwipeTracker {
         
         const touch = e.touches[0];
         const rect = this.canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
+        // Scale from CSS pixels to canvas pixels
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const x = (touch.clientX - rect.left) * scaleX;
+        const y = (touch.clientY - rect.top) * scaleY;
         
         this.startSwipe(x, y);
     }
@@ -59,8 +62,11 @@ export class SwipeTracker {
         
         const touch = e.touches[0];
         const rect = this.canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
+        // Scale from CSS pixels to canvas pixels
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const x = (touch.clientX - rect.left) * scaleX;
+        const y = (touch.clientY - rect.top) * scaleY;
         
         this.addPoint(x, y);
     }
@@ -74,8 +80,11 @@ export class SwipeTracker {
 
     private handleMouseDown(e: MouseEvent) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        // Scale from CSS pixels to canvas pixels
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
         
         this.startSwipe(x, y);
     }
@@ -84,8 +93,11 @@ export class SwipeTracker {
         if (!this.isTracking) return;
         
         const rect = this.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        // Scale from CSS pixels to canvas pixels
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
         
         this.addPoint(x, y);
     }
