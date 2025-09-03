@@ -70,8 +70,8 @@ class KeyboardRenderer {
       bgGradient.addColorStop(0, "#1e293b");
       bgGradient.addColorStop(1, "#0f172a");
     } else {
-      bgGradient.addColorStop(0, "#e2e8f0");
-      bgGradient.addColorStop(1, "#cbd5e1");
+      bgGradient.addColorStop(0, "#f1f5f9");
+      bgGradient.addColorStop(1, "#e2e8f0");
     }
     this.ctx.fillStyle = bgGradient;
     this.ctx.fillRect(0, 0, this.width, this.height);
@@ -119,13 +119,16 @@ class KeyboardRenderer {
       this.roundRect(x - keySize / 2, y - keySize / 2, keySize, keySize, 5 * this.scale);
       this.ctx.stroke();
       this.ctx.save();
-      this.ctx.shadowColor = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.3)";
-      this.ctx.shadowBlur = 1;
-      this.ctx.shadowOffsetY = 1;
-      this.ctx.fillStyle = isDark ? "#f8fafc" : "#0f172a";
-      this.ctx.font = `bold ${fontSize}px 'JetBrains Mono', 'SF Mono', 'Consolas', monospace`;
+      this.ctx.fillStyle = isDark ? "#ffffff" : "#000000";
+      this.ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
+      if (isDark) {
+        this.ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+        this.ctx.shadowBlur = 2;
+        this.ctx.shadowOffsetX = 0;
+        this.ctx.shadowOffsetY = 1;
+      }
       this.ctx.fillText(key.char.toUpperCase(), x, y);
       this.ctx.restore();
     }
@@ -877,5 +880,5 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=A5BB01F6BE1B68CA64756E2164756E21
+//# debugId=C1AE7B3D6010C64764756E2164756E21
 //# sourceMappingURL=app.js.map

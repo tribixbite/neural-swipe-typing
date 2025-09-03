@@ -81,8 +81,8 @@ export class KeyboardRenderer {
             bgGradient.addColorStop(0, '#1e293b');  // slate-800
             bgGradient.addColorStop(1, '#0f172a');  // slate-900
         } else {
-            bgGradient.addColorStop(0, '#e2e8f0');  // slate-200
-            bgGradient.addColorStop(1, '#cbd5e1');  // slate-300
+            bgGradient.addColorStop(0, '#f1f5f9');  // slate-100
+            bgGradient.addColorStop(1, '#e2e8f0');  // slate-200
         }
         this.ctx.fillStyle = bgGradient;
         this.ctx.fillRect(0, 0, this.width, this.height);
@@ -166,16 +166,23 @@ export class KeyboardRenderer {
             );
             this.ctx.stroke();
 
-            // Key text with subtle shadow
+            // Key text - ensure visibility with high contrast
             this.ctx.save();
-            this.ctx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)';
-            this.ctx.shadowBlur = 1;
-            this.ctx.shadowOffsetY = 1;
             
-            this.ctx.fillStyle = isDark ? '#f8fafc' : '#0f172a';  // slate-50 : slate-900
-            this.ctx.font = `bold ${fontSize}px 'JetBrains Mono', 'SF Mono', 'Consolas', monospace`;
+            // Text with high contrast
+            this.ctx.fillStyle = isDark ? '#ffffff' : '#000000';  // Pure white/black for maximum contrast
+            this.ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
+            
+            // Add subtle text shadow for better readability
+            if (isDark) {
+                this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                this.ctx.shadowBlur = 2;
+                this.ctx.shadowOffsetX = 0;
+                this.ctx.shadowOffsetY = 1;
+            }
+            
             this.ctx.fillText(key.char.toUpperCase(), x, y);
             
             this.ctx.restore();
