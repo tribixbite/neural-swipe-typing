@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neural Swipe Typing - ONNX Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ONNX Runtime Web -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-bg': '#0a0a0f',
+                        'dark-surface': '#141420',
+                        'dark-key': '#1a1a2e',
+                        'dark-key-hover': '#252540',
+                        'neon-blue': '#00d4ff',
+                        'neon-purple': '#b300ff',
+                        'neon-pink': '#ff00d4',
+                    },
+                    animation: {
+                        'glow': 'glow 2s ease-in-out infinite',
+                        'pulse-neon': 'pulse-neon 1.5s ease-in-out infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(179, 0, 255, 0.8); }
+        }
+        
+        @keyframes pulse-neon {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .neon-trail {
+            filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px currentColor);
+        }
+
+        .key-active {
+            background: linear-gradient(135deg, #00d4ff, #b300ff) !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.8), inset 0 0 20px rgba(179, 0, 255, 0.3);
+            transform: scale(0.95);
+        }
+
+        .loading-spinner {
+            border: 3px solid rgba(0, 212, 255, 0.1);
+            border-top: 3px solid #00d4ff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .debug-overlay {
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 5px rgba(0, 212, 255, 0.8);
+        }
+
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-dark-bg via-gray-900 to-dark-bg min-h-screen flex flex-col overflow-hidden">
+    <!-- Header -->
+    <div class="bg-dark-surface/80 backdrop-blur-xl border-b border-white/10">
+        <div class="p-4 text-center">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-neon-blue to-neon-purple bg-clip-text text-transparent">
+                Neural Swipe Typing - ONNX
+            </h1>
+            <p class="text-gray-400 text-sm mt-1">
+                <span id="modelStatus">Loading models...</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="bg-dark-surface/60 backdrop-blur px-4 py-3 flex justify-between items-center border-b border-white/5">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
+                <div id="statusIndicator" class="w-2 h-2 bg-gray-500 rounded-full"></div>
+                <span id="statusText" class="text-gray-300 text-sm">Initializing...</span>
+            </div>
+            <div id="coordinateDisplay" class="text-xs text-neon-blue font-mono hidden">
+                X: <span id="xCoord">0</span> Y: <span id="yCoord">0</span> | 
+                Norm: <span id="normCoords">0.00, 0.00</span>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="clearInput()" 
+                    class="px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-sm transition-all hover:border-neon-blue/50">
+                Clear
+            </button>
+            <button onclick="toggleDebug()" 
+                    class="px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-sm transition-all hover:border-neon-purple/50">
+                Debug: <span id="debugStatus">OFF</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Input Display -->
+    <div class="bg-dark-surface/40 backdrop-blur px-4 py-2 min-h-[50px]">
+        <div class="text-gray-400 text-xs uppercase tracking-wide mb-1">Input Text</div>
+        <div id="inputText" class="text-white text-lg min-h-[25px]"></div>
+    </div>
+
+    <!-- Word Suggestions -->
+    <div id="suggestions" class="px-4 py-3 flex gap-2 flex-wrap bg-dark-surface/40 backdrop-blur min-h-[60px]">
+        <div class="text-gray-500 text-sm">Swipe on the keyboard to begin</div>
+    </div>
+
+    <!-- Debug Output -->
+    <div id="debugOutput" class="hidden px-4 py-2 bg-black/50 backdrop-blur max-h-32 overflow-auto">
+        <pre id="debugText" class="text-xs text-neon-blue font-mono"></pre>
+    </div>
+
+    <!-- Debug Overlay -->
+    <div id="debugOverlay" class="absolute top-32 left-2 pointer-events-none z-20 hidden">
+        <div class="text-xs text-neon-blue debug-overlay bg-black/70 p-2 rounded">
+            <div>Current Key: <span id="currentKeyDebug">-</span></div>
+            <div>Path Length: <span id="pathLength">0</span></div>
+            <div>Keys Touched: <span id="keysTouched">-</span></div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black/75 backdrop-blur flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-white">Loading ONNX models...</p>
+            <p id="loadingDetails" class="text-gray-400 text-sm mt-2"></p>
+        </div>
+    </div>
+
+    <!-- Keyboard Container -->
+    <div class="flex-grow flex items-end pb-safe">
+        <div class="w-full max-w-2xl mx-auto">
+            <div class="relative bg-dark-surface/90 backdrop-blur-xl rounded-t-3xl p-3 shadow-2xl border-t border-white/10">
+                <!-- Canvas for swipe trail -->
+                <canvas id="swipeCanvas" class="absolute inset-0 z-10"></canvas>
+                
+                <!-- Keyboard -->
+                <div class="space-y-2" id="keyboard">
+                    <!-- Row 1: QWERTYUIOP -->
+                    <div class="flex justify-center gap-1.5 px-1">
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="q" data-row="0" data-col="0">Q</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="w" data-row="0" data-col="1">W</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="e" data-row="0" data-col="2">E</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="r" data-row="0" data-col="3">R</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="t" data-row="0" data-col="4">T</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="y" data-row="0" data-col="5">Y</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="u" data-row="0" data-col="6">U</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="i" data-row="0" data-col="7">I</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="o" data-row="0" data-col="8">O</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="p" data-row="0" data-col="9">P</button>
+                    </div>
+                    
+                    <!-- Row 2: ASDFGHJKL -->
+                    <div class="flex justify-center gap-1.5 px-6">
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="a" data-row="1" data-col="0">A</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="s" data-row="1" data-col="1">S</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="d" data-row="1" data-col="2">D</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="f" data-row="1" data-col="3">F</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="g" data-row="1" data-col="4">G</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="h" data-row="1" data-col="5">H</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="j" data-row="1" data-col="6">J</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="k" data-row="1" data-col="7">K</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="l" data-row="1" data-col="8">L</button>
+                    </div>
+                    
+                    <!-- Row 3: Shift + ZXCVBNM + Backspace -->
+                    <div class="flex justify-center gap-1.5 px-1">
+                        <button class="key w-14 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5" data-key="shift">⇧</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="z" data-row="2" data-col="1">Z</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="x" data-row="2" data-col="2">X</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="c" data-row="2" data-col="3">C</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="v" data-row="2" data-col="4">V</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="b" data-row="2" data-col="5">B</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="n" data-row="2" data-col="6">N</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="m" data-row="2" data-col="7">M</button>
+                        <button class="key w-14 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5" data-key="backspace" onclick="handleBackspace()">⌫</button>
+                    </div>
+                    
+                    <!-- Row 4: Special keys -->
+                    <div class="flex justify-center gap-1.5 px-1">
+                        <button class="w-16 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5">123</button>
+                        <button class="w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5">😊</button>
+                        <button class="flex-1 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5" onclick="handleSpace()">space</button>
+                        <button class="w-20 h-12 bg-gradient-to-r from-neon-blue/20 to-neon-purple/20 hover:from-neon-blue/30 hover:to-neon-purple/30 rounded-lg text-white text-sm transition-all border border-neon-blue/30">return</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>        // Configuration
+        const NORMALIZED_WIDTH = 360;
+        const NORMALIZED_HEIGHT = 215;
+        const MAX_SEQUENCE_LENGTH = 150;  // Fixed sequence length from training
+        const DEBUG = { enabled: false };
+        
+        // Model variables
+        let encoderSession = null;
+        let decoderSession = null;
+        let tokenizer = null;
+        let isModelReady = false;
+        
+        // Expose for debugging
+        window.isModelReady = false;
+        
+        // Canvas setup
+        const canvas = document.getElementById('swipeCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Swipe tracking
+        let isDrawing = false;
+        let swipePath = [];
+        let keySequence = [];
+        let currentKey = null;
+        let keyboardBounds = null;
+        let inputText = '';
+        
+        // Initialize ONNX Runtime and load models
+        async function loadModels() {
+            try {
+                updateLoadingStatus('Initializing ONNX Runtime...');
+                
+                // Configure ONNX Runtime Web WASM paths
+                if (typeof ort !== 'undefined') {
+                    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+                    console.log('ONNX Runtime initialized, version:', ort.env.versions?.onnxruntime);
+                } else {
+                    throw new Error('ONNX Runtime not loaded');
+                }
+                
+                // Load tokenizer config first
+                updateLoadingStatus('Loading tokenizer...');
+                const tokenizerResponse = await fetch('models/tokenizer_config.json');
+                tokenizer = await tokenizerResponse.json();
+                console.log('Tokenizer loaded:', tokenizer);
+                
+                updateLoadingStatus('Loading encoder model...');
+                
+                // Load ONNX models with proper options
+                const sessionOptions = {
+                    executionProviders: ['wasm'],
+                    graphOptimizationLevel: 'all'
+                };
+                
+                encoderSession = await ort.InferenceSession.create('models/swipe_model_character_quant.onnx', sessionOptions);
+                console.log('Encoder model loaded');
+                
+                // Log input/output names for debugging
+                console.log('Model inputs:', encoderSession.inputNames);
+                console.log('Model outputs:', encoderSession.outputNames);
+                
+                // Load decoder model - required for beam search decoding
+                updateLoadingStatus('Loading decoder model...');
+                decoderSession = await ort.InferenceSession.create('models/swipe_decoder_character_quant.onnx', sessionOptions);
+                console.log('Decoder model loaded');
+                console.log('Decoder inputs:', decoderSession.inputNames);
+                console.log('Decoder outputs:', decoderSession.outputNames);
+                
+                isModelReady = true;
+                window.isModelReady = true;  // Expose for debugging
+                hideLoadingOverlay();
+                updateStatus('Ready', 'success');
+                console.log('All models loaded successfully!');
+                
+            } catch (error) {
+                console.error('Error loading models:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                });
+                updateStatus('Model loading failed - check console', 'error');
+                hideLoadingOverlay();
+                
+                // More detailed error message
+                updateLoadingStatus(`Error: ${error.message || 'Unknown error'}`);
+                
+                // Display error in UI
+                const suggestionsDiv = document.getElementById('suggestions');
+                if (suggestionsDiv) {
+                    suggestionsDiv.innerHTML = `<div class="text-red-500 p-2">Error loading models: ${error.message}</div>`;
+                }
+            }
+        }
+        
+        function updateLoadingStatus(message) {
+            document.getElementById('loadingDetails').textContent = message;
+        }
+        
+        function hideLoadingOverlay() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusText = document.getElementById('statusText');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const modelStatus = document.getElementById('modelStatus');
+            
+            statusText.textContent = message;
+            
+            if (type === 'success') {
+                statusIndicator.className = 'w-2 h-2 bg-neon-blue rounded-full animate-pulse-neon';
+                modelStatus.textContent = 'ONNX Models Ready • Character-level Transformer';
+            } else if (type === 'error') {
+                statusIndicator.className = 'w-2 h-2 bg-red-500 rounded-full';
+                modelStatus.textContent = 'Models Failed to Load';
+            } else {
+                statusIndicator.className = 'w-2 h-2 bg-yellow-500 rounded-full';
+            }
+        }
+        
+        // Initialize canvas and keyboard
+        function init() {
+            resizeCanvas();
+            updateKeyboardBounds();
+            loadModels();
+            
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+                updateKeyboardBounds();
+            });
+        }
+        
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        
+        function updateKeyboardBounds() {
+            const keys = document.querySelectorAll('.key[data-row]');
+            if (keys.length === 0) return;
+            
+            let minX = Infinity, minY = Infinity;
+            let maxX = -Infinity, maxY = -Infinity;
+            
+            keys.forEach(key => {
+                const rect = key.getBoundingClientRect();
+                minX = Math.min(minX, rect.left);
+                minY = Math.min(minY, rect.top);
+                maxX = Math.max(maxX, rect.right);
+                maxY = Math.max(maxY, rect.bottom);
+            });
+            
+            keyboardBounds = { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+        }        
+        function getEventPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top, clientX, clientY };
+        }
+        
+        function getNormalizedCoords(clientX, clientY) {
+            if (!keyboardBounds) return { x: 0, y: 0, normalized: { x: 0, y: 0 } };
+            
+            const x = clientX - keyboardBounds.minX;
+            const y = clientY - keyboardBounds.minY;
+            
+            // Normalize to 360x215 space
+            const normX = (x / keyboardBounds.width) * NORMALIZED_WIDTH;
+            const normY = (y / keyboardBounds.height) * NORMALIZED_HEIGHT;
+            
+            // Also calculate 0-1 range
+            const norm01X = x / keyboardBounds.width;
+            const norm01Y = y / keyboardBounds.height;
+            
+            return {
+                x: Math.round(normX),
+                y: Math.round(normY),
+                normalized: { x: norm01X.toFixed(3), y: norm01Y.toFixed(3) }
+            };
+        }
+        
+        function getKeyAtPosition(clientX, clientY) {
+            const keys = document.querySelectorAll('.key[data-key]');
+            for (let key of keys) {
+                const rect = key.getBoundingClientRect();
+                if (clientX >= rect.left && clientX <= rect.right &&
+                    clientY >= rect.top && clientY <= rect.bottom) {
+                    return key;
+                }
+            }
+            return null;
+        }        
+        function startSwipe(e) {
+            e.preventDefault();
+            isDrawing = true;
+            swipePath = [];
+            keySequence = [];
+            currentKey = null;
+            
+            const pos = getEventPosition(e);
+            const coords = getNormalizedCoords(pos.clientX, pos.clientY);
+            const key = getKeyAtPosition(pos.clientX, pos.clientY);
+            
+            if (key) {
+                currentKey = key.dataset.key;
+                key.classList.add('key-active');
+                keySequence.push({ key: currentKey, timestamp: Date.now(), index: 0 });
+            }
+            
+            swipePath.push({
+                x: coords.x,
+                y: coords.y,
+                normalized: coords.normalized,
+                key: currentKey,
+                timestamp: Date.now()
+            });
+            
+            if (DEBUG.enabled) {
+                updateDebugDisplay(coords, currentKey);
+                document.getElementById('coordinateDisplay').classList.remove('hidden');
+            }
+        }
+        
+        function continueSwipe(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            
+            const pos = getEventPosition(e);
+            const coords = getNormalizedCoords(pos.clientX, pos.clientY);
+            const key = getKeyAtPosition(pos.clientX, pos.clientY);
+            
+            // Track key changes
+            const keyChar = key ? key.dataset.key : null;
+            if (keyChar !== currentKey) {
+                // Remove highlight from previous key
+                if (currentKey) {
+                    document.querySelector(`.key[data-key="${currentKey}"]`)?.classList.remove('key-active');
+                }
+                
+                // Add highlight to new key
+                if (key) {
+                    key.classList.add('key-active');
+                    keySequence.push({ 
+                        key: keyChar, 
+                        timestamp: Date.now(), 
+                        index: swipePath.length 
+                    });
+                }
+                
+                currentKey = keyChar;
+            }
+            
+            swipePath.push({
+                x: coords.x,
+                y: coords.y,
+                normalized: coords.normalized,
+                key: currentKey,
+                timestamp: Date.now()
+            });
+            
+            // Draw neon trail
+            drawNeonTrail();
+            
+            if (DEBUG.enabled) {
+                updateDebugDisplay(coords, currentKey);
+            }
+        }        
+        function drawNeonTrail() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (swipePath.length < 2) return;
+            
+            // Create gradient effect
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#00d4ff');
+            gradient.addColorStop(0.5, '#b300ff');
+            gradient.addColorStop(1, '#ff00d4');
+            
+            // Draw multiple layers for glow effect
+            for (let layer = 3; layer > 0; layer--) {
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = layer * 2;
+                ctx.globalAlpha = 0.3 / layer;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                // Add glow
+                ctx.shadowColor = layer === 1 ? '#00d4ff' : '#b300ff';
+                ctx.shadowBlur = 15 * layer;
+                
+                ctx.beginPath();
+                swipePath.forEach((point, i) => {
+                    const canvasX = (point.x / NORMALIZED_WIDTH) * keyboardBounds.width;
+                    const canvasY = (point.y / NORMALIZED_HEIGHT) * keyboardBounds.height;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(canvasX, canvasY);
+                    } else {
+                        ctx.lineTo(canvasX, canvasY);
+                    }
+                });
+                ctx.stroke();
+            }
+            
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+            
+            // Draw dots at key positions
+            keySequence.forEach((keyEvent, i) => {
+                const keyEl = document.querySelector(`.key[data-key="${keyEvent.key}"]`);
+                if (keyEl) {
+                    const rect = keyEl.getBoundingClientRect();
+                    const canvasRect = canvas.getBoundingClientRect();
+                    const x = rect.left + rect.width/2 - canvasRect.left;
+                    const y = rect.top + rect.height/2 - canvasRect.top;
+                    
+                    ctx.fillStyle = '#00d4ff';
+                    ctx.shadowColor = '#00d4ff';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }        
+        function endSwipe(e) {
+            if (!isDrawing) return;
+            isDrawing = false;
+            
+            // Clear all key highlights
+            document.querySelectorAll('.key-active').forEach(key => {
+                key.classList.remove('key-active');
+            });
+            
+            // Process swipe data
+            if (swipePath.length > 0) {
+                const swipeData = {
+                    path: swipePath,
+                    keySequence: keySequence,
+                    duration: swipePath[swipePath.length - 1].timestamp - swipePath[0].timestamp,
+                    word: keySequence.map(k => k.key).join('')
+                };
+                
+                console.log('Swipe Data:', swipeData);
+                
+                if (DEBUG.enabled) {
+                    displaySwipeOutput(swipeData);
+                }
+                
+                // Send to model
+                processSwipe(swipeData);
+            }
+            
+            // Clear trail after delay
+            setTimeout(() => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (DEBUG.enabled) {
+                    document.getElementById('coordinateDisplay').classList.add('hidden');
+                }
+            }, 300);
+        }        
+        // Process swipe path and generate predictions
+        async function processSwipe(swipeData) {
+            if (!isModelReady) {
+                console.warn('Models not ready yet');
+                return;
+            }
+            
+            try {
+                updateStatus('Processing swipe...', 'processing');
+                
+                // Prepare input features from swipe path
+                const features = prepareSwipeFeatures(swipeData);
+                
+                // Run inference
+                const predictions = await runInference(features);
+                
+                // Display predictions
+                displayPredictions(predictions);
+                
+                updateStatus('Ready', 'success');
+                
+            } catch (error) {
+                console.error('Error processing swipe:', error);
+                updateStatus('Processing error', 'error');
+            }
+        }
+        
+        function prepareSwipeFeatures(swipeData) {
+            // Normalize swipe path to fixed length
+            const path = swipeData.path;
+            const normalizedPath = [];
+            const originalLength = Math.min(path.length, MAX_SEQUENCE_LENGTH);
+            
+            // Take up to MAX_SEQUENCE_LENGTH points
+            for (let i = 0; i < Math.min(path.length, MAX_SEQUENCE_LENGTH); i++) {
+                const point = path[i];
+                normalizedPath.push({
+                    x: point.x / NORMALIZED_WIDTH,
+                    y: point.y / NORMALIZED_HEIGHT,
+                    key: point.key || null
+                });
+            }
+            
+            // Pad with last point if too short
+            const lastPoint = normalizedPath[normalizedPath.length - 1] || { x: 0, y: 0, key: null };
+            while (normalizedPath.length < MAX_SEQUENCE_LENGTH) {
+                normalizedPath.push({ ...lastPoint });
+            }
+            
+            return {
+                path: normalizedPath,
+                originalLength: originalLength,  // Track actual swipe length for masking
+                keySequence: swipeData.keySequence,
+                duration: swipeData.duration
+            };
+        }        
+        async function runInference(features) {
+            // The model expects (from working predictor.ts):
+            // - trajectory_features: [batch_size, seq_len, 6] with x, y, vx, vy, ax, ay - float32
+            // - nearest_keys: [batch_size, seq_len] with nearest key indices - int64
+            // - src_mask: [batch_size, seq_len] boolean mask for padded positions - bool
+            
+            // Prepare trajectory features
+            const trajectoryData = new Float32Array(MAX_SEQUENCE_LENGTH * 6);
+            const nearestKeysData = new BigInt64Array(MAX_SEQUENCE_LENGTH);  // int64 for ONNX
+            const srcMaskData = new Uint8Array(MAX_SEQUENCE_LENGTH);  // bool mask
+            
+            // Use tokenizer mapping if available, otherwise use defaults
+            const keyMap = tokenizer ? tokenizer.char_to_idx : {
+                'a': 4, 'b': 5, 'c': 6, 'd': 7, 'e': 8, 'f': 9, 'g': 10, 'h': 11,
+                'i': 12, 'j': 13, 'k': 14, 'l': 15, 'm': 16, 'n': 17, 'o': 18, 'p': 19,
+                'q': 20, 'r': 21, 's': 22, 't': 23, 'u': 24, 'v': 25, 'w': 26, 'x': 27,
+                'y': 28, 'z': 29
+            };
+            
+            // Track actual swipe length for masking
+            const actualLength = features.originalLength || MAX_SEQUENCE_LENGTH;
+            
+            for (let i = 0; i < MAX_SEQUENCE_LENGTH; i++) {
+                const point = features.path[i];
+                const baseIdx = i * 6;
+                
+                // Position (normalized 0-1)
+                trajectoryData[baseIdx + 0] = point.x;
+                trajectoryData[baseIdx + 1] = point.y;
+                
+                // Velocity (difference from previous point)
+                if (i > 0) {
+                    const prevPoint = features.path[i - 1];
+                    trajectoryData[baseIdx + 2] = point.x - prevPoint.x; // vx
+                    trajectoryData[baseIdx + 3] = point.y - prevPoint.y; // vy
+                } else {
+                    trajectoryData[baseIdx + 2] = 0;
+                    trajectoryData[baseIdx + 3] = 0;
+                }
+                
+                // Acceleration (difference of velocities)
+                if (i > 1) {
+                    const prevVx = trajectoryData[(i-1) * 6 + 2];
+                    const prevVy = trajectoryData[(i-1) * 6 + 3];
+                    trajectoryData[baseIdx + 4] = trajectoryData[baseIdx + 2] - prevVx; // ax
+                    trajectoryData[baseIdx + 5] = trajectoryData[baseIdx + 3] - prevVy; // ay
+                } else {
+                    trajectoryData[baseIdx + 4] = 0;
+                    trajectoryData[baseIdx + 5] = 0;
+                }
+                
+                // Nearest key index (int64)
+                if (point.key && keyMap.hasOwnProperty(point.key)) {
+                    nearestKeysData[i] = BigInt(keyMap[point.key]);
+                } else {
+                    nearestKeysData[i] = BigInt(0); // Default to first key if unknown
+                }
+                
+                // Mask: 1 for padded positions, 0 for real data
+                srcMaskData[i] = i >= actualLength ? 1 : 0;
+            }
+            
+            // Create tensors with correct shapes and types
+            const trajectoryTensor = new ort.Tensor('float32', trajectoryData, [1, MAX_SEQUENCE_LENGTH, 6]);
+            const nearestKeysTensor = new ort.Tensor('int64', nearestKeysData, [1, MAX_SEQUENCE_LENGTH]);
+            const srcMaskTensor = new ort.Tensor('bool', srcMaskData, [1, MAX_SEQUENCE_LENGTH]);
+            
+            console.log('Running encoder with inputs:', {
+                trajectory_features: trajectoryTensor.dims,
+                nearest_keys: nearestKeysTensor.dims,
+                src_mask: srcMaskTensor.dims
+            });
+            
+            // Run encoder with all three required inputs
+            const encoderOutput = await encoderSession.run({ 
+                trajectory_features: trajectoryTensor,
+                nearest_keys: nearestKeysTensor,
+                src_mask: srcMaskTensor
+            });
+            
+            console.log('Encoder output:', encoderOutput);
+            
+            // Pass encoder output to decoder for beam search
+            const predictions = await decodeLogits(encoderOutput);
+            
+            console.log('Predictions:', predictions);
+            
+            return predictions;
+        }
+        
+        async function decodeLogits(encoderOutput) {
+            // The encoder output contains memory states that need to be decoded
+            // We need to run the decoder with proper beam search
+            
+            if (!decoderSession) {
+                console.error('Decoder not loaded, cannot decode');
+                return [];
+            }
+            
+            // Beam search parameters
+            const beamWidth = 5;
+            const maxLength = 20;
+            
+            // Special tokens from tokenizer config
+            const PAD_IDX = tokenizer?.special_tokens?.pad_idx ?? 0;
+            const UNK_IDX = tokenizer?.special_tokens?.unk_idx ?? 1;
+            const SOS_IDX = tokenizer?.special_tokens?.sos_idx ?? 2;
+            const EOS_IDX = tokenizer?.special_tokens?.eos_idx ?? 3;
+            
+            // Character mapping from tokenizer
+            const idxToChar = tokenizer?.idx_to_char ?? {
+                0: '<pad>', 1: '<unk>', 2: '<sos>', 3: '<eos>',
+                4: 'a', 5: 'b', 6: 'c', 7: 'd', 8: 'e', 9: 'f', 10: 'g', 11: 'h',
+                12: 'i', 13: 'j', 14: 'k', 15: 'l', 16: 'm', 17: 'n', 18: 'o', 19: 'p',
+                20: 'q', 21: 'r', 22: 's', 23: 't', 24: 'u', 25: 'v', 26: 'w', 27: 'x',
+                28: 'y', 29: 'z'
+            };
+            
+            // Get memory from encoder output
+            const memoryKey = Object.keys(encoderOutput)[0];
+            const memory = encoderOutput[memoryKey];
+            
+            console.log('Decoder memory shape:', memory.dims);
+            
+            // Initialize beams with SOS token
+            let beams = [{
+                tokens: [BigInt(SOS_IDX)],
+                score: 0,
+                finished: false
+            }];
+            
+            // Beam search
+            for (let step = 0; step < maxLength; step++) {
+                const candidates = [];
+                
+                for (const beam of beams) {
+                    if (beam.finished) {
+                        candidates.push(beam);
+                        continue;
+                    }
+                    
+                    // Prepare decoder input
+                    const tgtIds = new BigInt64Array(beam.tokens);
+                    const tgtTensor = new ort.Tensor('int64', tgtIds, [1, beam.tokens.length]);
+                    
+                    // Pad target tokens to fixed length (required by model)
+                    const DECODER_SEQ_LENGTH = 20; // Fixed decoder sequence length from predictor.ts
+                    const paddedTokens = new BigInt64Array(DECODER_SEQ_LENGTH);
+                    
+                    // Copy actual tokens
+                    for (let i = 0; i < beam.tokens.length && i < DECODER_SEQ_LENGTH; i++) {
+                        paddedTokens[i] = beam.tokens[i];
+                    }
+                    // Pad rest with PAD_IDX
+                    for (let i = beam.tokens.length; i < DECODER_SEQ_LENGTH; i++) {
+                        paddedTokens[i] = BigInt(PAD_IDX);
+                    }
+                    
+                    // Create target mask - IMPORTANT: 1 for PADDED positions, 0 for real tokens
+                    const tgtMask = new Uint8Array(DECODER_SEQ_LENGTH);
+                    for (let i = beam.tokens.length; i < DECODER_SEQ_LENGTH; i++) {
+                        tgtMask[i] = 1;  // Mark padded positions
+                    }
+                    
+                    // Create source mask (0 for all positions - all encoder positions are valid)
+                    const srcMaskArray = new Uint8Array(memory.dims[1]);
+                    srcMaskArray.fill(0);
+                    
+                    // Run decoder
+                    try {
+                        console.log('Decoder inputs:', {
+                            memory_shape: memory.dims,
+                            target_tokens_length: DECODER_SEQ_LENGTH,
+                            actual_tokens: beam.tokens.length,
+                            target_mask: tgtMask.slice(0, 10),
+                            src_mask_length: srcMaskArray.length
+                        });
+                        
+                        const decoderOutput = await decoderSession.run({
+                            memory: memory,
+                            target_tokens: new ort.Tensor('int64', paddedTokens, [1, DECODER_SEQ_LENGTH]),
+                            target_mask: new ort.Tensor('bool', tgtMask, [1, DECODER_SEQ_LENGTH]),
+                            src_mask: new ort.Tensor('bool', srcMaskArray, [1, memory.dims[1]])
+                        });
+                        
+                        // Get logits - shape is [1, DECODER_SEQ_LENGTH, 30]
+                        const logits = decoderOutput.logits;
+                        const logitsData = logits.data;
+                        const vocabSize = 30;
+                        
+                        // Get predictions for the position after the last real token
+                        const tokenPosition = Math.min(beam.tokens.length - 1, DECODER_SEQ_LENGTH - 1);
+                        const startIdx = tokenPosition * vocabSize;
+                        const endIdx = startIdx + vocabSize;
+                        const relevantLogits = logitsData.slice(startIdx, endIdx);
+                        
+                        // Apply softmax
+                        const probs = softmax(Array.from(relevantLogits));
+                        
+                        // Get top k tokens
+                        const topK = getTopKIndices(probs, beamWidth);
+                        
+                        for (const idx of topK) {
+                            const newBeam = {
+                                tokens: [...beam.tokens, BigInt(idx)],
+                                score: beam.score + Math.log(probs[idx]),
+                                finished: idx === EOS_IDX
+                            };
+                            candidates.push(newBeam);
+                        }
+                    } catch (error) {
+                        console.error('Decoder error:', error);
+                        console.error('Error message:', error.message);
+                        console.error('Error stack:', error.stack);
+                        throw error;
+                    }
+                }
+                
+                // Select top beams
+                candidates.sort((a, b) => b.score - a.score);
+                beams = candidates.slice(0, beamWidth);
+                
+                // Check if all beams are finished
+                if (beams.every(b => b.finished)) {
+                    break;
+                }
+            }
+            
+            // Convert token sequences to words
+            const predictions = beams.map(beam => {
+                const chars = [];
+                for (const token of beam.tokens) {
+                    const idx = Number(token);
+                    if (idx === SOS_IDX || idx === EOS_IDX || idx === PAD_IDX) continue;
+                    if (idxToChar[idx] && !idxToChar[idx].startsWith('<')) {
+                        chars.push(idxToChar[idx]);
+                    }
+                }
+                return chars.join('');
+            }).filter(word => word.length > 0);
+            
+            return predictions.length > 0 ? predictions : [];
+        }
+        
+        function softmax(logits) {
+            const maxLogit = Math.max(...logits);
+            const expScores = logits.map(l => Math.exp(l - maxLogit));
+            const sumExpScores = expScores.reduce((a, b) => a + b, 0);
+            return expScores.map(e => e / sumExpScores);
+        }
+        
+        function getTopKIndices(array, k) {
+            const indexed = array.map((val, idx) => ({val, idx}));
+            indexed.sort((a, b) => b.val - a.val);
+            return indexed.slice(0, k).map(item => item.idx);
+        }        
+        function displayPredictions(predictions) {
+            const suggestionsDiv = document.getElementById('suggestions');
+            suggestionsDiv.innerHTML = '';
+            
+            predictions.forEach((word, index) => {
+                const suggestion = document.createElement('div');
+                suggestion.className = index === 0 
+                    ? 'px-4 py-1.5 rounded-full bg-gradient-to-r from-neon-blue/20 to-neon-purple/20 border border-neon-blue/50 text-white text-sm cursor-pointer hover:scale-105 transition-transform'
+                    : 'px-4 py-1.5 rounded-full bg-white/5 border border-white/20 text-gray-300 text-sm cursor-pointer hover:bg-white/10 transition-all';
+                suggestion.textContent = word;
+                suggestion.onclick = () => selectWord(word);
+                suggestionsDiv.appendChild(suggestion);
+            });
+        }
+        
+        function selectWord(word) {
+            inputText += word + ' ';
+            document.getElementById('inputText').textContent = inputText;
+            clearInput();
+        }
+        
+        function handleBackspace() {
+            if (inputText.length > 0) {
+                inputText = inputText.slice(0, -1);
+                document.getElementById('inputText').textContent = inputText;
+            }
+        }
+        
+        function handleSpace() {
+            inputText += ' ';
+            document.getElementById('inputText').textContent = inputText;
+        }
+        
+        function clearInput() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            swipePath = [];
+            keySequence = [];
+            currentKey = null;
+            document.getElementById('debugOutput').classList.add('hidden');
+        }
+        
+        function toggleDebug() {
+            DEBUG.enabled = !DEBUG.enabled;
+            document.getElementById('debugStatus').textContent = DEBUG.enabled ? 'ON' : 'OFF';
+            document.getElementById('debugOverlay').classList.toggle('hidden', !DEBUG.enabled);
+            
+            if (!DEBUG.enabled) {
+                document.getElementById('coordinateDisplay').classList.add('hidden');
+                document.getElementById('debugOutput').classList.add('hidden');
+            }
+        }
+        
+        function updateDebugDisplay(coords, key) {
+            document.getElementById('xCoord').textContent = coords.x;
+            document.getElementById('yCoord').textContent = coords.y;
+            document.getElementById('normCoords').textContent = `${coords.normalized.x}, ${coords.normalized.y}`;
+            document.getElementById('currentKeyDebug').textContent = key || '-';
+            document.getElementById('pathLength').textContent = swipePath.length;
+            document.getElementById('keysTouched').textContent = keySequence.map(k => k.key).join('');
+        }
+        
+        function displaySwipeOutput(data) {
+            const output = document.getElementById('debugOutput');
+            const text = document.getElementById('debugText');
+            
+            output.classList.remove('hidden');
+            text.textContent = JSON.stringify({
+                keySequence: data.keySequence.map(k => ({
+                    key: k.key,
+                    index: k.index,
+                    time: k.timestamp - data.path[0].timestamp
+                })),
+                pathSample: data.path.filter((_, i) => i % 5 === 0).map(p => ({
+                    x: p.x,
+                    y: p.y,
+                    norm: p.normalized,
+                    key: p.key
+                })),
+                duration: data.duration,
+                pointCount: data.path.length
+            }, null, 2);
+        }
+        
+        // Event listeners
+        canvas.addEventListener('mousedown', startSwipe);
+        canvas.addEventListener('mousemove', continueSwipe);
+        canvas.addEventListener('mouseup', endSwipe);
+        canvas.addEventListener('mouseleave', endSwipe);
+        
+        canvas.addEventListener('touchstart', startSwipe, { passive: false });
+        canvas.addEventListener('touchmove', continueSwipe, { passive: false });
+        canvas.addEventListener('touchend', endSwipe, { passive: false });
+        canvas.addEventListener('touchcancel', endSwipe, { passive: false });
+        
+        // Key tap handling
+        document.querySelectorAll('.key').forEach(key => {
+            key.addEventListener('click', function(e) {
+                if (!isDrawing && this.dataset.key) {
+                    this.classList.add('key-active');
+                    setTimeout(() => this.classList.remove('key-active'), 200);
+                    console.log('Key tapped:', this.dataset.key);
+                    
+                    // Add key to input for simple typing
+                    if (this.dataset.key && this.dataset.key.length === 1) {
+                        inputText += this.dataset.key;
+                        document.getElementById('inputText').textContent = inputText;
+                    }
+                }
+            });
+        });
+        
+        // Prevent scrolling
+        document.getElementById('keyboard').addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+        
+        // Initialize on load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
