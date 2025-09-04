@@ -1,3 +1,5 @@
+## Note: this is a fork of [Harry Proshian](https://github.com/proshian)'s work. Please see the original repo [here](https://github.com/proshian/neural-swipe-typing).
+
 # Neural glide typing
 
 A transformer neural network for a gesture keyboard that transduces curves swiped across a keyboard into word candidates
