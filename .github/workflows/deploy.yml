@@ -36,9 +36,12 @@ jobs:
       - name: Build and prepare site
         run: |
           cd web-demo
+          # Remove old app files to ensure clean deployment
+          rm -f public/src/app-bundle.js public/src/app-bundle.js.map public/src/app.js public/src/app.js.map
           # Use swipe-onnx.html as the main index.html
           cp public/swipe-onnx.html public/index.html
           echo "Using swipe-onnx.html as main site"
+          ls -la public/
       
       - name: Prepare deployment models
         run: |
