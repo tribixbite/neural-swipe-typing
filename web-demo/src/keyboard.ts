@@ -84,19 +84,8 @@ export class KeyboardRenderer {
     }
 
     render() {
-        // Clear canvas with gradient background
-        const isDark = document.documentElement.classList.contains('dark');
-        
-        // Create gradient background
-        const bgGradient = this.ctx.createLinearGradient(0, 0, this.width, this.height);
-        if (isDark) {
-            bgGradient.addColorStop(0, '#1e293b');  // slate-800
-            bgGradient.addColorStop(1, '#0f172a');  // slate-900
-        } else {
-            bgGradient.addColorStop(0, '#f1f5f9');  // slate-100
-            bgGradient.addColorStop(1, '#e2e8f0');  // slate-200
-        }
-        this.ctx.fillStyle = bgGradient;
+        // Clear canvas with dark keyboard background
+        this.ctx.fillStyle = '#1a1a2e';  // Dark purple-ish background
         this.ctx.fillRect(0, 0, this.width, this.height);
 
         // Draw keys
@@ -109,98 +98,51 @@ export class KeyboardRenderer {
     }
 
     private drawKeys() {
-        const keySize = 30;  // Fixed size in 360x215 space
-        const fontSize = 16;  // Fixed font size
-        const isDark = document.documentElement.classList.contains('dark');
+        const keySize = 32;  // Slightly larger keys
+        const fontSize = 20;  // Larger font for better visibility
 
         for (const key of this.keys) {
             const x = key.x;
             const y = key.y;
             const isActive = this.activeKey === key.char;
             
-            // Scale up active key
-            const currentKeySize = isActive ? keySize * 1.15 : keySize;
-            const currentFontSize = isActive ? fontSize * 1.1 : fontSize;
+            // Scale up active key more dramatically
+            const currentKeySize = isActive ? keySize * 1.2 : keySize;
+            const currentFontSize = isActive ? fontSize * 1.15 : fontSize;
 
             // Save context for shadows
             this.ctx.save();
             
             // Add shadow for depth effect
-            this.ctx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.2)';
+            this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
             this.ctx.shadowBlur = 4;
             this.ctx.shadowOffsetX = 0;
             this.ctx.shadowOffsetY = 2;
 
-            // Key background with enhanced gradient
-            const gradient = this.ctx.createLinearGradient(
-                x - keySize / 2, y - keySize / 2,
-                x + keySize / 2, y + keySize / 2
-            );
-            
-            if (isDark) {
-                gradient.addColorStop(0, '#475569');  // slate-600
-                gradient.addColorStop(0.5, '#334155');  // slate-700
-                gradient.addColorStop(1, '#1e293b');  // slate-800
-            } else {
-                gradient.addColorStop(0, '#ffffff');
-                gradient.addColorStop(0.5, '#f8fafc');  // slate-50
-                gradient.addColorStop(1, '#f1f5f9');  // slate-100
-            }
-            
-            this.ctx.fillStyle = gradient;
+            // Key background - dark purple/gray
+            this.ctx.fillStyle = isActive ? '#5865f2' : '#2d2d44';
             this.roundRect(
                 x - currentKeySize / 2,
                 y - currentKeySize / 2,
                 currentKeySize,
                 currentKeySize,
-                5
+                6
             );
             this.ctx.fill();
 
-            // Restore context to remove shadow for border
+            // Restore context to remove shadow
             this.ctx.restore();
 
-            // Key border with subtle gradient
-            const borderGradient = this.ctx.createLinearGradient(
-                x - keySize / 2, y - keySize / 2,
-                x + keySize / 2, y + keySize / 2
-            );
-            if (isDark) {
-                borderGradient.addColorStop(0, '#64748b');  // slate-500
-                borderGradient.addColorStop(1, '#475569');  // slate-600
-            } else {
-                borderGradient.addColorStop(0, '#cbd5e1');  // slate-300
-                borderGradient.addColorStop(1, '#94a3b8');  // slate-400
-            }
-            this.ctx.strokeStyle = isActive ? '#6366f1' : borderGradient;  // indigo-500 for active
-            this.ctx.lineWidth = isActive ? 2 : 1;
-            this.roundRect(
-                x - currentKeySize / 2,
-                y - currentKeySize / 2,
-                currentKeySize,
-                currentKeySize,
-                5
-            );
-            this.ctx.stroke();
-
-            // Key text - ensure visibility with high contrast
+            // No border for cleaner look
+            
+            // Key text - white for visibility
             this.ctx.save();
             
-            // Text with high contrast (use same color scheme as advanced predictor)
-            this.ctx.fillStyle = isActive ? 
-                (isDark ? '#ffffff' : '#6366f1') :  // White in dark, indigo for active
-                (isDark ? '#e5e7eb' : '#374151');   // gray-200 in dark, gray-700 in light
-            this.ctx.font = `600 ${currentFontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+            // Text styling
+            this.ctx.fillStyle = isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.95)';
+            this.ctx.font = `400 ${currentFontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
-            
-            // Add subtle text shadow for better readability
-            if (isDark) {
-                this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-                this.ctx.shadowBlur = 2;
-                this.ctx.shadowOffsetX = 0;
-                this.ctx.shadowOffsetY = 1;
-            }
             
             this.ctx.fillText(key.char.toUpperCase(), x, y);
             
@@ -265,25 +207,16 @@ export class KeyboardRenderer {
         this.ctx.save();
 
         // Add glow effect for the trace
-        this.ctx.shadowColor = 'rgba(99, 102, 241, 0.6)';  // indigo-500
-        this.ctx.shadowBlur = 10;
+        this.ctx.shadowColor = '#5865f2';  // Discord purple
+        this.ctx.shadowBlur = 15;
         
         // Draw trace line with enhanced gradient
-        this.ctx.lineWidth = 4;
+        this.ctx.lineWidth = 3;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
 
-        // Create multi-color gradient effect
-        const gradient = this.ctx.createLinearGradient(
-            this.tracePoints[0].x,
-            this.tracePoints[0].y,
-            this.tracePoints[this.tracePoints.length - 1].x,
-            this.tracePoints[this.tracePoints.length - 1].y
-        );
-        gradient.addColorStop(0, 'rgba(34, 197, 94, 0.9)');   // green-500
-        gradient.addColorStop(0.5, 'rgba(99, 102, 241, 0.9)'); // indigo-500
-        gradient.addColorStop(1, 'rgba(168, 85, 247, 0.9)');   // purple-500
-        this.ctx.strokeStyle = gradient;
+        // Simple purple trace
+        this.ctx.strokeStyle = '#5865f2';
 
         // Draw the main path
         this.ctx.beginPath();

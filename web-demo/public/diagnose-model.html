@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnose ONNX Model</title>
+</head>
+<body>
+    <h1>ONNX Model Diagnostic</h1>
+    <div id="status">Loading...</div>
+    <pre id="output"></pre>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script>
+        async function diagnoseModel() {
+            const output = document.getElementById('output');
+            const status = document.getElementById('status');
+            
+            try {
+                status.textContent = 'Loading encoder model...';
+                const encoderSession = await ort.InferenceSession.create('/models/swipe_model_character_quant.onnx', {
+                    executionProviders: ['wasm'],
+                    graphOptimizationLevel: 'all'
+                });
+                
+                let diagnostics = '=== ENCODER MODEL (swipe_model_character_quant.onnx) ===\n\n';
+                
+                // Get input information
+                diagnostics += 'INPUT NAMES AND SHAPES:\n';
+                for (const inputName of encoderSession.inputNames) {
+                    const input = encoderSession.inputMetadata[inputName];
+                    diagnostics += `  - ${inputName}:\n`;
+                    diagnostics += `      Type: ${input.type}\n`;
+                    diagnostics += `      Shape: [${input.dims ? input.dims.join(', ') : 'dynamic'}]\n`;
+                    if (input.valueType) {
+                        diagnostics += `      Value Type: ${input.valueType}\n`;
+                    }
+                    diagnostics += '\n';
+                }
+                
+                diagnostics += '\nOUTPUT NAMES AND SHAPES:\n';
+                for (const outputName of encoderSession.outputNames) {
+                    const outputMeta = encoderSession.outputMetadata[outputName];
+                    diagnostics += `  - ${outputName}:\n`;
+                    diagnostics += `      Type: ${outputMeta.type}\n`;
+                    diagnostics += `      Shape: [${outputMeta.dims ? outputMeta.dims.join(', ') : 'dynamic'}]\n`;
+                    diagnostics += '\n';
+                }
+                
+                // Try to load decoder model if it exists
+                try {
+                    status.textContent = 'Loading decoder model...';
+                    const decoderSession = await ort.InferenceSession.create('/models/swipe_decoder_character_quant.onnx', {
+                        executionProviders: ['wasm'],
+                        graphOptimizationLevel: 'all'
+                    });
+                    
+                    diagnostics += '\n=== DECODER MODEL (swipe_decoder_character_quant.onnx) ===\n\n';
+                    
+                    diagnostics += 'INPUT NAMES AND SHAPES:\n';
+                    for (const inputName of decoderSession.inputNames) {
+                        const input = decoderSession.inputMetadata[inputName];
+                        diagnostics += `  - ${inputName}:\n`;
+                        diagnostics += `      Type: ${input.type}\n`;
+                        diagnostics += `      Shape: [${input.dims ? input.dims.join(', ') : 'dynamic'}]\n`;
+                        if (input.valueType) {
+                            diagnostics += `      Value Type: ${input.valueType}\n`;
+                        }
+                        diagnostics += '\n';
+                    }
+                    
+                    diagnostics += '\nOUTPUT NAMES AND SHAPES:\n';
+                    for (const outputName of decoderSession.outputNames) {
+                        const outputMeta = decoderSession.outputMetadata[outputName];
+                        diagnostics += `  - ${outputName}:\n`;
+                        diagnostics += `      Type: ${outputMeta.type}\n`;
+                        diagnostics += `      Shape: [${outputMeta.dims ? outputMeta.dims.join(', ') : 'dynamic'}]\n`;
+                        diagnostics += '\n';
+                    }
+                } catch (decoderError) {
+                    diagnostics += '\n=== DECODER MODEL ===\nError loading decoder: ' + decoderError.message + '\n';
+                }
+                
+                output.textContent = diagnostics;
+                status.textContent = 'Diagnostic complete!';
+                
+                // Also log to console for easier copying
+                console.log(diagnostics);
+                
+            } catch (error) {
+                output.textContent = 'Error: ' + error.message;
+                status.textContent = 'Error occurred';
+                console.error('Diagnostic error:', error);
+            }
+        }
+        
+        // Run diagnostic on page load
+        diagnoseModel();
+    </script>
+</body>
+</html>

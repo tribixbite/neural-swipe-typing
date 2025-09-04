@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Swipe ONNX</title>
+</head>
+<body>
+    <h1>Testing ONNX Model Inference</h1>
+    <div id="status">Loading...</div>
+    <div id="output"></div>
+    <button onclick="testInference()">Test Inference</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script>
+        let encoderSession = null;
+        const MAX_SEQUENCE_LENGTH = 299;
+
+        async function loadModels() {
+            try {
+                document.getElementById('status').textContent = 'Loading model...';
+                
+                encoderSession = await ort.InferenceSession.create('/models/swipe_model_character_quant.onnx', {
+                    executionProviders: ['wasm'],
+                    graphOptimizationLevel: 'all'
+                });
+                
+                document.getElementById('status').textContent = 'Model loaded!';
+                console.log('Model loaded successfully');
+                
+                // Log input/output names
+                console.log('Input names:', encoderSession.inputNames);
+                console.log('Output names:', encoderSession.outputNames);
+                
+            } catch (error) {
+                console.error('Error loading model:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function testInference() {
+            if (!encoderSession) {
+                alert('Model not loaded yet');
+                return;
+            }
+
+            try {
+                // Create dummy input data
+                const trajectoryData = new Float32Array(MAX_SEQUENCE_LENGTH * 6);
+                const keyboardData = new Float32Array(MAX_SEQUENCE_LENGTH * 1);
+                
+                // Fill with some test data
+                for (let i = 0; i < MAX_SEQUENCE_LENGTH; i++) {
+                    const baseIdx = i * 6;
+                    trajectoryData[baseIdx] = i / MAX_SEQUENCE_LENGTH; // x
+                    trajectoryData[baseIdx + 1] = 0.5; // y
+                    trajectoryData[baseIdx + 2] = 0.01; // vx
+                    trajectoryData[baseIdx + 3] = 0; // vy
+                    trajectoryData[baseIdx + 4] = 0; // ax
+                    trajectoryData[baseIdx + 5] = 0; // ay
+                    
+                    keyboardData[i] = Math.floor(Math.random() * 26); // Random key
+                }
+                
+                // Create tensors
+                const trajectoryTensor = new ort.Tensor('float32', trajectoryData, [1, MAX_SEQUENCE_LENGTH, 6]);
+                const keyboardTensor = new ort.Tensor('float32', keyboardData, [1, MAX_SEQUENCE_LENGTH, 1]);
+                
+                console.log('Running inference...');
+                document.getElementById('status').textContent = 'Running inference...';
+                
+                // Run with correct input names
+                const output = await encoderSession.run({
+                    trajectory_features: trajectoryTensor,
+                    nearest_keys: keyboardTensor
+                });
+                
+                console.log('Inference output:', output);
+                document.getElementById('status').textContent = 'Success!';
+                document.getElementById('output').textContent = 'Output shape: ' + JSON.stringify(Object.keys(output));
+                
+            } catch (error) {
+                console.error('Inference error:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Load models on page load
+        loadModels();
+    </script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated Swipe Test</title>
+</head>
+<body>
+    <h1>Testing Swipe ONNX Model</h1>
+    <div id="status">Initializing...</div>
+    <pre id="log"></pre>
+    <button onclick="runTest()">Run Test</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script>
+        let encoderSession = null;
+        let decoderSession = null;
+        let tokenizer = null;
+        const MAX_SEQUENCE_LENGTH = 150;
+
+        function log(message) {
+            const logEl = document.getElementById('log');
+            logEl.textContent += message + '\n';
+            console.log(message);
+        }
+
+        async function loadModels() {
+            try {
+                log('Loading encoder model...');
+                encoderSession = await ort.InferenceSession.create('/models/swipe_model_character_quant.onnx', {
+                    executionProviders: ['wasm'],
+                    graphOptimizationLevel: 'all'
+                });
+                log('Encoder loaded. Inputs: ' + encoderSession.inputNames.join(', '));
+                
+                log('Loading decoder model...');
+                decoderSession = await ort.InferenceSession.create('/models/swipe_decoder_character_quant.onnx', {
+                    executionProviders: ['wasm'],
+                    graphOptimizationLevel: 'all'
+                });
+                log('Decoder loaded. Inputs: ' + decoderSession.inputNames.join(', '));
+                
+                log('Loading tokenizer...');
+                const response = await fetch('/models/tokenizer_config.json');
+                tokenizer = await response.json();
+                log('Tokenizer loaded.');
+                
+                document.getElementById('status').textContent = 'Models loaded! Click Run Test.';
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function runTest() {
+            if (!encoderSession || !decoderSession) {
+                alert('Models not loaded yet');
+                return;
+            }
+
+            try {
+                log('\n=== Running Swipe Test ===');
+                
+                // Simulate a swipe path for the word "hello"
+                // h -> e -> l -> l -> o
+                const swipePath = [
+                    {x: 216, y: 107}, // h
+                    {x: 90, y: 53},   // e
+                    {x: 324, y: 107}, // l
+                    {x: 324, y: 107}, // l (hold)
+                    {x: 306, y: 53}   // o
+                ];
+                
+                // Prepare features
+                const trajectoryData = new Float32Array(MAX_SEQUENCE_LENGTH * 6);
+                const nearestKeysData = new BigInt64Array(MAX_SEQUENCE_LENGTH);
+                const srcMaskData = new Uint8Array(MAX_SEQUENCE_LENGTH);
+                
+                const keyMap = tokenizer.char_to_idx;
+                const actualLength = swipePath.length;
+                
+                // Normalize and pad the path
+                for (let i = 0; i < MAX_SEQUENCE_LENGTH; i++) {
+                    const point = i < swipePath.length ? swipePath[i] : swipePath[swipePath.length - 1];
+                    const baseIdx = i * 6;
+                    
+                    // Position (normalized)
+                    trajectoryData[baseIdx + 0] = point.x / 360;
+                    trajectoryData[baseIdx + 1] = point.y / 215;
+                    
+                    // Velocity
+                    if (i > 0 && i < swipePath.length) {
+                        const prevPoint = swipePath[i - 1];
+                        trajectoryData[baseIdx + 2] = (point.x - prevPoint.x) / 360;
+                        trajectoryData[baseIdx + 3] = (point.y - prevPoint.y) / 215;
+                    }
+                    
+                    // Acceleration
+                    if (i > 1 && i < swipePath.length) {
+                        const prevVx = trajectoryData[(i-1) * 6 + 2];
+                        const prevVy = trajectoryData[(i-1) * 6 + 3];
+                        trajectoryData[baseIdx + 4] = trajectoryData[baseIdx + 2] - prevVx;
+                        trajectoryData[baseIdx + 5] = trajectoryData[baseIdx + 3] - prevVy;
+                    }
+                    
+                    // Nearest key
+                    const keys = ['h', 'e', 'l', 'l', 'o'];
+                    const key = i < keys.length ? keys[i] : keys[keys.length - 1];
+                    nearestKeysData[i] = BigInt(keyMap[key] || 1);
+                    
+                    // Mask
+                    srcMaskData[i] = i >= actualLength ? 1 : 0;
+                }
+                
+                // Create tensors
+                const trajectoryTensor = new ort.Tensor('float32', trajectoryData, [1, MAX_SEQUENCE_LENGTH, 6]);
+                const nearestKeysTensor = new ort.Tensor('int64', nearestKeysData, [1, MAX_SEQUENCE_LENGTH]);
+                const srcMaskTensor = new ort.Tensor('bool', srcMaskData, [1, MAX_SEQUENCE_LENGTH]);
+                
+                log('Running encoder...');
+                const encoderOutput = await encoderSession.run({
+                    trajectory_features: trajectoryTensor,
+                    nearest_keys: nearestKeysTensor,
+                    src_mask: srcMaskTensor
+                });
+                
+                log('Encoder output keys: ' + Object.keys(encoderOutput).join(', '));
+                
+                // Get memory for decoder
+                const memoryKey = Object.keys(encoderOutput)[0];
+                const memory = encoderOutput[memoryKey];
+                log('Memory shape: ' + memory.dims.join('x'));
+                
+                // Run decoder with beam search
+                log('Running decoder beam search...');
+                const SOS_IDX = tokenizer.special_tokens.sos_idx;
+                const EOS_IDX = tokenizer.special_tokens.eos_idx;
+                
+                const tgtIds = new BigInt64Array([BigInt(SOS_IDX)]);
+                const tgtTensor = new ort.Tensor('int64', tgtIds, [1, 1]);
+                
+                const decoderOutput = await decoderSession.run({
+                    tgt_ids: tgtTensor,
+                    memory: memory
+                });
+                
+                log('Decoder output keys: ' + Object.keys(decoderOutput).join(', '));
+                
+                // Get logits
+                const logitsKey = Object.keys(decoderOutput)[0];
+                const logits = decoderOutput[logitsKey];
+                log('Logits shape: ' + logits.dims.join('x'));
+                
+                // Get top predictions
+                const vocabSize = tokenizer.vocab_size;
+                const lastLogits = Array.from(logits.data.slice(-vocabSize));
+                
+                // Apply softmax
+                const maxLogit = Math.max(...lastLogits);
+                const expScores = lastLogits.map(l => Math.exp(l - maxLogit));
+                const sumExp = expScores.reduce((a, b) => a + b, 0);
+                const probs = expScores.map(e => e / sumExp);
+                
+                // Get top 5
+                const indexed = probs.map((p, i) => ({p, i}));
+                indexed.sort((a, b) => b.p - a.p);
+                
+                log('\nTop 5 predictions:');
+                for (let i = 0; i < 5; i++) {
+                    const idx = indexed[i].i;
+                    const char = tokenizer.idx_to_char[idx];
+                    const prob = (indexed[i].p * 100).toFixed(2);
+                    log(`  ${i+1}. ${char} (${prob}%)`);
+                }
+                
+                document.getElementById('status').textContent = 'Test complete!';
+                
+            } catch (error) {
+                log('ERROR during test: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        // Load models on page load
+        loadModels();
+    </script>
+</body>
+</html>

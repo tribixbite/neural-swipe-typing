@@ -773,20 +773,59 @@
                     const tgtIds = new BigInt64Array(beam.tokens);
                     const tgtTensor = new ort.Tensor('int64', tgtIds, [1, beam.tokens.length]);
                     
+                    // Pad target tokens to fixed length (required by model)
+                    const DECODER_SEQ_LENGTH = 20; // Fixed decoder sequence length from predictor.ts
+                    const paddedTokens = new BigInt64Array(DECODER_SEQ_LENGTH);
+                    
+                    // Copy actual tokens
+                    for (let i = 0; i < beam.tokens.length && i < DECODER_SEQ_LENGTH; i++) {
+                        paddedTokens[i] = beam.tokens[i];
+                    }
+                    // Pad rest with PAD_IDX
+                    for (let i = beam.tokens.length; i < DECODER_SEQ_LENGTH; i++) {
+                        paddedTokens[i] = BigInt(PAD_IDX);
+                    }
+                    
+                    // Create target mask - IMPORTANT: 1 for PADDED positions, 0 for real tokens
+                    const tgtMask = new Uint8Array(DECODER_SEQ_LENGTH);
+                    for (let i = beam.tokens.length; i < DECODER_SEQ_LENGTH; i++) {
+                        tgtMask[i] = 1;  // Mark padded positions
+                    }
+                    
+                    // Create source mask (0 for all positions - all encoder positions are valid)
+                    const srcMaskArray = new Uint8Array(memory.dims[1]);
+                    srcMaskArray.fill(0);
+                    
                     // Run decoder
                     try {
-                        const decoderOutput = await decoderSession.run({
-                            tgt_ids: tgtTensor,
-                            memory: memory
+                        console.log('Decoder inputs:', {
+                            memory_shape: memory.dims,
+                            target_tokens_length: DECODER_SEQ_LENGTH,
+                            actual_tokens: beam.tokens.length,
+                            target_mask: tgtMask.slice(0, 10),
+                            src_mask_length: srcMaskArray.length
                         });
                         
-                        // Get logits for last position
-                        const logitsKey = Object.keys(decoderOutput)[0];
-                        const logits = decoderOutput[logitsKey];
-                        const lastLogits = logits.data.slice(-30); // Last vocab_size elements
+                        const decoderOutput = await decoderSession.run({
+                            memory: memory,
+                            target_tokens: new ort.Tensor('int64', paddedTokens, [1, DECODER_SEQ_LENGTH]),
+                            target_mask: new ort.Tensor('bool', tgtMask, [1, DECODER_SEQ_LENGTH]),
+                            src_mask: new ort.Tensor('bool', srcMaskArray, [1, memory.dims[1]])
+                        });
+                        
+                        // Get logits - shape is [1, DECODER_SEQ_LENGTH, 30]
+                        const logits = decoderOutput.logits;
+                        const logitsData = logits.data;
+                        const vocabSize = 30;
+                        
+                        // Get predictions for the position after the last real token
+                        const tokenPosition = Math.min(beam.tokens.length - 1, DECODER_SEQ_LENGTH - 1);
+                        const startIdx = tokenPosition * vocabSize;
+                        const endIdx = startIdx + vocabSize;
+                        const relevantLogits = logitsData.slice(startIdx, endIdx);
                         
                         // Apply softmax
-                        const probs = softmax(Array.from(lastLogits));
+                        const probs = softmax(Array.from(relevantLogits));
                         
                         // Get top k tokens
                         const topK = getTopKIndices(probs, beamWidth);
@@ -801,7 +840,9 @@
                         }
                     } catch (error) {
                         console.error('Decoder error:', error);
-                        break;
+                        console.error('Error message:', error.message);
+                        console.error('Error stack:', error.stack);
+                        throw error;
                     }
                 }
                 

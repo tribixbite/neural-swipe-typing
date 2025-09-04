@@ -1,0 +1,58 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - heading "Neural Swipe Typing - ONNX" [level=1] [ref=e4]
+    - paragraph [ref=e5]:
+      - generic [ref=e6]: Loading models...
+  - generic [ref=e7]:
+    - generic [ref=e11]: Initializing...
+    - generic [ref=e12]:
+      - button "Clear" [ref=e13] [cursor=pointer]
+      - 'button "Debug: OFF" [ref=e14] [cursor=pointer]':
+        - text: "Debug:"
+        - generic [ref=e15] [cursor=pointer]: "OFF"
+  - generic [ref=e17]: Input Text
+  - generic [ref=e20]: Swipe on the keyboard to begin
+  - generic [ref=e22]:
+    - paragraph [ref=e24]: Loading ONNX models...
+    - paragraph [ref=e25]: Loading encoder model...
+  - generic [ref=e30]:
+    - generic [ref=e31]:
+      - button "Q" [ref=e32] [cursor=pointer]
+      - button "W" [ref=e33] [cursor=pointer]
+      - button "E" [ref=e34] [cursor=pointer]
+      - button "R" [ref=e35] [cursor=pointer]
+      - button "T" [ref=e36] [cursor=pointer]
+      - button "Y" [ref=e37] [cursor=pointer]
+      - button "U" [ref=e38] [cursor=pointer]
+      - button "I" [ref=e39] [cursor=pointer]
+      - button "O" [ref=e40] [cursor=pointer]
+      - button "P" [ref=e41] [cursor=pointer]
+    - generic [ref=e42]:
+      - button "A" [ref=e43] [cursor=pointer]
+      - button "S" [ref=e44] [cursor=pointer]
+      - button "D" [ref=e45] [cursor=pointer]
+      - button "F" [ref=e46] [cursor=pointer]
+      - button "G" [ref=e47] [cursor=pointer]
+      - button "H" [ref=e48] [cursor=pointer]
+      - button "J" [ref=e49] [cursor=pointer]
+      - button "K" [ref=e50] [cursor=pointer]
+      - button "L" [ref=e51] [cursor=pointer]
+    - generic [ref=e52]:
+      - button "⇧" [ref=e53] [cursor=pointer]
+      - button "Z" [ref=e54] [cursor=pointer]
+      - button "X" [ref=e55] [cursor=pointer]
+      - button "C" [ref=e56] [cursor=pointer]
+      - button "V" [ref=e57] [cursor=pointer]
+      - button "B" [ref=e58] [cursor=pointer]
+      - button "N" [ref=e59] [cursor=pointer]
+      - button "M" [ref=e60] [cursor=pointer]
+      - button "⌫" [ref=e61] [cursor=pointer]
+    - generic [ref=e62]:
+      - button "123" [ref=e63] [cursor=pointer]
+      - button "😊" [ref=e64] [cursor=pointer]
+      - button "space" [ref=e65] [cursor=pointer]
+      - button "return" [ref=e66] [cursor=pointer]
+```

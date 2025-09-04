@@ -95,9 +95,8 @@ class SwipeTypingApp {
             this.clearPredictions();
             loggedKeys.clear();  // Reset logged keys for new swipe
             swipedChars = [];    // Reset swiped characters
-            this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Swiping...</span>';
-            this.statusEl.textContent = 'Swiping';
-            this.statusEl.className = 'text-sm font-semibold text-blue-600 dark:text-blue-400';
+            this.swipeCharsEl.innerHTML = '<span style="color: rgba(255,255,255,0.7); font-size: 16px;">Swiping...</span>';
+            this.updateStatus('Swiping');
         });
 
         this.swipeTracker.on('swipeMove', (points) => {
@@ -124,23 +123,20 @@ class SwipeTypingApp {
             if (points.length < 3) {
                 // Too short to be a meaningful swipe
                 this.keyboard.clearTrace();
-                this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Too short - try again</span>';
-                this.statusEl.textContent = 'Ready';
-                this.statusEl.className = 'text-sm font-semibold text-green-600 dark:text-green-400';
+                this.swipeCharsEl.innerHTML = '<span style="color: rgba(255,255,255,0.7); font-size: 16px;">Too short - try again</span>';
+                this.updateStatus('Ready');
                 return;
             }
             
             // Show loading state
             this.showLoadingPredictions();
-            this.statusEl.textContent = 'Processing';
-            this.statusEl.className = 'text-sm font-semibold text-yellow-600 dark:text-yellow-400';
+            this.updateStatus('Processing');
             
             try {
                 // Get predictions
                 const predictions = await this.predictor.predict(points, 5);
                 this.showPredictions(predictions);
-                this.statusEl.textContent = 'Ready';
-                this.statusEl.className = 'text-sm font-semibold text-green-600 dark:text-green-400';
+                this.updateStatus('Ready');
                 
                 if (this.debugMode) {
                     console.log('Swipe points:', points);
@@ -151,8 +147,7 @@ class SwipeTypingApp {
                 console.error('Error stack:', error?.stack);
                 console.error('Error message:', error?.message);
                 this.showError();
-                this.statusEl.textContent = 'Error';
-                this.statusEl.className = 'text-sm font-semibold text-red-600 dark:text-red-400';
+                this.updateStatus('Error');
             }
             
             // Clear trace after a delay
@@ -165,20 +160,15 @@ class SwipeTypingApp {
         document.getElementById('clear-btn')?.addEventListener('click', () => {
             this.keyboard.clearTrace();
             this.clearPredictions();
-            this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Touch the keyboard to start swiping...</span>';
-            this.statusEl.textContent = 'Ready';
-            this.statusEl.className = 'text-sm font-semibold text-green-600 dark:text-green-400';
+            this.swipeCharsEl.innerHTML = '<span style="color: rgba(255,255,255,0.6); font-size: 14px;">Touch the keyboard to start swiping...</span>';
+            this.updateStatus('Ready');
         });
 
         document.getElementById('debug-btn')?.addEventListener('click', () => {
             this.debugMode = !this.debugMode;
             const btn = document.getElementById('debug-btn') as HTMLButtonElement;
             btn.textContent = this.debugMode ? 'Debug: ON' : 'Debug: OFF';
-            if (this.debugMode) {
-                btn.className = 'px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-all duration-150 active:scale-95';
-            } else {
-                btn.className = 'px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg transition-all duration-150 active:scale-95';
-            }
+            // Button style stays the same (inline styles already set in HTML)
         });
 
         // Prediction click handler
@@ -194,26 +184,35 @@ class SwipeTypingApp {
     }
 
     private clearPredictions() {
-        this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full">Swipe on the keyboard to see predictions</p>';
+        this.predictionsEl.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; width: 100%; font-size: 14px;">Swipe on the keyboard to see predictions</p>';
     }
 
     private showLoadingPredictions() {
-        this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full animate-pulse">Processing...</p>';
+        this.predictionsEl.innerHTML = '<p style="color: rgba(255,255,255,0.8); text-align: center; width: 100%; animation: pulse 2s infinite;">Processing...</p>';
     }
 
     private showPredictions(predictions: Array<{word: string, score: number}>) {
         if (predictions.length === 0) {
-            this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full">No predictions found</p>';
+            this.predictionsEl.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; width: 100%;">No predictions found</p>';
             return;
         }
 
         this.predictionsEl.innerHTML = predictions
             .map((pred, i) => `
-                <button class="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg font-mono text-xs sm:text-sm font-semibold transition-all duration-150
-                              ${i === 0 ? 
-                                'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' : 
-                                'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-gray-900 dark:text-gray-100'}"
-                        data-score="${pred.score.toFixed(3)}">
+                <button style="
+                    background: ${i === 0 ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.15)'};
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    font-weight: ${i === 0 ? '600' : '400'};
+                    font-family: monospace;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.3)'; this.style.transform='translateY(-2px)';"
+                    onmouseout="this.style.background='${i === 0 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.15)'}'; this.style.transform='translateY(0)';"
+                    data-score="${pred.score.toFixed(3)}">
                     ${pred.word}
                 </button>
             `)
@@ -221,7 +220,11 @@ class SwipeTypingApp {
     }
 
     private showError() {
-        this.predictionsEl.innerHTML = '<p class="text-red-500 dark:text-red-400 text-center w-full">Error processing swipe</p>';
+        this.predictionsEl.innerHTML = '<p style="color: #ff6b6b; text-align: center; width: 100%;">Error processing swipe</p>';
+    }
+
+    private updateStatus(text: string) {
+        this.statusEl.textContent = `Status: ${text}`;
     }
 
     private selectWord(word: string) {

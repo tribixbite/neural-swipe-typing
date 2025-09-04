@@ -78,16 +78,7 @@ class KeyboardRenderer {
     }
   }
   render() {
-    const isDark = document.documentElement.classList.contains("dark");
-    const bgGradient = this.ctx.createLinearGradient(0, 0, this.width, this.height);
-    if (isDark) {
-      bgGradient.addColorStop(0, "#1e293b");
-      bgGradient.addColorStop(1, "#0f172a");
-    } else {
-      bgGradient.addColorStop(0, "#f1f5f9");
-      bgGradient.addColorStop(1, "#e2e8f0");
-    }
-    this.ctx.fillStyle = bgGradient;
+    this.ctx.fillStyle = "#1a1a2e";
     this.ctx.fillRect(0, 0, this.width, this.height);
     this.drawKeys();
     if (this.tracePoints.length > 0) {
@@ -95,57 +86,28 @@ class KeyboardRenderer {
     }
   }
   drawKeys() {
-    const keySize = 30;
-    const fontSize = 16;
-    const isDark = document.documentElement.classList.contains("dark");
+    const keySize = 32;
+    const fontSize = 20;
     for (const key of this.keys) {
       const x = key.x;
       const y = key.y;
       const isActive = this.activeKey === key.char;
-      const currentKeySize = isActive ? keySize * 1.15 : keySize;
-      const currentFontSize = isActive ? fontSize * 1.1 : fontSize;
+      const currentKeySize = isActive ? keySize * 1.2 : keySize;
+      const currentFontSize = isActive ? fontSize * 1.15 : fontSize;
       this.ctx.save();
-      this.ctx.shadowColor = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.2)";
+      this.ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
       this.ctx.shadowBlur = 4;
       this.ctx.shadowOffsetX = 0;
       this.ctx.shadowOffsetY = 2;
-      const gradient = this.ctx.createLinearGradient(x - keySize / 2, y - keySize / 2, x + keySize / 2, y + keySize / 2);
-      if (isDark) {
-        gradient.addColorStop(0, "#475569");
-        gradient.addColorStop(0.5, "#334155");
-        gradient.addColorStop(1, "#1e293b");
-      } else {
-        gradient.addColorStop(0, "#ffffff");
-        gradient.addColorStop(0.5, "#f8fafc");
-        gradient.addColorStop(1, "#f1f5f9");
-      }
-      this.ctx.fillStyle = gradient;
-      this.roundRect(x - currentKeySize / 2, y - currentKeySize / 2, currentKeySize, currentKeySize, 5);
+      this.ctx.fillStyle = isActive ? "#5865f2" : "#2d2d44";
+      this.roundRect(x - currentKeySize / 2, y - currentKeySize / 2, currentKeySize, currentKeySize, 6);
       this.ctx.fill();
       this.ctx.restore();
-      const borderGradient = this.ctx.createLinearGradient(x - keySize / 2, y - keySize / 2, x + keySize / 2, y + keySize / 2);
-      if (isDark) {
-        borderGradient.addColorStop(0, "#64748b");
-        borderGradient.addColorStop(1, "#475569");
-      } else {
-        borderGradient.addColorStop(0, "#cbd5e1");
-        borderGradient.addColorStop(1, "#94a3b8");
-      }
-      this.ctx.strokeStyle = isActive ? "#6366f1" : borderGradient;
-      this.ctx.lineWidth = isActive ? 2 : 1;
-      this.roundRect(x - currentKeySize / 2, y - currentKeySize / 2, currentKeySize, currentKeySize, 5);
-      this.ctx.stroke();
       this.ctx.save();
-      this.ctx.fillStyle = isActive ? isDark ? "#ffffff" : "#6366f1" : isDark ? "#e5e7eb" : "#374151";
-      this.ctx.font = `600 ${currentFontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
+      this.ctx.fillStyle = isActive ? "#ffffff" : "rgba(255, 255, 255, 0.95)";
+      this.ctx.font = `400 ${currentFontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
-      if (isDark) {
-        this.ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
-        this.ctx.shadowBlur = 2;
-        this.ctx.shadowOffsetX = 0;
-        this.ctx.shadowOffsetY = 1;
-      }
       this.ctx.fillText(key.char.toUpperCase(), x, y);
       this.ctx.restore();
     }
@@ -190,16 +152,12 @@ class KeyboardRenderer {
     if (this.tracePoints.length < 2)
       return;
     this.ctx.save();
-    this.ctx.shadowColor = "rgba(99, 102, 241, 0.6)";
-    this.ctx.shadowBlur = 10;
-    this.ctx.lineWidth = 4;
+    this.ctx.shadowColor = "#5865f2";
+    this.ctx.shadowBlur = 15;
+    this.ctx.lineWidth = 3;
     this.ctx.lineCap = "round";
     this.ctx.lineJoin = "round";
-    const gradient = this.ctx.createLinearGradient(this.tracePoints[0].x, this.tracePoints[0].y, this.tracePoints[this.tracePoints.length - 1].x, this.tracePoints[this.tracePoints.length - 1].y);
-    gradient.addColorStop(0, "rgba(34, 197, 94, 0.9)");
-    gradient.addColorStop(0.5, "rgba(99, 102, 241, 0.9)");
-    gradient.addColorStop(1, "rgba(168, 85, 247, 0.9)");
-    this.ctx.strokeStyle = gradient;
+    this.ctx.strokeStyle = "#5865f2";
     this.ctx.beginPath();
     this.ctx.moveTo(this.tracePoints[0].x, this.tracePoints[0].y);
     if (this.tracePoints.length === 2) {
@@ -781,9 +739,8 @@ class SwipeTypingApp {
       this.clearPredictions();
       loggedKeys.clear();
       swipedChars = [];
-      this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Swiping...</span>';
-      this.statusEl.textContent = "Swiping";
-      this.statusEl.className = "text-sm font-semibold text-blue-600 dark:text-blue-400";
+      this.swipeCharsEl.innerHTML = '<span style="color: rgba(255,255,255,0.7); font-size: 16px;">Swiping...</span>';
+      this.updateStatus("Swiping");
     });
     this.swipeTracker.on("swipeMove", (points) => {
       this.keyboard.drawTrace(points);
@@ -801,19 +758,16 @@ class SwipeTypingApp {
     this.swipeTracker.on("swipeEnd", async (points) => {
       if (points.length < 3) {
         this.keyboard.clearTrace();
-        this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Too short - try again</span>';
-        this.statusEl.textContent = "Ready";
-        this.statusEl.className = "text-sm font-semibold text-green-600 dark:text-green-400";
+        this.swipeCharsEl.innerHTML = '<span style="color: rgba(255,255,255,0.7); font-size: 16px;">Too short - try again</span>';
+        this.updateStatus("Ready");
         return;
       }
       this.showLoadingPredictions();
-      this.statusEl.textContent = "Processing";
-      this.statusEl.className = "text-sm font-semibold text-yellow-600 dark:text-yellow-400";
+      this.updateStatus("Processing");
       try {
         const predictions = await this.predictor.predict(points, 5);
         this.showPredictions(predictions);
-        this.statusEl.textContent = "Ready";
-        this.statusEl.className = "text-sm font-semibold text-green-600 dark:text-green-400";
+        this.updateStatus("Ready");
         if (this.debugMode) {
           console.log("Swipe points:", points);
           console.log("Predictions:", predictions);
@@ -823,8 +777,7 @@ class SwipeTypingApp {
         console.error("Error stack:", error?.stack);
         console.error("Error message:", error?.message);
         this.showError();
-        this.statusEl.textContent = "Error";
-        this.statusEl.className = "text-sm font-semibold text-red-600 dark:text-red-400";
+        this.updateStatus("Error");
       }
       setTimeout(() => {
         this.keyboard.clearTrace();
@@ -833,19 +786,13 @@ class SwipeTypingApp {
     document.getElementById("clear-btn")?.addEventListener("click", () => {
       this.keyboard.clearTrace();
       this.clearPredictions();
-      this.swipeCharsEl.innerHTML = '<span class="text-gray-400 dark:text-gray-600 text-base">Touch the keyboard to start swiping...</span>';
-      this.statusEl.textContent = "Ready";
-      this.statusEl.className = "text-sm font-semibold text-green-600 dark:text-green-400";
+      this.swipeCharsEl.innerHTML = '<span style="color: rgba(255,255,255,0.6); font-size: 14px;">Touch the keyboard to start swiping...</span>';
+      this.updateStatus("Ready");
     });
     document.getElementById("debug-btn")?.addEventListener("click", () => {
       this.debugMode = !this.debugMode;
       const btn = document.getElementById("debug-btn");
       btn.textContent = this.debugMode ? "Debug: ON" : "Debug: OFF";
-      if (this.debugMode) {
-        btn.className = "px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-all duration-150 active:scale-95";
-      } else {
-        btn.className = "px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg transition-all duration-150 active:scale-95";
-      }
     });
     this.predictionsEl.addEventListener("click", (e) => {
       const target = e.target;
@@ -858,26 +805,40 @@ class SwipeTypingApp {
     });
   }
   clearPredictions() {
-    this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full">Swipe on the keyboard to see predictions</p>';
+    this.predictionsEl.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; width: 100%; font-size: 14px;">Swipe on the keyboard to see predictions</p>';
   }
   showLoadingPredictions() {
-    this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full animate-pulse">Processing...</p>';
+    this.predictionsEl.innerHTML = '<p style="color: rgba(255,255,255,0.8); text-align: center; width: 100%; animation: pulse 2s infinite;">Processing...</p>';
   }
   showPredictions(predictions) {
     if (predictions.length === 0) {
-      this.predictionsEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center w-full">No predictions found</p>';
+      this.predictionsEl.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; width: 100%;">No predictions found</p>';
       return;
     }
     this.predictionsEl.innerHTML = predictions.map((pred, i) => `
-                <button class="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg font-mono text-xs sm:text-sm font-semibold transition-all duration-150
-                              ${i === 0 ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md" : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-gray-900 dark:text-gray-100"}"
-                        data-score="${pred.score.toFixed(3)}">
+                <button style="
+                    background: ${i === 0 ? "rgba(255, 255, 255, 0.25)" : "rgba(255, 255, 255, 0.15)"};
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    font-weight: ${i === 0 ? "600" : "400"};
+                    font-family: monospace;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.3)'; this.style.transform='translateY(-2px)';"
+                    onmouseout="this.style.background='${i === 0 ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.15)"}'; this.style.transform='translateY(0)';"
+                    data-score="${pred.score.toFixed(3)}">
                     ${pred.word}
                 </button>
             `).join("");
   }
   showError() {
-    this.predictionsEl.innerHTML = '<p class="text-red-500 dark:text-red-400 text-center w-full">Error processing swipe</p>';
+    this.predictionsEl.innerHTML = '<p style="color: #ff6b6b; text-align: center; width: 100%;">Error processing swipe</p>';
+  }
+  updateStatus(text) {
+    this.statusEl.textContent = `Status: ${text}`;
   }
   selectWord(word) {
     console.log("Selected word:", word);
@@ -896,4 +857,4 @@ if (document.readyState === "loading") {
   new SwipeTypingApp;
 }
 
-//# debugId=609EC1E446B4A31E64756E2164756E21
+//# debugId=0BB1E780EB7CE78164756E2164756E21

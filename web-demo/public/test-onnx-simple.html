@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple ONNX Test</title>
+</head>
+<body>
+    <h1>Simple ONNX Loading Test</h1>
+    <div id="status">Initializing...</div>
+    <pre id="log"></pre>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+    <script>
+        function log(msg) {
+            document.getElementById('log').textContent += msg + '\n';
+            console.log(msg);
+        }
+
+        async function test() {
+            try {
+                log('Starting test...');
+                log('ort version: ' + ort.env.versions.onnxruntime);
+                
+                // Set WASM paths explicitly
+                ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+                log('WASM paths set');
+                
+                // Try to load a simple model
+                log('Creating session...');
+                const session = await ort.InferenceSession.create('/models/swipe_model_character_quant.onnx', {
+                    executionProviders: ['wasm'],
+                    graphOptimizationLevel: 'all'
+                });
+                
+                log('Session created!');
+                log('Input names: ' + session.inputNames.join(', '));
+                log('Output names: ' + session.outputNames.join(', '));
+                
+                document.getElementById('status').textContent = 'SUCCESS!';
+                
+            } catch (error) {
+                log('ERROR: ' + error.message);
+                log('Stack: ' + error.stack);
+                document.getElementById('status').textContent = 'FAILED: ' + error.message;
+            }
+        }
+
+        // Wait for ONNX Runtime to initialize
+        if (typeof ort !== 'undefined') {
+            test();
+        } else {
+            log('Waiting for ort to load...');
+            window.addEventListener('load', test);
+        }
+    </script>
+</body>
+</html>
