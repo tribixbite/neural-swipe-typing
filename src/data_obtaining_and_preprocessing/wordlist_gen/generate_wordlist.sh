@@ -1,3 +1,4 @@
+echo 'Building comprehensive word list for keyboard predictions...'
 uv run --with wordfreq --with nltk gen_words.py > en_keyboard_words_200k.txt
 
 echo "Generated $(wc -l < en_keyboard_words_200k.txt) words for keyboard predictions"
