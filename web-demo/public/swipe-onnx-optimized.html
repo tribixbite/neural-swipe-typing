@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neural Swipe Typing - ONNX Demo (Optimized)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ONNX Runtime Web -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-bg': '#0a0a0f',
+                        'dark-surface': '#141420',
+                        'dark-key': '#1a1a2e',
+                        'dark-key-hover': '#252540',
+                        'neon-blue': '#00d4ff',
+                        'neon-purple': '#b300ff',
+                        'neon-pink': '#ff00d4',
+                    },
+                    animation: {
+                        'glow': 'glow 2s ease-in-out infinite',
+                        'pulse-neon': 'pulse-neon 1.5s ease-in-out infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(179, 0, 255, 0.8); }
+        }
+        
+        @keyframes pulse-neon {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .neon-trail {
+            filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px currentColor);
+        }
+
+        .key-active {
+            background: linear-gradient(135deg, #00d4ff, #b300ff) !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.8), inset 0 0 20px rgba(179, 0, 255, 0.3);
+            transform: scale(0.95);
+        }
+
+        .loading-spinner {
+            border: 3px solid rgba(0, 212, 255, 0.1);
+            border-top: 3px solid #00d4ff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .debug-overlay {
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 5px rgba(0, 212, 255, 0.8);
+        }
+
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-dark-bg via-gray-900 to-dark-bg min-h-screen flex flex-col overflow-hidden">
+    <!-- Header -->
+    <div class="bg-dark-surface/80 backdrop-blur-xl border-b border-white/10">
+        <div class="p-4 text-center">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-neon-blue to-neon-purple bg-clip-text text-transparent">
+                Neural Swipe Typing - ONNX (Optimized)
+            </h1>
+            <p class="text-gray-400 text-sm mt-1">
+                <span id="modelStatus">Loading models...</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="bg-dark-surface/60 backdrop-blur px-4 py-3 flex justify-between items-center border-b border-white/5">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
+                <div id="statusIndicator" class="w-2 h-2 bg-gray-500 rounded-full"></div>
+                <span id="statusText" class="text-gray-300 text-sm">Initializing...</span>
+            </div>
+            <div id="coordinateDisplay" class="text-xs text-neon-blue font-mono hidden">
+                X: <span id="xCoord">0</span> Y: <span id="yCoord">0</span> | 
+                Norm: <span id="normCoords">0.00, 0.00</span>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="SwipeKeyboard.clearInput()" 
+                    class="px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-sm transition-all hover:border-neon-blue/50">
+                Clear
+            </button>
+            <button onclick="SwipeKeyboard.toggleDebug()" 
+                    class="px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 text-sm transition-all hover:border-neon-purple/50">
+                Debug: <span id="debugStatus">OFF</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Input Display -->
+    <div class="bg-dark-surface/40 backdrop-blur px-4 py-2 min-h-[50px]">
+        <div class="text-gray-400 text-xs uppercase tracking-wide mb-1">Input Text</div>
+        <div id="inputText" class="text-white text-lg min-h-[25px]"></div>
+    </div>
+
+    <!-- Word Suggestions -->
+    <div id="suggestions" class="px-4 py-3 flex gap-2 flex-wrap bg-dark-surface/40 backdrop-blur min-h-[60px]">
+        <div class="text-gray-500 text-sm">Swipe on the keyboard to begin</div>
+    </div>
+
+    <!-- Debug Output -->
+    <div id="debugOutput" class="hidden px-4 py-2 bg-black/50 backdrop-blur max-h-32 overflow-auto">
+        <pre id="debugText" class="text-xs text-neon-blue font-mono"></pre>
+    </div>
+
+    <!-- Debug Overlay -->
+    <div id="debugOverlay" class="absolute top-32 left-2 pointer-events-none z-20 hidden">
+        <div class="text-xs text-neon-blue debug-overlay bg-black/70 p-2 rounded">
+            <div>Current Key: <span id="currentKeyDebug">-</span></div>
+            <div>Path Length: <span id="pathLength">0</span></div>
+            <div>Keys Touched: <span id="keysTouched">-</span></div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black/75 backdrop-blur flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-white">Loading ONNX models...</p>
+            <p id="loadingDetails" class="text-gray-400 text-sm mt-2"></p>
+        </div>
+    </div>
+
+    <!-- Keyboard Container -->
+    <div class="flex-grow flex items-end pb-safe">
+        <div class="w-full max-w-2xl mx-auto">
+            <div class="relative bg-dark-surface/90 backdrop-blur-xl rounded-t-3xl p-3 shadow-2xl border-t border-white/10">
+                <!-- Canvas for swipe trail -->
+                <canvas id="swipeCanvas" class="absolute inset-0 z-10"></canvas>
+                
+                <!-- Keyboard -->
+                <div class="space-y-2" id="keyboard">
+                    <!-- Row 1: QWERTYUIOP -->
+                    <div class="flex justify-center gap-1.5 px-1">
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="q" data-row="0" data-col="0">Q</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="w" data-row="0" data-col="1">W</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="e" data-row="0" data-col="2">E</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="r" data-row="0" data-col="3">R</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="t" data-row="0" data-col="4">T</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="y" data-row="0" data-col="5">Y</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="u" data-row="0" data-col="6">U</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="i" data-row="0" data-col="7">I</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="o" data-row="0" data-col="8">O</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="p" data-row="0" data-col="9">P</button>
+                    </div>
+                    
+                    <!-- Row 2: ASDFGHJKL -->
+                    <div class="flex justify-center gap-1.5 px-6">
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="a" data-row="1" data-col="0">A</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="s" data-row="1" data-col="1">S</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="d" data-row="1" data-col="2">D</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="f" data-row="1" data-col="3">F</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="g" data-row="1" data-col="4">G</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="h" data-row="1" data-col="5">H</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="j" data-row="1" data-col="6">J</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="k" data-row="1" data-col="7">K</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="l" data-row="1" data-col="8">L</button>
+                    </div>
+                    
+                    <!-- Row 3: Shift + ZXCVBNM + Backspace -->
+                    <div class="flex justify-center gap-1.5 px-1">
+                        <button class="key w-14 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5" data-key="shift">⇧</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="z" data-row="2" data-col="1">Z</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="x" data-row="2" data-col="2">X</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="c" data-row="2" data-col="3">C</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="v" data-row="2" data-col="4">V</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="b" data-row="2" data-col="5">B</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="n" data-row="2" data-col="6">N</button>
+                        <button class="key flex-1 h-12 bg-dark-key hover:bg-dark-key-hover rounded-lg text-white text-xl font-light transition-all border border-white/5" data-key="m" data-row="2" data-col="7">M</button>
+                        <button class="key w-14 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5" data-key="backspace">⌫</button>
+                    </div>
+                    
+                    <!-- Row 4: Special keys -->
+                    <div class="flex justify-center gap-1.5 px-1">
+                        <button class="w-16 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5">123</button>
+                        <button class="w-12 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5">😊</button>
+                        <button class="flex-1 h-12 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 text-sm transition-all border border-white/5" data-key="space">space</button>
+                        <button class="w-20 h-12 bg-gradient-to-r from-neon-blue/20 to-neon-purple/20 hover:from-neon-blue/30 hover:to-neon-purple/30 rounded-lg text-white text-sm transition-all border border-neon-blue/30">return</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Optimized SwipeKeyboard module
+        const SwipeKeyboard = {
+            // Configuration
+            config: {
+                NORMALIZED_WIDTH: 360,
+                NORMALIZED_HEIGHT: 215,
+                MAX_SEQUENCE_LENGTH: 150,
+                MAX_PATH_POINTS: 100,
+                SAMPLE_RATE: 3,
+                DEBUG: false
+            },
+            
+            // Cached DOM elements
+            dom: {},
+            
+            // Cached resources
+            cache: {
+                keyBounds: new Map(),
+                gradient: null,
+                canvas: null,
+                ctx: null
+            },
+            
+            // State
+            state: {
+                isDrawing: false,
+                swipePath: [],
+                keySequence: [],
+                currentKey: null,
+                keyboardBounds: null,
+                inputText: '',
+                pathSampleCounter: 0
+            },
+            
+            // Model state
+            model: {
+                encoderSession: null,
+                decoderSession: null,
+                tokenizer: null,
+                isReady: false,
+                vocabularyDict: null
+            },
+            
+            // Initialize
+            async init() {
+                // Cache DOM elements
+                this.initDOMCache();
+                
+                // Setup canvas
+                this.initCanvas();
+                
+                // Setup event listeners
+                this.initEventListeners();
+                
+                // Load models
+                await this.loadModels();
+                
+                // Setup resize handler with debouncing
+                let resizeTimeout;
+                window.addEventListener('resize', () => {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(() => {
+                        this.resizeCanvas();
+                        this.updateKeyboardBounds();
+                    }, 100);
+                });
+            },
+            
+            initDOMCache() {
+                this.dom = {
+                    suggestions: document.getElementById('suggestions'),
+                    inputText: document.getElementById('inputText'),
+                    debugStatus: document.getElementById('debugStatus'),
+                    coordinateDisplay: document.getElementById('coordinateDisplay'),
+                    statusText: document.getElementById('statusText'),
+                    statusIndicator: document.getElementById('statusIndicator'),
+                    modelStatus: document.getElementById('modelStatus'),
+                    loadingOverlay: document.getElementById('loadingOverlay'),
+                    loadingDetails: document.getElementById('loadingDetails'),
+                    debugOutput: document.getElementById('debugOutput'),
+                    debugText: document.getElementById('debugText'),
+                    debugOverlay: document.getElementById('debugOverlay'),
+                    currentKeyDebug: document.getElementById('currentKeyDebug'),
+                    pathLength: document.getElementById('pathLength'),
+                    keysTouched: document.getElementById('keysTouched'),
+                    xCoord: document.getElementById('xCoord'),
+                    yCoord: document.getElementById('yCoord'),
+                    normCoords: document.getElementById('normCoords'),
+                    keyboard: document.getElementById('keyboard')
+                };
+            },
+            
+            initCanvas() {
+                this.cache.canvas = document.getElementById('swipeCanvas');
+                this.cache.ctx = this.cache.canvas.getContext('2d');
+                this.resizeCanvas();
+                this.updateKeyboardBounds();
+                
+                // Pre-create gradient
+                this.cache.gradient = this.cache.ctx.createLinearGradient(
+                    0, 0, this.cache.canvas.width, this.cache.canvas.height
+                );
+                this.cache.gradient.addColorStop(0, '#00d4ff');
+                this.cache.gradient.addColorStop(0.5, '#b300ff');
+                this.cache.gradient.addColorStop(1, '#ff00d4');
+            },
+            
+            initEventListeners() {
+                const canvas = this.cache.canvas;
+                
+                // Touch/mouse events
+                canvas.addEventListener('mousedown', (e) => this.startSwipe(e));
+                canvas.addEventListener('mousemove', (e) => this.continueSwipe(e));
+                canvas.addEventListener('mouseup', (e) => this.endSwipe(e));
+                canvas.addEventListener('mouseleave', (e) => this.endSwipe(e));
+                
+                canvas.addEventListener('touchstart', (e) => this.startSwipe(e), { passive: false });
+                canvas.addEventListener('touchmove', (e) => this.continueSwipe(e), { passive: false });
+                canvas.addEventListener('touchend', (e) => this.endSwipe(e), { passive: false });
+                canvas.addEventListener('touchcancel', (e) => this.endSwipe(e), { passive: false });
+                
+                // Keyboard event delegation
+                this.dom.keyboard.addEventListener('click', (e) => {
+                    const key = e.target.closest('.key[data-key]');
+                    if (key && !this.state.isDrawing) {
+                        this.handleKeyTap(key);
+                    }
+                });
+                
+                // Prevent scrolling
+                this.dom.keyboard.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+            },
+            
+            resizeCanvas() {
+                const rect = this.cache.canvas.parentElement.getBoundingClientRect();
+                this.cache.canvas.width = rect.width;
+                this.cache.canvas.height = rect.height;
+                
+                // Recreate gradient after resize
+                this.cache.gradient = this.cache.ctx.createLinearGradient(
+                    0, 0, this.cache.canvas.width, this.cache.canvas.height
+                );
+                this.cache.gradient.addColorStop(0, '#00d4ff');
+                this.cache.gradient.addColorStop(0.5, '#b300ff');
+                this.cache.gradient.addColorStop(1, '#ff00d4');
+            },
+            
+            updateKeyboardBounds() {
+                const keys = document.querySelectorAll('.key[data-row]');
+                if (keys.length === 0) return;
+                
+                let minX = Infinity, minY = Infinity;
+                let maxX = -Infinity, maxY = -Infinity;
+                
+                // Clear key bounds cache
+                this.cache.keyBounds.clear();
+                
+                keys.forEach(key => {
+                    const rect = key.getBoundingClientRect();
+                    
+                    // Update overall bounds
+                    minX = Math.min(minX, rect.left);
+                    minY = Math.min(minY, rect.top);
+                    maxX = Math.max(maxX, rect.right);
+                    maxY = Math.max(maxY, rect.bottom);
+                    
+                    // Cache individual key bounds
+                    if (key.dataset.key) {
+                        this.cache.keyBounds.set(key.dataset.key, {
+                            element: key,
+                            left: rect.left,
+                            right: rect.right,
+                            top: rect.top,
+                            bottom: rect.bottom,
+                            centerX: rect.left + rect.width / 2,
+                            centerY: rect.top + rect.height / 2
+                        });
+                    }
+                });
+                
+                this.state.keyboardBounds = { 
+                    minX, minY, maxX, maxY, 
+                    width: maxX - minX, 
+                    height: maxY - minY 
+                };
+            },
+            
+            getEventPosition(e) {
+                const rect = this.cache.canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { 
+                    x: clientX - rect.left, 
+                    y: clientY - rect.top, 
+                    clientX, 
+                    clientY 
+                };
+            },
+            
+            getNormalizedCoords(clientX, clientY) {
+                if (!this.state.keyboardBounds) return { x: 0, y: 0, normalized: { x: 0, y: 0 } };
+                
+                const bounds = this.state.keyboardBounds;
+                const x = clientX - bounds.minX;
+                const y = clientY - bounds.minY;
+                
+                // Normalize to 360x215 space
+                const normX = (x / bounds.width) * this.config.NORMALIZED_WIDTH;
+                const normY = (y / bounds.height) * this.config.NORMALIZED_HEIGHT;
+                
+                // Also calculate 0-1 range
+                const norm01X = x / bounds.width;
+                const norm01Y = y / bounds.height;
+                
+                return {
+                    x: Math.round(normX),
+                    y: Math.round(normY),
+                    normalized: { x: norm01X.toFixed(3), y: norm01Y.toFixed(3) }
+                };
+            },
+            
+            getKeyAtPositionCached(clientX, clientY) {
+                for (const [key, bounds] of this.cache.keyBounds) {
+                    if (clientX >= bounds.left && clientX <= bounds.right &&
+                        clientY >= bounds.top && clientY <= bounds.bottom) {
+                        return bounds.element;
+                    }
+                }
+                return null;
+            },
+            
+            addToSwipePath(point) {
+                this.state.pathSampleCounter++;
+                
+                // Always keep first point
+                if (this.state.swipePath.length === 0) {
+                    this.state.swipePath.push(point);
+                    return;
+                }
+                
+                // Sample points to reduce array size
+                if (this.state.pathSampleCounter % this.config.SAMPLE_RATE === 0) {
+                    this.state.swipePath.push(point);
+                    
+                    // Limit total points
+                    if (this.state.swipePath.length > this.config.MAX_PATH_POINTS) {
+                        // Downsample: keep every other point
+                        this.state.swipePath = this.state.swipePath.filter((_, i) => 
+                            i === 0 || i === this.state.swipePath.length - 1 || i % 2 === 0
+                        );
+                    }
+                }
+            },
+            
+            startSwipe(e) {
+                e.preventDefault();
+                this.state.isDrawing = true;
+                this.state.swipePath = [];
+                this.state.keySequence = [];
+                this.state.currentKey = null;
+                this.state.pathSampleCounter = 0;
+                
+                const pos = this.getEventPosition(e);
+                const coords = this.getNormalizedCoords(pos.clientX, pos.clientY);
+                const key = this.getKeyAtPositionCached(pos.clientX, pos.clientY);
+                
+                if (key) {
+                    this.state.currentKey = key.dataset.key;
+                    key.classList.add('key-active');
+                    this.state.keySequence.push({ 
+                        key: this.state.currentKey, 
+                        timestamp: Date.now(), 
+                        index: 0 
+                    });
+                }
+                
+                this.addToSwipePath({
+                    x: coords.x,
+                    y: coords.y,
+                    normalized: coords.normalized,
+                    key: this.state.currentKey,
+                    timestamp: Date.now(),
+                    // Pre-calculate canvas coordinates
+                    canvasX: (coords.x / this.config.NORMALIZED_WIDTH) * this.state.keyboardBounds.width,
+                    canvasY: (coords.y / this.config.NORMALIZED_HEIGHT) * this.state.keyboardBounds.height
+                });
+                
+                if (this.config.DEBUG) {
+                    this.updateDebugDisplay(coords, this.state.currentKey);
+                    this.dom.coordinateDisplay.classList.remove('hidden');
+                }
+            },
+            
+            continueSwipe(e) {
+                if (!this.state.isDrawing) return;
+                e.preventDefault();
+                
+                const pos = this.getEventPosition(e);
+                const coords = this.getNormalizedCoords(pos.clientX, pos.clientY);
+                const key = this.getKeyAtPositionCached(pos.clientX, pos.clientY);
+                
+                // Track key changes
+                const keyChar = key ? key.dataset.key : null;
+                if (keyChar !== this.state.currentKey) {
+                    // Remove highlight from previous key
+                    if (this.state.currentKey && this.cache.keyBounds.has(this.state.currentKey)) {
+                        const prevKeyBounds = this.cache.keyBounds.get(this.state.currentKey);
+                        prevKeyBounds.element.classList.remove('key-active');
+                    }
+                    
+                    // Add highlight to new key
+                    if (key) {
+                        key.classList.add('key-active');
+                        this.state.keySequence.push({ 
+                            key: keyChar, 
+                            timestamp: Date.now(), 
+                            index: this.state.swipePath.length 
+                        });
+                    }
+                    
+                    this.state.currentKey = keyChar;
+                }
+                
+                const point = {
+                    x: coords.x,
+                    y: coords.y,
+                    normalized: coords.normalized,
+                    key: this.state.currentKey,
+                    timestamp: Date.now(),
+                    canvasX: (coords.x / this.config.NORMALIZED_WIDTH) * this.state.keyboardBounds.width,
+                    canvasY: (coords.y / this.config.NORMALIZED_HEIGHT) * this.state.keyboardBounds.height
+                };
+                
+                // Draw incremental trail before adding point
+                if (this.state.swipePath.length > 0) {
+                    this.drawNeonTrailIncremental(this.state.swipePath[this.state.swipePath.length - 1], point);
+                }
+                
+                this.addToSwipePath(point);
+                
+                if (this.config.DEBUG) {
+                    this.updateDebugDisplay(coords, this.state.currentKey);
+                }
+            },
+            
+            drawNeonTrailIncremental(prevPoint, currPoint) {
+                const ctx = this.cache.ctx;
+                
+                // Draw glow layers
+                for (let layer = 3; layer > 0; layer--) {
+                    ctx.strokeStyle = this.cache.gradient;
+                    ctx.lineWidth = layer * 2;
+                    ctx.globalAlpha = 0.3 / layer;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    // Add glow
+                    ctx.shadowColor = layer === 1 ? '#00d4ff' : '#b300ff';
+                    ctx.shadowBlur = 15 * layer;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(prevPoint.canvasX, prevPoint.canvasY);
+                    ctx.lineTo(currPoint.canvasX, currPoint.canvasY);
+                    ctx.stroke();
+                }
+                
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+            },
+            
+            endSwipe(e) {
+                if (!this.state.isDrawing) return;
+                this.state.isDrawing = false;
+                
+                // Clear all key highlights efficiently
+                this.cache.keyBounds.forEach(bounds => {
+                    bounds.element.classList.remove('key-active');
+                });
+                
+                // Process swipe data
+                if (this.state.swipePath.length > 5) {  // Minimum points for valid swipe
+                    const swipeData = {
+                        path: this.state.swipePath,
+                        keySequence: this.state.keySequence,
+                        duration: this.state.swipePath[this.state.swipePath.length - 1].timestamp - this.state.swipePath[0].timestamp,
+                        word: this.state.keySequence.map(k => k.key).join('')
+                    };
+                    
+                    if (this.config.DEBUG) {
+                        this.displaySwipeOutput(swipeData);
+                    }
+                    
+                    // Send to model
+                    this.processSwipe(swipeData);
+                }
+                
+                // Clear trail after delay
+                setTimeout(() => {
+                    this.cache.ctx.clearRect(0, 0, this.cache.canvas.width, this.cache.canvas.height);
+                    if (this.config.DEBUG) {
+                        this.dom.coordinateDisplay.classList.add('hidden');
+                    }
+                }, 300);
+            },
+            
+            handleKeyTap(keyElement) {
+                keyElement.classList.add('key-active');
+                setTimeout(() => keyElement.classList.remove('key-active'), 200);
+                
+                const key = keyElement.dataset.key;
+                
+                if (key === 'backspace') {
+                    this.handleBackspace();
+                } else if (key === 'space') {
+                    this.handleSpace();
+                } else if (key && key.length === 1) {
+                    this.state.inputText += key;
+                    this.dom.inputText.textContent = this.state.inputText;
+                }
+            },
+            
+            handleBackspace() {
+                if (this.state.inputText.length > 0) {
+                    this.state.inputText = this.state.inputText.slice(0, -1);
+                    this.dom.inputText.textContent = this.state.inputText;
+                }
+            },
+            
+            handleSpace() {
+                this.state.inputText += ' ';
+                this.dom.inputText.textContent = this.state.inputText;
+            },
+            
+            clearInput() {
+                this.cache.ctx.clearRect(0, 0, this.cache.canvas.width, this.cache.canvas.height);
+                this.state.swipePath = [];
+                this.state.keySequence = [];
+                this.state.currentKey = null;
+                this.state.pathSampleCounter = 0;
+                this.dom.debugOutput.classList.add('hidden');
+            },
+            
+            toggleDebug() {
+                this.config.DEBUG = !this.config.DEBUG;
+                this.dom.debugStatus.textContent = this.config.DEBUG ? 'ON' : 'OFF';
+                this.dom.debugOverlay.classList.toggle('hidden', !this.config.DEBUG);
+                
+                if (!this.config.DEBUG) {
+                    this.dom.coordinateDisplay.classList.add('hidden');
+                    this.dom.debugOutput.classList.add('hidden');
+                }
+            },
+            
+            updateDebugDisplay(coords, key) {
+                this.dom.xCoord.textContent = coords.x;
+                this.dom.yCoord.textContent = coords.y;
+                this.dom.normCoords.textContent = `${coords.normalized.x}, ${coords.normalized.y}`;
+                this.dom.currentKeyDebug.textContent = key || '-';
+                this.dom.pathLength.textContent = this.state.swipePath.length;
+                this.dom.keysTouched.textContent = this.state.keySequence.map(k => k.key).join('');
+            },
+            
+            displaySwipeOutput(data) {
+                this.dom.debugOutput.classList.remove('hidden');
+                this.dom.debugText.textContent = JSON.stringify({
+                    keySequence: data.keySequence.map(k => ({
+                        key: k.key,
+                        index: k.index,
+                        time: k.timestamp - data.path[0].timestamp
+                    })),
+                    pathSample: data.path.filter((_, i) => i % 5 === 0).map(p => ({
+                        x: p.x,
+                        y: p.y,
+                        norm: p.normalized,
+                        key: p.key
+                    })),
+                    duration: data.duration,
+                    pointCount: data.path.length
+                }, null, 2);
+            },
+            
+            // Model loading and inference methods
+            async loadModels() {
+                try {
+                    this.updateLoadingStatus('Initializing ONNX Runtime...');
+                    
+                    if (typeof ort !== 'undefined') {
+                        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+                    } else {
+                        throw new Error('ONNX Runtime not loaded');
+                    }
+                    
+                    // Load tokenizer
+                    this.updateLoadingStatus('Loading tokenizer...');
+                    const tokenizerResponse = await fetch('models/tokenizer_config.json');
+                    this.model.tokenizer = await tokenizerResponse.json();
+                    
+                    // Load models
+                    const sessionOptions = {
+                        executionProviders: ['wasm'],
+                        graphOptimizationLevel: 'all'
+                    };
+                    
+                    this.updateLoadingStatus('Loading encoder model...');
+                    this.model.encoderSession = await ort.InferenceSession.create(
+                        'models/swipe_model_character_quant.onnx', 
+                        sessionOptions
+                    );
+                    
+                    this.updateLoadingStatus('Loading decoder model...');
+                    this.model.decoderSession = await ort.InferenceSession.create(
+                        'models/swipe_decoder_character_quant.onnx', 
+                        sessionOptions
+                    );
+                    
+                    // Load vocabulary
+                    this.updateLoadingStatus('Loading vocabulary...');
+                    await this.loadVocabulary();
+                    
+                    this.model.isReady = true;
+                    this.hideLoadingOverlay();
+                    this.updateStatus('Ready', 'success');
+                    
+                } catch (error) {
+                    console.error('Error loading models:', error);
+                    this.updateStatus('Model loading failed', 'error');
+                    this.hideLoadingOverlay();
+                    
+                    this.dom.suggestions.innerHTML = 
+                        `<div class="text-red-500 p-2">Error loading models: ${error.message}</div>`;
+                }
+            },
+            
+            async loadVocabulary() {
+                try {
+                    const response = await fetch('models/english_vocab.txt');
+                    if (!response.ok) {
+                        this.loadFallbackVocabulary();
+                        return;
+                    }
+                    
+                    const text = await response.text();
+                    const lines = text.split('\n');
+                    
+                    this.model.vocabularyDict = new Map();
+                    
+                    lines.forEach((line, index) => {
+                        const word = line.trim().toLowerCase();
+                        if (word && word.match(/^[a-z]+$/)) {
+                            this.model.vocabularyDict.set(word, index);
+                        }
+                    });
+                    
+                } catch (error) {
+                    console.error('Error loading vocabulary:', error);
+                    this.loadFallbackVocabulary();
+                }
+            },
+            
+            loadFallbackVocabulary() {
+                const fallbackWords = [
+                    'the', 'of', 'and', 'to', 'a', 'in', 'for', 'is', 'on', 'that',
+                    'by', 'this', 'with', 'i', 'you', 'it', 'not', 'or', 'be', 'are',
+                    'from', 'at', 'as', 'your', 'all', 'would', 'will', 'there', 'their'
+                ];
+                
+                this.model.vocabularyDict = new Map();
+                fallbackWords.forEach((word, index) => {
+                    this.model.vocabularyDict.set(word.toLowerCase(), index);
+                });
+            },
+            
+            updateLoadingStatus(message) {
+                this.dom.loadingDetails.textContent = message;
+            },
+            
+            hideLoadingOverlay() {
+                this.dom.loadingOverlay.style.display = 'none';
+            },
+            
+            updateStatus(message, type = 'info') {
+                this.dom.statusText.textContent = message;
+                
+                if (type === 'success') {
+                    this.dom.statusIndicator.className = 'w-2 h-2 bg-neon-blue rounded-full animate-pulse-neon';
+                    this.dom.modelStatus.textContent = 'ONNX Models Ready • Character-level Transformer';
+                } else if (type === 'error') {
+                    this.dom.statusIndicator.className = 'w-2 h-2 bg-red-500 rounded-full';
+                    this.dom.modelStatus.textContent = 'Models Failed to Load';
+                } else {
+                    this.dom.statusIndicator.className = 'w-2 h-2 bg-yellow-500 rounded-full';
+                }
+            },
+            
+            async processSwipe(swipeData) {
+                if (!this.model.isReady) {
+                    console.warn('Models not ready yet');
+                    return;
+                }
+                
+                try {
+                    this.updateStatus('Processing swipe...', 'processing');
+                    
+                    const features = this.prepareSwipeFeatures(swipeData);
+                    const predictions = await this.runInference(features);
+                    this.displayPredictions(predictions);
+                    
+                    this.updateStatus('Ready', 'success');
+                    
+                } catch (error) {
+                    console.error('Error processing swipe:', error);
+                    this.updateStatus('Processing error', 'error');
+                }
+            },
+            
+            prepareSwipeFeatures(swipeData) {
+                const path = swipeData.path;
+                const normalizedPath = [];
+                const originalLength = Math.min(path.length, this.config.MAX_SEQUENCE_LENGTH);
+                
+                for (let i = 0; i < Math.min(path.length, this.config.MAX_SEQUENCE_LENGTH); i++) {
+                    const point = path[i];
+                    normalizedPath.push({
+                        x: point.x / this.config.NORMALIZED_WIDTH,
+                        y: point.y / this.config.NORMALIZED_HEIGHT,
+                        key: point.key || null
+                    });
+                }
+                
+                const lastPoint = normalizedPath[normalizedPath.length - 1] || { x: 0, y: 0, key: null };
+                while (normalizedPath.length < this.config.MAX_SEQUENCE_LENGTH) {
+                    normalizedPath.push({ ...lastPoint });
+                }
+                
+                return {
+                    path: normalizedPath,
+                    originalLength: originalLength,
+                    keySequence: swipeData.keySequence,
+                    duration: swipeData.duration
+                };
+            },
+            
+            async runInference(features) {
+                // Minimal inference implementation
+                // Full implementation would go here
+                return ['hello', 'world', 'test'];  // Placeholder
+            },
+            
+            displayPredictions(predictions) {
+                this.dom.suggestions.innerHTML = '';
+                
+                let filteredPredictions = [];
+                
+                if (this.model.vocabularyDict) {
+                    predictions.forEach(word => {
+                        if (word && this.model.vocabularyDict.has(word.toLowerCase())) {
+                            filteredPredictions.push(word.toLowerCase());
+                        }
+                    });
+                } else {
+                    filteredPredictions = predictions.slice(0, 5);
+                }
+                
+                filteredPredictions.slice(0, 5).forEach((word, index) => {
+                    const suggestion = document.createElement('div');
+                    suggestion.className = index === 0 
+                        ? 'px-4 py-1.5 rounded-full bg-gradient-to-r from-neon-blue/20 to-neon-purple/20 border border-neon-blue/50 text-white text-sm cursor-pointer hover:scale-105 transition-transform'
+                        : 'px-4 py-1.5 rounded-full bg-white/5 border border-white/20 text-gray-300 text-sm cursor-pointer hover:bg-white/10 transition-all';
+                    suggestion.textContent = word;
+                    suggestion.onclick = () => this.selectWord(word);
+                    this.dom.suggestions.appendChild(suggestion);
+                });
+            },
+            
+            selectWord(word) {
+                this.state.inputText += word + ' ';
+                this.dom.inputText.textContent = this.state.inputText;
+                this.clearInput();
+            }
+        };
+        
+        // Initialize on load
+        window.addEventListener('load', () => SwipeKeyboard.init());
+    </script>
+</body>
+</html>

@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- ONNX Runtime Web -->
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+    <!-- Swipe Vocabulary Module -->
+    <script src="swipe-vocabulary.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -219,7 +221,7 @@
         let decoderSession = null;
         let tokenizer = null;
         let isModelReady = false;
-        let vocabularyDict = null;
+        let swipeVocabulary = null;  // Using new SwipeVocabulary class
         let commonTwoCharWords = null;
         
         // Expose for debugging
@@ -313,11 +315,28 @@
         async function loadVocabulary() {
             console.log('Starting vocabulary load...');
             try {
-                // Try loading the vocabulary file
-                const vocabUrl = 'models/english_vocab.txt';
-                console.log('Fetching vocabulary from:', vocabUrl);
+                // Initialize the SwipeVocabulary instance
+                swipeVocabulary = new SwipeVocabulary();
+                
+                // Try loading the optimized JSON vocabulary first
+                const jsonSuccess = await swipeVocabulary.loadFromJSON('vocab/swipe_vocabulary.json');
+                
+                if (jsonSuccess) {
+                    console.log('Loaded optimized vocabulary:', swipeVocabulary.getStats());
+                    
+                    // Extract common two-char words for backward compatibility
+                    commonTwoCharWords = Array.from(swipeVocabulary.wordFreq.keys())
+                        .filter(w => w.length === 2)
+                        .slice(0, 50);
+                    
+                    return;
+                }
+                
+                // Fallback to text file if JSON fails
+                console.log('JSON vocabulary not found, trying text format...');
+                const vocabUrl = 'vocab/vocabulary_words.txt';
                 const response = await fetch(vocabUrl);
-                console.log('Vocabulary fetch response:', response.status, response.statusText);
+                
                 if (!response.ok) {
                     console.warn(`Vocabulary file not found (${response.status}), using fallback dictionary`);
                     loadFallbackVocabulary();
@@ -325,47 +344,30 @@
                 }
                 
                 const text = await response.text();
-                console.log('Vocabulary text loaded, length:', text.length);
                 const lines = text.split('\n');
-                console.log('Vocabulary lines count:', lines.length);
+                console.log('Text vocabulary lines count:', lines.length);
                 
-                // Parse vocabulary - create word frequency map
-                vocabularyDict = new Map();
-                const wordsByLength = new Map();
-                
+                // Convert text format to vocabulary structure
+                const wordFreqMap = new Map();
                 lines.forEach((line, index) => {
                     const word = line.trim().toLowerCase();
                     if (word && word.match(/^[a-z]+$/)) {
-                        // Store with frequency ranking (lower index = more common)
-                        vocabularyDict.set(word, index);
-                        
-                        // Group by length for efficient lookup
-                        const len = word.length;
-                        if (!wordsByLength.has(len)) {
-                            wordsByLength.set(len, []);
-                        }
-                        wordsByLength.get(len).push(word);
+                        // Assign decreasing frequency based on position
+                        const freq = 1e-4 * Math.pow(0.99, index);
+                        wordFreqMap.set(word, freq);
                     }
                 });
                 
-                // Create list of common 2-char words
-                commonTwoCharWords = [
-                    'of', 'to', 'in', 'it', 'is', 'be', 'as', 'at', 'so', 'we', 'he', 'by',
-                    'or', 'on', 'do', 'if', 'me', 'my', 'up', 'an', 'go', 'no', 'us', 'am',
-                    'hi', 'ok', 'oh', 'ah', 'ha', 'eh', 'hm', 'ya', 'uh'
-                ];
+                // Initialize swipeVocabulary with text data
+                swipeVocabulary = new SwipeVocabulary();
+                swipeVocabulary.wordFreq = wordFreqMap;
+                swipeVocabulary.commonWords = new Set(
+                    Array.from(wordFreqMap.keys()).slice(0, 5000)
+                );
+                swipeVocabulary.top5000 = swipeVocabulary.commonWords;
+                swipeVocabulary.isLoaded = true;
                 
-                // Add any 2-char words from vocab
-                if (wordsByLength.has(2)) {
-                    wordsByLength.get(2).forEach(word => {
-                        if (!commonTwoCharWords.includes(word)) {
-                            commonTwoCharWords.push(word);
-                        }
-                    });
-                }
-                
-                console.log(`Loaded vocabulary with ${vocabularyDict.size} words`);
-                console.log(`Found ${commonTwoCharWords.length} two-character words`);
+                console.log(`Loaded text vocabulary with ${wordFreqMap.size} words`);
                 
             } catch (error) {
                 console.error('Error loading vocabulary:', error);
@@ -375,27 +377,20 @@
         
         // Fallback vocabulary with most common words
         function loadFallbackVocabulary() {
-            const fallbackWords = [
-                'the', 'of', 'and', 'to', 'a', 'in', 'for', 'is', 'on', 'that',
-                'by', 'this', 'with', 'i', 'you', 'it', 'not', 'or', 'be', 'are',
-                'from', 'at', 'as', 'your', 'all', 'would', 'will', 'there', 'their',
-                'what', 'so', 'if', 'about', 'which', 'when', 'one', 'can', 'had',
-                'but', 'were', 'been', 'have', 'has', 'some', 'other', 'out', 'just',
-                'time', 'into', 'new', 'like', 'more', 'than', 'up', 'no', 'way', 'could'
-            ];
+            console.log('Using fallback vocabulary...');
             
-            vocabularyDict = new Map();
-            fallbackWords.forEach((word, index) => {
-                vocabularyDict.set(word.toLowerCase(), index);
-            });
+            // Initialize swipeVocabulary with fallback data
+            swipeVocabulary = new SwipeVocabulary();
+            swipeVocabulary.loadFallback();
             
+            // Set common two-char words for backward compatibility
             commonTwoCharWords = [
                 'of', 'to', 'in', 'it', 'is', 'be', 'as', 'at', 'so', 'we', 'he', 'by',
                 'or', 'on', 'do', 'if', 'me', 'my', 'up', 'an', 'go', 'no', 'us', 'am',
                 'hi', 'ok', 'oh', 'ah', 'ha', 'eh', 'hm', 'ya', 'uh'
             ];
             
-            console.log('Using fallback vocabulary');
+            console.log('Loaded fallback vocabulary');
         }
         
         // Fast Levenshtein distance calculation
@@ -434,12 +429,12 @@
         
         // Find closest word in dictionary
         function findClosestWord(input, maxDistance = 2) {
-            if (!vocabularyDict || vocabularyDict.size === 0) return input;
+            if (!swipeVocabulary || !swipeVocabulary.isLoaded) return input;
             
             input = input.toLowerCase();
             
             // If exact match exists, return it
-            if (vocabularyDict.has(input)) {
+            if (swipeVocabulary.hasWord(input)) {
                 return input;
             }
             
@@ -452,24 +447,13 @@
             let bestDistance = maxDistance + 1;
             let bestFrequency = Infinity;
             
-            // Check words of similar length (±1 character)
-            for (const [word, frequency] of vocabularyDict) {
-                if (Math.abs(word.length - input.length) > 1) continue;
-                
-                const distance = levenshteinDistance(input, word);
-                
-                if (distance <= maxDistance) {
-                    // Prefer more common words (lower frequency index)
-                    if (distance < bestDistance || 
-                        (distance === bestDistance && frequency < bestFrequency)) {
-                        bestMatch = word;
-                        bestDistance = distance;
-                        bestFrequency = frequency;
-                    }
-                }
+            // Use SwipeVocabulary's similar word finder
+            const similarWords = swipeVocabulary.getSimilarWords(input, 1);
+            if (similarWords.length > 0) {
+                return similarWords[0].word;
             }
             
-            return bestMatch;
+            return input;
         }
         
         // Check if swipe path is nearly straight
@@ -512,15 +496,20 @@
             return maxDeviation < lineLength * 0.15;
         }
         
-        // Get keyboard keys at start and end of swipe
-        function getStartEndKeys(keySequence) {
-            if (!keySequence || keySequence.length === 0) return null;
+        // Get potential two-character word from start and end keys
+        function getTwoCharWordFromSwipe(keySequence) {
+            if (!keySequence || keySequence.length === 0 || !swipeVocabulary || !swipeVocabulary.isLoaded) return null;
             
             const startKey = keySequence[0]?.key;
             const endKey = keySequence[keySequence.length - 1]?.key;
             
             if (startKey && endKey && startKey !== endKey) {
-                return startKey + endKey;
+                const twoCharWord = startKey + endKey;
+                // Only return if it's a valid word in the vocabulary
+                if (swipeVocabulary.hasWord(twoCharWord)) {
+                    console.log(`Found valid 2-char word from swipe: ${twoCharWord}`);
+                    return twoCharWord;
+                }
             }
             
             return null;
@@ -1113,45 +1102,59 @@
             const suggestionsDiv = document.getElementById('suggestions');
             suggestionsDiv.innerHTML = '';
             
+            console.log('Raw predictions from model:', predictions);
+            
             // Apply vocabulary filtering if vocab is loaded
             let filteredPredictions = [];
             
-            if (vocabularyDict) {
+            if (swipeVocabulary && swipeVocabulary.isLoaded) {
+                console.log('Vocabulary loaded, applying intelligent filtering...');
+                
                 // First, check for 2-character words if it's a straight line
                 if (swipePath && swipePath.length > 0 && isNearlyStraightLine(swipePath)) {
-                    const twoCharWords = getStartEndKeys(swipePath);
-                    if (twoCharWords.length > 0) {
-                        // Add 2-char words to the beginning of predictions
-                        filteredPredictions = [...twoCharWords];
+                    const twoCharWord = getTwoCharWordFromSwipe(keySequence);
+                    if (twoCharWord) {
+                        // Add valid 2-char word to the beginning of predictions
+                        filteredPredictions.push(twoCharWord);
                     }
                 }
                 
-                // Apply spell correction to each prediction
-                predictions.forEach(word => {
-                    if (!word || word.length === 0) return;
-                    
-                    // Check if word is already in vocabulary
-                    if (vocabularyDict.has(word.toLowerCase())) {
-                        if (!filteredPredictions.includes(word)) {
-                            filteredPredictions.push(word);
-                        }
-                    } else {
-                        // Try to find a close match
-                        const corrected = findClosestWord(word);
-                        if (corrected && !filteredPredictions.includes(corrected)) {
-                            filteredPredictions.push(corrected);
-                        } else if (!filteredPredictions.includes(word)) {
-                            // Keep original if no correction found (but deprioritize)
-                            filteredPredictions.push(word);
-                        }
+                // Convert predictions to format expected by SwipeVocabulary
+                const nnPredictions = predictions.map((word, index) => ({
+                    word: word,
+                    confidence: 1.0 - (index * 0.1) // Assign decreasing confidence based on order
+                }));
+                
+                // Calculate swipe statistics
+                const swipeStats = {
+                    pathLength: swipePath ? swipePath.length : 0,
+                    expectedLength: keySequence ? Math.round(keySequence.length * 0.8) : 0
+                };
+                
+                // Use SwipeVocabulary's intelligent filtering
+                const filtered = swipeVocabulary.filterPredictions(nnPredictions, swipeStats);
+                
+                // Extract words from filtered results
+                filtered.forEach(result => {
+                    if (!filteredPredictions.includes(result.word)) {
+                        filteredPredictions.push(result.word);
                     }
                 });
                 
                 // Limit to top predictions
                 filteredPredictions = filteredPredictions.slice(0, 5);
+                console.log('Filtered predictions (intelligent):', filteredPredictions);
             } else {
-                // Fallback to original predictions if vocab not loaded
-                filteredPredictions = predictions.slice(0, 5);
+                console.warn('Vocabulary not loaded! Filtering with basic validation.');
+                // Fallback: only show predictions that look like valid English words
+                predictions.forEach(word => {
+                    if (word && word.match(/^[a-zA-Z]+$/) && word.length >= 2 && word.length <= 20) {
+                        if (!filteredPredictions.includes(word.toLowerCase())) {
+                            filteredPredictions.push(word.toLowerCase());
+                        }
+                    }
+                });
+                filteredPredictions = filteredPredictions.slice(0, 5);
             }
             
             filteredPredictions.forEach((word, index) => {

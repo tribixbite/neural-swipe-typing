@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Processing Performance Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/optimized-vocabulary.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-blue-400">Vocabulary Processing Performance Comparison</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Original Implementation -->
+            <div class="bg-gray-800 rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4 text-orange-400">Original Implementation</h2>
+                <div id="original-stats" class="space-y-2 text-sm">
+                    <div>Status: <span id="original-status" class="text-gray-400">Not started</span></div>
+                    <div>Load Time: <span id="original-load-time" class="text-gray-400">-</span></div>
+                    <div>Memory Used: <span id="original-memory" class="text-gray-400">-</span></div>
+                    <div>Words Loaded: <span id="original-words" class="text-gray-400">-</span></div>
+                    <div>Spell Check Time: <span id="original-spell" class="text-gray-400">-</span></div>
+                </div>
+                <button onclick="testOriginal()" class="mt-4 px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded">
+                    Test Original
+                </button>
+            </div>
+            
+            <!-- Optimized Implementation -->
+            <div class="bg-gray-800 rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4 text-green-400">Optimized Implementation</h2>
+                <div id="optimized-stats" class="space-y-2 text-sm">
+                    <div>Status: <span id="optimized-status" class="text-gray-400">Not started</span></div>
+                    <div>Load Time: <span id="optimized-load-time" class="text-gray-400">-</span></div>
+                    <div>Memory Used: <span id="optimized-memory" class="text-gray-400">-</span></div>
+                    <div>Words Loaded: <span id="optimized-words" class="text-gray-400">-</span></div>
+                    <div>Spell Check Time: <span id="optimized-spell" class="text-gray-400">-</span></div>
+                </div>
+                <button onclick="testOptimized()" class="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 rounded">
+                    Test Optimized
+                </button>
+            </div>
+        </div>
+        
+        <!-- Test Controls -->
+        <div class="bg-gray-800 rounded-lg p-6 mb-8">
+            <h3 class="text-lg font-semibold mb-4">Spell Correction Test</h3>
+            <div class="flex gap-4 mb-4">
+                <input type="text" id="test-word" placeholder="Enter misspelled word" 
+                       class="flex-1 px-4 py-2 bg-gray-700 rounded" value="helo">
+                <button onclick="testSpellCorrection()" 
+                        class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded">
+                    Test Spell Correction
+                </button>
+            </div>
+            <div id="spell-results" class="space-y-2"></div>
+        </div>
+        
+        <!-- Performance Results -->
+        <div class="bg-gray-800 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Performance Summary</h3>
+            <div id="performance-summary" class="space-y-2 text-sm">
+                <p class="text-gray-400">Run both tests to see comparison...</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let originalVocab = null;
+        let optimizedVocab = null;
+        let originalData = {};
+        let optimizedData = {};
+        
+        // Original implementation (simplified from swipe-onnx.html)
+        async function testOriginal() {
+            const statusEl = document.getElementById('original-status');
+            const loadTimeEl = document.getElementById('original-load-time');
+            const memoryEl = document.getElementById('original-memory');
+            const wordsEl = document.getElementById('original-words');
+            const spellEl = document.getElementById('original-spell');
+            
+            statusEl.textContent = 'Loading...';
+            statusEl.className = 'text-yellow-400';
+            
+            const startTime = performance.now();
+            const startMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+            
+            try {
+                // Original implementation
+                const response = await fetch('models/english_vocab.txt');
+                const text = await response.text();  // Load entire file
+                const lines = text.split('\n');      // Create huge array
+                
+                const vocabularyDict = new Map();
+                const wordsByLength = new Map();     // Redundant structure
+                
+                lines.forEach((line, index) => {
+                    const word = line.trim().toLowerCase();
+                    if (word && word.match(/^[a-z]+$/)) {
+                        vocabularyDict.set(word, index);
+                        
+                        // Redundant indexing
+                        const len = word.length;
+                        if (!wordsByLength.has(len)) {
+                            wordsByLength.set(len, []);
+                        }
+                        wordsByLength.get(len).push(word);
+                    }
+                });
+                
+                const loadTime = performance.now() - startTime;
+                const endMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+                const memoryUsed = (endMemory - startMemory) / 1048576;
+                
+                originalVocab = { dict: vocabularyDict, byLength: wordsByLength };
+                originalData = {
+                    loadTime,
+                    memoryUsed,
+                    wordCount: vocabularyDict.size
+                };
+                
+                // Test spell correction speed
+                const spellStart = performance.now();
+                const testWords = ['helo', 'wrold', 'teh', 'recieve', 'definately'];
+                for (const word of testWords) {
+                    findClosestWordOriginal(word, vocabularyDict);
+                }
+                const spellTime = (performance.now() - spellStart) / testWords.length;
+                originalData.spellTime = spellTime;
+                
+                statusEl.textContent = 'Completed';
+                statusEl.className = 'text-green-400';
+                loadTimeEl.textContent = `${loadTime.toFixed(2)}ms`;
+                memoryEl.textContent = `${memoryUsed.toFixed(2)}MB`;
+                wordsEl.textContent = vocabularyDict.size.toLocaleString();
+                spellEl.textContent = `${spellTime.toFixed(2)}ms avg`;
+                
+                updateSummary();
+                
+            } catch (error) {
+                statusEl.textContent = 'Error: ' + error.message;
+                statusEl.className = 'text-red-400';
+            }
+        }
+        
+        // Original spell correction (inefficient)
+        function findClosestWordOriginal(input, vocabularyDict) {
+            input = input.toLowerCase();
+            
+            if (vocabularyDict.has(input)) {
+                return input;
+            }
+            
+            let bestMatch = input;
+            let bestDistance = 3;
+            
+            // Iterate through ENTIRE vocabulary
+            for (const [word, frequency] of vocabularyDict) {
+                if (Math.abs(word.length - input.length) > 1) continue;
+                
+                const distance = levenshteinDistance(input, word);
+                if (distance < bestDistance) {
+                    bestMatch = word;
+                    bestDistance = distance;
+                }
+            }
+            
+            return bestMatch;
+        }
+        
+        function levenshteinDistance(s1, s2) {
+            if (s1 === s2) return 0;
+            const m = s1.length;
+            const n = s2.length;
+            const dp = Array(m + 1).fill().map(() => Array(n + 1).fill(0));
+            
+            for (let i = 0; i <= m; i++) dp[i][0] = i;
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+            
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    const cost = s1[i-1] === s2[j-1] ? 0 : 1;
+                    dp[i][j] = Math.min(
+                        dp[i-1][j] + 1,
+                        dp[i][j-1] + 1,
+                        dp[i-1][j-1] + cost
+                    );
+                }
+            }
+            
+            return dp[m][n];
+        }
+        
+        // Optimized implementation
+        async function testOptimized() {
+            const statusEl = document.getElementById('optimized-status');
+            const loadTimeEl = document.getElementById('optimized-load-time');
+            const memoryEl = document.getElementById('optimized-memory');
+            const wordsEl = document.getElementById('optimized-words');
+            const spellEl = document.getElementById('optimized-spell');
+            
+            statusEl.textContent = 'Loading...';
+            statusEl.className = 'text-yellow-400';
+            
+            const startTime = performance.now();
+            const startMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+            
+            try {
+                optimizedVocab = new OptimizedVocabulary();
+                await optimizedVocab.loadFromFile('models/english_vocab.txt');
+                
+                const loadTime = performance.now() - startTime;
+                const endMemory = performance.memory ? performance.memory.usedJSHeapSize : 0;
+                const memoryUsed = (endMemory - startMemory) / 1048576;
+                
+                optimizedData = {
+                    loadTime,
+                    memoryUsed,
+                    wordCount: optimizedVocab.totalWords
+                };
+                
+                // Test spell correction speed
+                const spellStart = performance.now();
+                const testWords = ['helo', 'wrold', 'teh', 'recieve', 'definately'];
+                for (const word of testWords) {
+                    optimizedVocab.findClosestWord(word);
+                }
+                const spellTime = (performance.now() - spellStart) / testWords.length;
+                optimizedData.spellTime = spellTime;
+                
+                statusEl.textContent = 'Completed';
+                statusEl.className = 'text-green-400';
+                loadTimeEl.textContent = `${loadTime.toFixed(2)}ms`;
+                memoryEl.textContent = `${memoryUsed.toFixed(2)}MB`;
+                wordsEl.textContent = optimizedVocab.totalWords.toLocaleString();
+                spellEl.textContent = `${spellTime.toFixed(2)}ms avg`;
+                
+                // Show memory breakdown
+                const memInfo = optimizedVocab.getMemoryUsage();
+                console.log('Memory breakdown:', memInfo);
+                
+                updateSummary();
+                
+            } catch (error) {
+                statusEl.textContent = 'Error: ' + error.message;
+                statusEl.className = 'text-red-400';
+            }
+        }
+        
+        function testSpellCorrection() {
+            const input = document.getElementById('test-word').value;
+            const resultsEl = document.getElementById('spell-results');
+            
+            if (!input) {
+                resultsEl.innerHTML = '<p class="text-red-400">Please enter a word</p>';
+                return;
+            }
+            
+            resultsEl.innerHTML = '';
+            
+            // Test original
+            if (originalVocab) {
+                const startTime = performance.now();
+                const result = findClosestWordOriginal(input, originalVocab.dict);
+                const time = performance.now() - startTime;
+                
+                resultsEl.innerHTML += `
+                    <div class="p-3 bg-gray-700 rounded">
+                        <p class="text-orange-400 font-semibold">Original Implementation</p>
+                        <p>Result: <span class="text-white">${result}</span></p>
+                        <p>Time: <span class="text-yellow-400">${time.toFixed(2)}ms</span></p>
+                    </div>
+                `;
+            }
+            
+            // Test optimized
+            if (optimizedVocab) {
+                const startTime = performance.now();
+                const result = optimizedVocab.findClosestWord(input);
+                const time = performance.now() - startTime;
+                
+                resultsEl.innerHTML += `
+                    <div class="p-3 bg-gray-700 rounded mt-2">
+                        <p class="text-green-400 font-semibold">Optimized Implementation</p>
+                        <p>Result: <span class="text-white">${result || 'No match found'}</span></p>
+                        <p>Time: <span class="text-yellow-400">${time.toFixed(2)}ms</span></p>
+                        <p class="text-xs text-gray-400">Cache size: ${optimizedVocab.spellCache.size}</p>
+                    </div>
+                `;
+            }
+            
+            if (!originalVocab && !optimizedVocab) {
+                resultsEl.innerHTML = '<p class="text-gray-400">Please run tests first</p>';
+            }
+        }
+        
+        function updateSummary() {
+            const summaryEl = document.getElementById('performance-summary');
+            
+            if (originalData.loadTime && optimizedData.loadTime) {
+                const loadImprovement = ((originalData.loadTime - optimizedData.loadTime) / originalData.loadTime * 100).toFixed(1);
+                const memoryImprovement = ((originalData.memoryUsed - optimizedData.memoryUsed) / originalData.memoryUsed * 100).toFixed(1);
+                const spellImprovement = ((originalData.spellTime - optimizedData.spellTime) / originalData.spellTime * 100).toFixed(1);
+                
+                summaryEl.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center p-3 bg-gray-700 rounded">
+                            <span>Load Time Improvement:</span>
+                            <span class="${loadImprovement > 0 ? 'text-green-400' : 'text-red-400'} font-semibold">
+                                ${loadImprovement > 0 ? '+' : ''}${loadImprovement}%
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-gray-700 rounded">
+                            <span>Memory Usage Improvement:</span>
+                            <span class="${memoryImprovement > 0 ? 'text-green-400' : 'text-red-400'} font-semibold">
+                                ${memoryImprovement > 0 ? '+' : ''}${memoryImprovement}%
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-gray-700 rounded">
+                            <span>Spell Correction Speed:</span>
+                            <span class="${spellImprovement > 0 ? 'text-green-400' : 'text-red-400'} font-semibold">
+                                ${spellImprovement > 0 ? '+' : ''}${spellImprovement}%
+                            </span>
+                        </div>
+                        <div class="mt-4 p-3 bg-blue-900/50 rounded">
+                            <p class="text-sm text-blue-300">
+                                The optimized implementation uses indexed data structures and caching to achieve
+                                ${Math.abs(spellImprovement) > 50 ? 'significant' : 'moderate'} performance improvements.
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
