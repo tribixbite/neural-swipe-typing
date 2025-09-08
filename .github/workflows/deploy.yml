@@ -1,8 +1,9 @@
-name: Deploy to GitHub Pages
+name: Deploy Web Demo
 
 on:
   push:
     branches: [ main, english ]
+    paths: [ 'web_demo/**' ]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +13,7 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -21,56 +22,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          lfs: false
-      
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-      
-      - name: Install dependencies
+          lfs: true
+
+      # (Optional) Ensure LFS files are pulled if you’ve had issues
+      # - name: Ensure LFS
+      #   run: git lfs install && git lfs pull
+
+      - name: Prepare deployment files
         run: |
-          cd web-demo
-          bun install
-      
-      - name: Build and prepare site
-        run: |
-          cd web-demo
-          # Remove old app files to ensure clean deployment
-          rm -f public/src/app-bundle.js public/src/app-bundle.js.map public/src/app.js public/src/app.js.map
-          # Use swipe-onnx.html as the main index.html
-          cp public/swipe-onnx.html public/index.html
-          echo "Using swipe-onnx.html as main site"
-          ls -la public/
-      
-      - name: Prepare deployment models
-        run: |
-          # Remove any existing models directory (might be symlink or have old files)
-          rm -rf web-demo/public/models
+          cd web_demo
+          echo "📁 Web demo files:"
+          ls -la
+          mkdir -p ../deploy
+          echo "📦 Copying files..."
+          cp *.html ../deploy/ 2>/dev/null || echo "No HTML files found"
+          cp *.js ../deploy/ 2>/dev/null || echo "No JS files found"
+          cp *.css ../deploy/ 2>/dev/null || echo "No CSS files found"
+          cp *.wasm ../deploy/ 2>/dev/null || echo "No WASM files found"
+          cp -r assets ../deploy/ 2>/dev/null || echo "No assets directory found"
+          echo "✅ Deployment files prepared"
+          ls -la ../deploy/
           
-          # Create fresh models directory
-          mkdir -p web-demo/public/models
-          
-          # Copy quantized model files (smaller, faster)
-          cp deployment_package/swipe_model_character_quant.onnx web-demo/public/models/
-          cp deployment_package/swipe_decoder_character_quant.onnx web-demo/public/models/
-          cp deployment_package/tokenizer_config.json web-demo/public/models/
-          
-          # Also copy full models as fallback
-          cp deployment_package/swipe_model_character.onnx web-demo/public/models/
-          cp deployment_package/swipe_decoder_character.onnx web-demo/public/models/
-          
-          echo "Models copied successfully"
-          ls -la web-demo/public/models/
-      
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './web-demo/public'
-      
+          path: ./deploy
+
   deploy:
     environment:
       name: github-pages
