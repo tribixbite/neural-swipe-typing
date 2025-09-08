@@ -219,6 +219,8 @@
         let decoderSession = null;
         let tokenizer = null;
         let isModelReady = false;
+        let vocabularyDict = null;
+        let commonTwoCharWords = null;
         
         // Expose for debugging
         window.isModelReady = false;
@@ -276,11 +278,15 @@
                 console.log('Decoder inputs:', decoderSession.inputNames);
                 console.log('Decoder outputs:', decoderSession.outputNames);
                 
+                // Load vocabulary dictionary
+                updateLoadingStatus('Loading vocabulary...');
+                await loadVocabulary();
+                
                 isModelReady = true;
                 window.isModelReady = true;  // Expose for debugging
                 hideLoadingOverlay();
                 updateStatus('Ready', 'success');
-                console.log('All models loaded successfully!');
+                console.log('All models and vocabulary loaded successfully!');
                 
             } catch (error) {
                 console.error('Error loading models:', error);
@@ -301,6 +307,223 @@
                     suggestionsDiv.innerHTML = `<div class="text-red-500 p-2">Error loading models: ${error.message}</div>`;
                 }
             }
+        }
+        
+        // Load vocabulary for spell correction
+        async function loadVocabulary() {
+            console.log('Starting vocabulary load...');
+            try {
+                // Try loading the vocabulary file
+                const vocabUrl = 'models/english_vocab.txt';
+                console.log('Fetching vocabulary from:', vocabUrl);
+                const response = await fetch(vocabUrl);
+                console.log('Vocabulary fetch response:', response.status, response.statusText);
+                if (!response.ok) {
+                    console.warn(`Vocabulary file not found (${response.status}), using fallback dictionary`);
+                    loadFallbackVocabulary();
+                    return;
+                }
+                
+                const text = await response.text();
+                console.log('Vocabulary text loaded, length:', text.length);
+                const lines = text.split('\n');
+                console.log('Vocabulary lines count:', lines.length);
+                
+                // Parse vocabulary - create word frequency map
+                vocabularyDict = new Map();
+                const wordsByLength = new Map();
+                
+                lines.forEach((line, index) => {
+                    const word = line.trim().toLowerCase();
+                    if (word && word.match(/^[a-z]+$/)) {
+                        // Store with frequency ranking (lower index = more common)
+                        vocabularyDict.set(word, index);
+                        
+                        // Group by length for efficient lookup
+                        const len = word.length;
+                        if (!wordsByLength.has(len)) {
+                            wordsByLength.set(len, []);
+                        }
+                        wordsByLength.get(len).push(word);
+                    }
+                });
+                
+                // Create list of common 2-char words
+                commonTwoCharWords = [
+                    'of', 'to', 'in', 'it', 'is', 'be', 'as', 'at', 'so', 'we', 'he', 'by',
+                    'or', 'on', 'do', 'if', 'me', 'my', 'up', 'an', 'go', 'no', 'us', 'am',
+                    'hi', 'ok', 'oh', 'ah', 'ha', 'eh', 'hm', 'ya', 'uh'
+                ];
+                
+                // Add any 2-char words from vocab
+                if (wordsByLength.has(2)) {
+                    wordsByLength.get(2).forEach(word => {
+                        if (!commonTwoCharWords.includes(word)) {
+                            commonTwoCharWords.push(word);
+                        }
+                    });
+                }
+                
+                console.log(`Loaded vocabulary with ${vocabularyDict.size} words`);
+                console.log(`Found ${commonTwoCharWords.length} two-character words`);
+                
+            } catch (error) {
+                console.error('Error loading vocabulary:', error);
+                loadFallbackVocabulary();
+            }
+        }
+        
+        // Fallback vocabulary with most common words
+        function loadFallbackVocabulary() {
+            const fallbackWords = [
+                'the', 'of', 'and', 'to', 'a', 'in', 'for', 'is', 'on', 'that',
+                'by', 'this', 'with', 'i', 'you', 'it', 'not', 'or', 'be', 'are',
+                'from', 'at', 'as', 'your', 'all', 'would', 'will', 'there', 'their',
+                'what', 'so', 'if', 'about', 'which', 'when', 'one', 'can', 'had',
+                'but', 'were', 'been', 'have', 'has', 'some', 'other', 'out', 'just',
+                'time', 'into', 'new', 'like', 'more', 'than', 'up', 'no', 'way', 'could'
+            ];
+            
+            vocabularyDict = new Map();
+            fallbackWords.forEach((word, index) => {
+                vocabularyDict.set(word.toLowerCase(), index);
+            });
+            
+            commonTwoCharWords = [
+                'of', 'to', 'in', 'it', 'is', 'be', 'as', 'at', 'so', 'we', 'he', 'by',
+                'or', 'on', 'do', 'if', 'me', 'my', 'up', 'an', 'go', 'no', 'us', 'am',
+                'hi', 'ok', 'oh', 'ah', 'ha', 'eh', 'hm', 'ya', 'uh'
+            ];
+            
+            console.log('Using fallback vocabulary');
+        }
+        
+        // Fast Levenshtein distance calculation
+        function levenshteinDistance(s1, s2) {
+            if (s1 === s2) return 0;
+            if (s1.length === 0) return s2.length;
+            if (s2.length === 0) return s1.length;
+            
+            // Use single array optimization
+            const prevRow = new Array(s2.length + 1);
+            const currRow = new Array(s2.length + 1);
+            
+            // Initialize first row
+            for (let j = 0; j <= s2.length; j++) {
+                prevRow[j] = j;
+            }
+            
+            for (let i = 0; i < s1.length; i++) {
+                currRow[0] = i + 1;
+                
+                for (let j = 0; j < s2.length; j++) {
+                    const cost = s1[i] === s2[j] ? 0 : 1;
+                    currRow[j + 1] = Math.min(
+                        prevRow[j + 1] + 1,     // deletion
+                        currRow[j] + 1,          // insertion
+                        prevRow[j] + cost        // substitution
+                    );
+                }
+                
+                // Swap arrays
+                [prevRow, currRow] = [currRow, prevRow];
+            }
+            
+            return prevRow[s2.length];
+        }
+        
+        // Find closest word in dictionary
+        function findClosestWord(input, maxDistance = 2) {
+            if (!vocabularyDict || vocabularyDict.size === 0) return input;
+            
+            input = input.toLowerCase();
+            
+            // If exact match exists, return it
+            if (vocabularyDict.has(input)) {
+                return input;
+            }
+            
+            // For very short words, be more strict
+            if (input.length <= 3) {
+                maxDistance = 1;
+            }
+            
+            let bestMatch = input;
+            let bestDistance = maxDistance + 1;
+            let bestFrequency = Infinity;
+            
+            // Check words of similar length (±1 character)
+            for (const [word, frequency] of vocabularyDict) {
+                if (Math.abs(word.length - input.length) > 1) continue;
+                
+                const distance = levenshteinDistance(input, word);
+                
+                if (distance <= maxDistance) {
+                    // Prefer more common words (lower frequency index)
+                    if (distance < bestDistance || 
+                        (distance === bestDistance && frequency < bestFrequency)) {
+                        bestMatch = word;
+                        bestDistance = distance;
+                        bestFrequency = frequency;
+                    }
+                }
+            }
+            
+            return bestMatch;
+        }
+        
+        // Check if swipe path is nearly straight
+        function isNearlyStraightLine(path) {
+            if (path.length < 3) return false;
+            
+            // Calculate variance from straight line
+            const startPoint = path[0];
+            const endPoint = path[path.length - 1];
+            
+            // Vector from start to end
+            const dx = endPoint.x - startPoint.x;
+            const dy = endPoint.y - startPoint.y;
+            const lineLength = Math.sqrt(dx * dx + dy * dy);
+            
+            if (lineLength < 50) return false; // Too short
+            
+            // Check deviation of middle points
+            let maxDeviation = 0;
+            
+            for (let i = 1; i < path.length - 1; i++) {
+                const point = path[i];
+                
+                // Calculate perpendicular distance to line
+                const t = Math.max(0, Math.min(1, 
+                    ((point.x - startPoint.x) * dx + (point.y - startPoint.y) * dy) / (lineLength * lineLength)
+                ));
+                
+                const projX = startPoint.x + t * dx;
+                const projY = startPoint.y + t * dy;
+                
+                const deviation = Math.sqrt(
+                    Math.pow(point.x - projX, 2) + Math.pow(point.y - projY, 2)
+                );
+                
+                maxDeviation = Math.max(maxDeviation, deviation);
+            }
+            
+            // Consider straight if max deviation is less than 15% of line length
+            return maxDeviation < lineLength * 0.15;
+        }
+        
+        // Get keyboard keys at start and end of swipe
+        function getStartEndKeys(keySequence) {
+            if (!keySequence || keySequence.length === 0) return null;
+            
+            const startKey = keySequence[0]?.key;
+            const endKey = keySequence[keySequence.length - 1]?.key;
+            
+            if (startKey && endKey && startKey !== endKey) {
+                return startKey + endKey;
+            }
+            
+            return null;
         }
         
         function updateLoadingStatus(message) {
@@ -330,10 +553,12 @@
         }
         
         // Initialize canvas and keyboard
-        function init() {
+        async function init() {
             resizeCanvas();
             updateKeyboardBounds();
-            loadModels();
+            
+            // Load models (which includes vocabulary loading)
+            await loadModels();
             
             window.addEventListener('resize', () => {
                 resizeCanvas();
@@ -888,7 +1113,48 @@
             const suggestionsDiv = document.getElementById('suggestions');
             suggestionsDiv.innerHTML = '';
             
-            predictions.forEach((word, index) => {
+            // Apply vocabulary filtering if vocab is loaded
+            let filteredPredictions = [];
+            
+            if (vocabularyDict) {
+                // First, check for 2-character words if it's a straight line
+                if (swipePath && swipePath.length > 0 && isNearlyStraightLine(swipePath)) {
+                    const twoCharWords = getStartEndKeys(swipePath);
+                    if (twoCharWords.length > 0) {
+                        // Add 2-char words to the beginning of predictions
+                        filteredPredictions = [...twoCharWords];
+                    }
+                }
+                
+                // Apply spell correction to each prediction
+                predictions.forEach(word => {
+                    if (!word || word.length === 0) return;
+                    
+                    // Check if word is already in vocabulary
+                    if (vocabularyDict.has(word.toLowerCase())) {
+                        if (!filteredPredictions.includes(word)) {
+                            filteredPredictions.push(word);
+                        }
+                    } else {
+                        // Try to find a close match
+                        const corrected = findClosestWord(word);
+                        if (corrected && !filteredPredictions.includes(corrected)) {
+                            filteredPredictions.push(corrected);
+                        } else if (!filteredPredictions.includes(word)) {
+                            // Keep original if no correction found (but deprioritize)
+                            filteredPredictions.push(word);
+                        }
+                    }
+                });
+                
+                // Limit to top predictions
+                filteredPredictions = filteredPredictions.slice(0, 5);
+            } else {
+                // Fallback to original predictions if vocab not loaded
+                filteredPredictions = predictions.slice(0, 5);
+            }
+            
+            filteredPredictions.forEach((word, index) => {
                 const suggestion = document.createElement('div');
                 suggestion.className = index === 0 
                     ? 'px-4 py-1.5 rounded-full bg-gradient-to-r from-neon-blue/20 to-neon-purple/20 border border-neon-blue/50 text-white text-sm cursor-pointer hover:scale-105 transition-transform'

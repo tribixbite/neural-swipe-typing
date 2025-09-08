@@ -16,9 +16,14 @@ Bun.serve({
       const file = Bun.file(modelPath);
       
       if (file.size > 0) {
+        let contentType = "application/octet-stream";
+        if (filename.endsWith(".onnx")) contentType = "application/octet-stream";
+        else if (filename.endsWith(".json")) contentType = "application/json";
+        else if (filename.endsWith(".txt")) contentType = "text/plain; charset=utf-8";
+        
         return new Response(file, {
           headers: {
-            "Content-Type": filename.endsWith(".onnx") ? "application/octet-stream" : "application/json",
+            "Content-Type": contentType,
             "Cache-Control": "public, max-age=3600",
             "Access-Control-Allow-Origin": "*"
           }
