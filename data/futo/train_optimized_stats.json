@@ -1,0 +1,11 @@
+{
+  "total_input": 728212,
+  "total_output": 695443,
+  "retention_rate": 95.50007415422981,
+  "filtered_low_freq": 0,
+  "filtered_too_short": 1182,
+  "filtered_too_long": 3301,
+  "filtered_bad_duration": 28286,
+  "unique_words": 42532,
+  "min_word_frequency": 1
+}

@@ -1,0 +1,15 @@
+{
+  "total_lines": 939550,
+  "filtered_lines": 728212,
+  "filter_percentage": 77.50646586131658,
+  "reasons": {
+    "invalid_sentence": 4709,
+    "invalid_word": 127986,
+    "single_char": 22750,
+    "not_portrait": 44902,
+    "wrong_dimensions": 0,
+    "width_too_large": 380,
+    "not_valid_word": 10611,
+    "passed": 728212
+  }
+}
