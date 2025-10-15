@@ -120,11 +120,13 @@ class SwipeDatasetV2(Dataset):
     def _apply_jitter(self, xs: List[float], ys: List[float]) -> Tuple[List[float], List[float]]:
         if self.geom_noise_sigma <= 0.0 or torch.rand(1).item() > self.jitter_prob:
             return xs, ys
-        jitter_x = torch.normal(0.0, self.geom_noise_sigma, size=(len(xs),)).numpy()
-        jitter_y = torch.normal(0.0, self.geom_noise_sigma, size=(len(ys),)).numpy()
-        xs = (torch.tensor(xs) + jitter_x).tolist()
-        ys = (torch.tensor(ys) + jitter_y).tolist()
-        return xs, ys
+        xs_np = np.asarray(xs, dtype=np.float32)
+        ys_np = np.asarray(ys, dtype=np.float32)
+        jitter_x = torch.normal(0.0, self.geom_noise_sigma, size=(len(xs_np),)).numpy()
+        jitter_y = torch.normal(0.0, self.geom_noise_sigma, size=(len(ys_np),)).numpy()
+        xs_np = (xs_np + jitter_x).astype(np.float32)
+        ys_np = (ys_np + jitter_y).astype(np.float32)
+        return xs_np.tolist(), ys_np.tolist()
 
     # ------------------------------------------------------------------
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
@@ -417,7 +419,21 @@ def train(args: argparse.Namespace) -> None:
     checkpoint_dir = Path(args.checkpoint_dir)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    for epoch in range(args.epochs):
+    start_epoch = 0
+    if args.resume_checkpoint:
+        ckpt_path = Path(args.resume_checkpoint)
+        if ckpt_path.exists():
+            print(f"Resuming from checkpoint: {ckpt_path}")
+            checkpoint = torch.load(ckpt_path, map_location=device)
+            model.load_state_dict(checkpoint["model_state_dict"])
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            start_epoch = checkpoint.get("epoch", 0)
+            best_val = checkpoint.get("val_word_acc", 0.0)
+        else:
+            print(f"Resume checkpoint not found: {ckpt_path}")
+
+    for epoch in range(start_epoch, args.epochs):
         model.train()
         total_loss = 0.0
         total_correct = 0
@@ -519,6 +535,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-workers", type=int, default=6)
     parser.add_argument("--checkpoint-dir", default="checkpoints/full_character_model_v2")
     parser.add_argument("--export-dir", default="exported_models_v2")
+    parser.add_argument("--resume-checkpoint", default=None)
     parser.add_argument("--ignore-timestamps", action="store_true", help="Ignore recorded timestamps to mimic web inference.")
     parser.add_argument("--velocity-scale", type=float, default=1000.0)
     parser.add_argument("--acceleration-scale", type=float, default=500.0)

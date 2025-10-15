@@ -23,8 +23,8 @@ def load_best_checkpoint() -> Tuple[CharacterLevelSwipeModel, str]:
     """Load the best performing checkpoint."""
     checkpoint_dir = Path('checkpoints/full_character_model')
     
-    # Find the best checkpoint (70.1% accuracy)
-    checkpoint_path = checkpoint_dir / 'full-model-14-0.701.ckpt'
+    # Find the best checkpoint (79.5% accuracy)
+    checkpoint_path = checkpoint_dir / 'full-model-49-0.795.ckpt'
     
     if not checkpoint_path.exists():
         # Try to find any checkpoint with >70% accuracy
@@ -385,7 +385,7 @@ def create_deployment_guide(output_dir: Path, export_info: Dict):
 
 ## Model Overview
 - **Architecture**: Transformer-based character-level generation
-- **Accuracy**: 70.1% word accuracy
+- **Accuracy**: 79.5% word accuracy
 - **Parameters**: 8.97M
 - **Input**: 6D trajectory features (x, y, vx, vy, ax, ay) + nearest keys
 - **Output**: Character sequence with beam search
@@ -702,7 +702,7 @@ For issues or questions:
 - Examples: See `examples/` folder
 
 ---
-Generated with 70.1% word accuracy on 68,848 training samples.
+Generated with 79.5% word accuracy on 68,848 training samples.
 """
     
     guide_path = output_dir / 'DEPLOYMENT_GUIDE.md'
@@ -1064,7 +1064,7 @@ def main():
     print("="*60)
     
     # Create output directory
-    output_dir = Path('deployment_package')
+    output_dir = Path('deployment_package79')
     output_dir.mkdir(exist_ok=True)
     
     # Load the trained model
