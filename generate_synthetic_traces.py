@@ -76,7 +76,7 @@ class SyntheticTraceGenerator:
             "word": word,
             "std_dev": std_dev
         }
-        
+
         for attempt in range(self.max_retries):
             try:
                 response = requests.post(
@@ -86,27 +86,49 @@ class SyntheticTraceGenerator:
                     timeout=self.timeout,
                     verify=False  # --insecure flag equivalent
                 )
-                
+
                 if response.status_code == 200:
                     gesture_data = response.json()
-                    
+
+                    # Fix time values to be sequential
+                    if 'word_seq' in gesture_data and 'time' in gesture_data['word_seq']:
+                        time_values = gesture_data['word_seq']['time']
+                        if time_values:
+                            # Convert to cumulative time starting from 0
+                            # Use absolute values and ensure monotonic increase
+                            cumulative_time = 0.0
+                            fixed_times = []
+
+                            for i, t in enumerate(time_values):
+                                if i == 0:
+                                    # Start at 0
+                                    cumulative_time = 0.0
+                                else:
+                                    # Add absolute value of time delta, with minimum step
+                                    time_delta = max(abs(t - time_values[i-1]), 0.001)
+                                    cumulative_time += time_delta
+
+                                fixed_times.append(cumulative_time)
+
+                            gesture_data['word_seq']['time'] = fixed_times
+
                     # Add metadata to the response
                     gesture_data['word'] = word
                     gesture_data['std_dev'] = std_dev
                     gesture_data['timestamp'] = time.time()
-                    
+
                     return gesture_data
                 else:
                     self.logger.warning(f"HTTP {response.status_code} for word '{word}', std_dev {std_dev}")
-                    
+
             except requests.exceptions.RequestException as e:
                 self.logger.warning(f"Request failed for '{word}' (attempt {attempt + 1}): {e}")
-                
+
             # Exponential backoff with jitter
             if attempt < self.max_retries - 1:
                 backoff_delay = (self.backoff_multiplier ** attempt) * random.uniform(1, 2)
                 time.sleep(backoff_delay)
-                
+
         self.logger.error(f"Failed to fetch gesture for word '{word}' after {self.max_retries} attempts")
         return None
         
