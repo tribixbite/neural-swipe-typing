@@ -460,9 +460,9 @@ def train_full_model():
 
     # Configuration for full training
     batch_size = 128  # Larger batch for better gradient estimates
-    learning_rate = 5e-4  # Slightly higher LR for faster convergence
+    learning_rate = 4e-5  # Slightly higher LR for faster convergence
     num_epochs = 500  # More epochs to reach target
-    patience = 15  # Early stopping patience
+    patience = 40  # Early stopping patience
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("=" * 60)
@@ -559,7 +559,7 @@ def train_full_model():
     start_epoch = 0
     best_val_acc = 0
     patience_counter = 0
-    checkpoint_dir = Path("checkpoints/full_character_model_standalone_hwsfuto")
+    checkpoint_dir = Path("checkpoints/full_character_model_standalone_hwsfuto3")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     # Find the best (most accurate) checkpoint to resume from
@@ -667,7 +667,7 @@ def train_full_model():
         val_total_words = 0
         val_top5_correct = 0
 
-        limit_val_batches = int(len(val_loader) * 0.1)
+        limit_val_batches = int(len(val_loader) * 1)
         if limit_val_batches == 0:
             limit_val_batches = 1 # Ensure at least one batch runs
 
