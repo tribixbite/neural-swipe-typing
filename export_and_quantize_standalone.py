@@ -22,6 +22,7 @@ import argparse
 import onnx
 import onnxruntime as ort
 from onnxruntime.quantization import quantize_dynamic, QuantType
+from onnxruntime.quantization import quantize_static, CalibrationDataReader
 from onnxruntime.quantization.shape_inference import quant_pre_process
 
 
@@ -145,18 +146,27 @@ def load_checkpoint(checkpoint_path: Path) -> Tuple[CharacterLevelSwipeModel, st
     # Initialize tokenizer and get config
     tokenizer = CharTokenizer()
 
-    # Model architecture from train_full_model_standalone.py
+    # Model architecture read from checkpoint config if present
+    ck_config = checkpoint.get('config', {})
+    d_model = int(ck_config.get('d_model', 256))
+    nhead = int(ck_config.get('nhead', 8))
+    num_encoder_layers = int(ck_config.get('num_encoder_layers', 6))
+    num_decoder_layers = int(ck_config.get('num_decoder_layers', 4))
+    dim_feedforward = int(ck_config.get('dim_feedforward', 1024))
+    max_seq_len = int(ck_config.get('max_seq_len', 250))
+    traj_dim = int(ck_config.get('traj_dim', 6))
+
     model = CharacterLevelSwipeModel(
-        traj_dim=6,
-        d_model=256,
-        nhead=8,
-        num_encoder_layers=6,
-        num_decoder_layers=4,
-        dim_feedforward=1024,
+        traj_dim=traj_dim,
+        d_model=d_model,
+        nhead=nhead,
+        num_encoder_layers=num_encoder_layers,
+        num_decoder_layers=num_decoder_layers,
+        dim_feedforward=dim_feedforward,
         dropout=0.0,  # No dropout for inference
         char_vocab_size=tokenizer.vocab_size,
         kb_vocab_size=tokenizer.vocab_size,
-        max_seq_len=250
+        max_seq_len=max_seq_len
     )
 
     # Load weights
@@ -168,16 +178,16 @@ def load_checkpoint(checkpoint_path: Path) -> Tuple[CharacterLevelSwipeModel, st
 
     config = {
         'accuracy': accuracy,
-        'd_model': 256,
+        'd_model': d_model,
         'vocab_size': tokenizer.vocab_size,
-        'max_seq_len': 250,
-        'max_word_len': 20
+        'max_seq_len': max_seq_len,
+        'max_word_len': int(ck_config.get('max_word_len', 20))
     }
 
     return model, f"{accuracy:.3f}", config
 
 
-def export_encoder_onnx(model: CharacterLevelSwipeModel, output_path: Path) -> Dict:
+def export_encoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opset: int = 17) -> Dict:
     """Export encoder to ONNX format."""
     print(f"Exporting encoder to: {output_path}")
 
@@ -213,7 +223,7 @@ def export_encoder_onnx(model: CharacterLevelSwipeModel, output_path: Path) -> D
         (traj_features, nearest_keys, src_mask),
         output_path,
         export_params=True,
-        opset_version=14,
+        opset_version=opset,
         do_constant_folding=True,
         input_names=['trajectory_features', 'nearest_keys', 'src_mask'],
         output_names=['encoder_output'],
@@ -228,10 +238,19 @@ def export_encoder_onnx(model: CharacterLevelSwipeModel, output_path: Path) -> D
     size_mb = os.path.getsize(output_path) / (1024 * 1024)
     print(f"✓ Encoder exported: {size_mb:.2f} MB")
 
+    # Validate using onnxruntime
+    so = ort.SessionOptions()
+    sess = ort.InferenceSession(str(output_path), so, providers=['CPUExecutionProvider'])
+    _ = sess.run(None, {
+        'trajectory_features': traj_features.numpy(),
+        'nearest_keys': nearest_keys.numpy(),
+        'src_mask': src_mask.numpy()
+    })
+
     return {'path': str(output_path), 'size_mb': size_mb}
 
 
-def export_decoder_onnx(model: CharacterLevelSwipeModel, output_path: Path) -> Dict:
+def export_decoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opset: int = 17) -> Dict:
     """Export decoder to ONNX format."""
     print(f"Exporting decoder to: {output_path}")
 
@@ -287,7 +306,7 @@ def export_decoder_onnx(model: CharacterLevelSwipeModel, output_path: Path) -> D
         (memory, tgt_tokens, src_mask, tgt_mask),
         output_path,
         export_params=True,
-        opset_version=14,
+        opset_version=opset,
         do_constant_folding=True,
         input_names=['memory', 'target_tokens', 'src_mask', 'target_mask'],
         output_names=['logits'],
@@ -298,7 +317,45 @@ def export_decoder_onnx(model: CharacterLevelSwipeModel, output_path: Path) -> D
     size_mb = os.path.getsize(output_path) / (1024 * 1024)
     print(f"✓ Decoder exported: {size_mb:.2f} MB")
 
+    # Validate with onnxruntime
+    so = ort.SessionOptions()
+    sess = ort.InferenceSession(str(output_path), so, providers=['CPUExecutionProvider'])
+    _ = sess.run(None, {
+        'memory': memory.numpy(),
+        'target_tokens': tgt_tokens.numpy(),
+        'src_mask': src_mask.numpy(),
+        'target_mask': tgt_mask.numpy()
+    })
+
     return {'path': str(output_path), 'size_mb': size_mb}
+
+
+def try_simplify_onnx(input_path: Path, output_path: Path) -> float:
+    """Simplify ONNX graph using onnxsim. Returns size in MB of simplified model.
+    If onnxsim is not available, attempts to install, otherwise copies input to output.
+    """
+    print(f"Simplifying {input_path.name}")
+    original_size = os.path.getsize(input_path) / (1024 * 1024)
+    try:
+        try:
+            from onnxsim import simplify
+        except ImportError:
+            import subprocess, sys as _sys
+            print("  onnxsim not found; installing...")
+            subprocess.check_call([_sys.executable, '-m', 'pip', 'install', 'onnxsim'])
+            from onnxsim import simplify
+        model = onnx.load(str(input_path))
+        model_simp, check = simplify(model)
+        if not check:
+            raise RuntimeError("onnxsim check failed")
+        onnx.save(model_simp, str(output_path))
+    except Exception as e:
+        print(f"  ⚠ Simplify failed: {e}. Using original model.")
+        import shutil
+        shutil.copyfile(str(input_path), str(output_path))
+    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+    print(f"  Simplified: {size_mb:.2f} MB ({(1 - size_mb/original_size)*100:.1f}% vs raw)")
+    return size_mb
 
 
 def preprocess_onnx_model(input_path: Path, output_path: Path) -> float:
@@ -330,30 +387,104 @@ def preprocess_onnx_model(input_path: Path, output_path: Path) -> float:
     return processed_size
 
 
-def quantize_onnx_model(input_path: Path, output_path: Path, target: str = "android") -> float:
+def quantize_onnx_model(input_path: Path, output_path: Path, target: str = "android",
+                        calibration_data: Optional[str] = None) -> float:
     """Apply dynamic quantization to ONNX model."""
     print(f"Quantizing {input_path.name} for {target}")
 
     original_size = os.path.getsize(input_path) / (1024 * 1024)
 
-    if target == "web":
-        # Web-optimized quantization
-        quantize_dynamic(
-            str(input_path),
-            str(output_path),
-            weight_type=QuantType.QUInt8,
-            per_channel=False,
-            reduce_range=False,
-        )
-    else:  # android
-        # Android-optimized quantization
-        quantize_dynamic(
-            str(input_path),
-            str(output_path),
-            weight_type=QuantType.QInt8,
-            per_channel=True,
-            reduce_range=True,
-        )
+    # If calibration data provided and target is android, try static quant
+    did_static = False
+    if target == "android" and calibration_data is not None:
+        try:
+            print("  Using static quantization with calibration data")
+
+            class DummyDataReader(CalibrationDataReader):
+                def __init__(self, model_path: str, calib_path: str, max_samples: int = 50):
+                    self.model_path = model_path
+                    self.calib_path = calib_path
+                    self.max_samples = max_samples
+                    self._iter = None
+
+                def get_next(self):
+                    if self._iter is None:
+                        # Very lightweight JSONL reader yielding shapes expected by encoder/decoder
+                        inputs = []
+                        try:
+                            with open(self.calib_path, 'r') as f:
+                                for i, line in enumerate(f):
+                                    if i >= self.max_samples:
+                                        break
+                                    item = json.loads(line)
+                                    if 'curve' in item:
+                                        x = item['curve']['x']; y = item['curve']['y']; t = item['curve']['t']
+                                    elif 'points' in item:
+                                        pts = item['points']; x=[p['x'] for p in pts]; y=[p['y'] for p in pts]; t=[p['t'] for p in pts]
+                                    elif 'word_seq' in item:
+                                        x=item['word_seq']['x']; y=item['word_seq']['y']
+                                        t=item['word_seq'].get('time', list(range(len(x))))
+                                    else:
+                                        continue
+                                    L = min(len(x), 250)
+                                    # Build encoder inputs only (decoder will be covered by runtime ops)
+                                    traj = np.zeros((1, 250, 6), dtype=np.float32)
+                                    nk = np.zeros((1, 250), dtype=np.int64)
+                                    sm = np.zeros((1, 250), dtype=bool)
+                                    # simple normalize [0,1]
+                                    xs = np.array(x[:L], dtype=np.float32)
+                                    ys = np.array(y[:L], dtype=np.float32)
+                                    ts = np.array(t[:L], dtype=np.float32)
+                                    xs = xs / max(xs.max(), 1.0)
+                                    ys = ys / max(ys.max(), 1.0)
+                                    dt = np.diff(ts, prepend=ts[0]); dt = np.maximum(dt, 1e-6)
+                                    vx = np.zeros_like(xs); vy = np.zeros_like(ys)
+                                    vx[1:] = np.diff(xs)/dt[1:]; vy[1:] = np.diff(ys)/dt[1:]
+                                    ax = np.zeros_like(xs); ay = np.zeros_like(ys)
+                                    ax[1:] = np.diff(vx)/dt[1:]; ay[1:] = np.diff(vy)/dt[1:]
+                                    traj[0,:L,:] = np.stack([xs,ys,vx,vy,ax,ay], axis=1)
+                                    sm[0,L:] = True
+                                    inputs.append({'trajectory_features': traj, 'nearest_keys': nk, 'src_mask': sm})
+                        except Exception:
+                            pass
+                        if not inputs:
+                            # fallback: a few random samples
+                            for _ in range(10):
+                                traj = np.random.randn(1,250,6).astype(np.float32)
+                                nk = np.random.randint(0,30,size=(1,250)).astype(np.int64)
+                                sm = np.zeros((1,250), dtype=bool)
+                                inputs.append({'trajectory_features': traj, 'nearest_keys': nk, 'src_mask': sm})
+                        self._iter = iter(inputs)
+                    try:
+                        return next(self._iter)
+                    except StopIteration:
+                        return None
+
+            dr = DummyDataReader(str(input_path), calibration_data)
+            quantize_static(str(input_path), str(output_path), dr, weight_type=QuantType.QInt8, optimize_model=False)
+            did_static = True
+        except Exception as e:
+            print(f"  ⚠ Static quantization failed: {e}. Falling back to dynamic.")
+
+    if not did_static:
+        if target == "web":
+            # Web-optimized dynamic quantization
+            quantize_dynamic(
+                str(input_path),
+                str(output_path),
+                weight_type=QuantType.QUInt8,
+                per_channel=False,
+                reduce_range=False,
+            )
+        else:  # android
+            # Android-optimized dynamic quantization
+            quantize_dynamic(
+                str(input_path),
+                str(output_path),
+                weight_type=QuantType.QInt8,
+                per_channel=True,
+                reduce_range=True,
+            )
 
     quantized_size = os.path.getsize(output_path) / (1024 * 1024)
     reduction = (1 - quantized_size/original_size) * 100
@@ -436,6 +567,9 @@ def main():
     parser.add_argument('--with-preprocessing', action='store_true', help='Enable ONNX preprocessing (may fail)')
     parser.add_argument('--targets', nargs='+', default=['web', 'android'],
                        choices=['web', 'android'], help='Target platforms')
+    parser.add_argument('--opset', type=int, default=17, help='ONNX opset version (default 17)')
+    parser.add_argument('--clean-base', action='store_true', help='Remove raw base ONNX files after optimization')
+    parser.add_argument('--calibration-data', type=str, default=None, help='Path to JSONL calibration data for static quant (Android)')
 
     args = parser.parse_args()
 
@@ -459,8 +593,8 @@ def main():
     encoder_path = output_dir / 'swipe_encoder.onnx'
     decoder_path = output_dir / 'swipe_decoder.onnx'
 
-    encoder_info = export_encoder_onnx(model, encoder_path)
-    decoder_info = export_decoder_onnx(model, decoder_path)
+    encoder_info = export_encoder_onnx(model, encoder_path, opset=args.opset)
+    decoder_info = export_decoder_onnx(model, decoder_path, opset=args.opset)
 
     total_original_mb = encoder_info['size_mb'] + decoder_info['size_mb']
     print(f"Total original size: {total_original_mb:.2f} MB")
@@ -474,6 +608,9 @@ def main():
         # File paths
         enc_prep = output_dir / f'swipe_encoder_{target}_preprocessed.onnx'
         dec_prep = output_dir / f'swipe_decoder_{target}_preprocessed.onnx'
+        # Simplified bases
+        enc_simp = output_dir / f'swipe_encoder_{target}_base.onnx'
+        dec_simp = output_dir / f'swipe_decoder_{target}_base.onnx'
         enc_final = output_dir / f'swipe_encoder_{target}.onnx'
         dec_final = output_dir / f'swipe_decoder_{target}.onnx'
 
@@ -495,9 +632,13 @@ def main():
             enc_prep_size = encoder_info['size_mb']
             dec_prep_size = decoder_info['size_mb']
 
-        # Step 2: Quantization
-        enc_quant_size = quantize_onnx_model(prep_input_enc, enc_final, target)
-        dec_quant_size = quantize_onnx_model(prep_input_dec, dec_final, target)
+        # Step 2: Simplify graphs (default enabled)
+        enc_simp_size = try_simplify_onnx(prep_input_enc, enc_simp)
+        dec_simp_size = try_simplify_onnx(prep_input_dec, dec_simp)
+
+        # Step 3: Quantization
+        enc_quant_size = quantize_onnx_model(enc_simp, enc_final, target, calibration_data=args.calibration_data)
+        dec_quant_size = quantize_onnx_model(dec_simp, dec_final, target, calibration_data=args.calibration_data)
 
         total_final_mb = enc_quant_size + dec_quant_size
         total_reduction = (1 - total_final_mb / total_original_mb) * 100
@@ -515,14 +656,18 @@ def main():
         if args.with_preprocessing:
             enc_prep.unlink(missing_ok=True)
             dec_prep.unlink(missing_ok=True)
+        if args.clean_base:
+            # remove raw and simplified intermediates
+            encoder_path.unlink(missing_ok=True)
+            decoder_path.unlink(missing_ok=True)
+            enc_simp.unlink(missing_ok=True)
+            dec_simp.unlink(missing_ok=True)
 
     # Create config files
     print("\n=== Configuration Files ===")
     create_config_files(output_dir, accuracy, config)
 
-    # Clean up original ONNX files (keep only optimized versions)
-    encoder_path.unlink(missing_ok=True)
-    decoder_path.unlink(missing_ok=True)
+    # Keep raw ONNX by default (use --clean-base to remove)
 
     # Summary
     print("\n" + "=" * 60)

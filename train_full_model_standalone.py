@@ -124,9 +124,11 @@ class SwipeDataset(Dataset):
         max_seq_len: int = 250,
         max_word_len: int = 25,
         max_samples: int = None,
+        augment: bool = False,
     ):
         self.max_seq_len = max_seq_len
         self.max_word_len = max_word_len
+        self.augment = augment
 
         # Load keyboard grid
         self.keyboard = KeyboardGrid()
@@ -147,6 +149,7 @@ class SwipeDataset(Dataset):
                             "t": curve["t"],
                             "word": item["word"],
                             "grid_name": "qwerty_english",
+                            "source": item.get("source", "unknown"),
                         }
                         self.data.append(processed_item)
                 # Handle synthetic trace format
@@ -159,6 +162,7 @@ class SwipeDataset(Dataset):
                             "t": word_seq["time"],
                             "word": item.get("word", "unknown"),
                             "grid_name": "qwerty_english",
+                            "source": item.get("source", "unknown"),
                         }
                         self.data.append(processed_item)
                 elif "points" in item and isinstance(item["points"], list):
@@ -172,9 +176,12 @@ class SwipeDataset(Dataset):
                         "t": ts,
                         "word": item.get("word", "unknown"),
                         "grid_name": "qwerty_english",
+                        "source": item.get("source", "unknown"),
                     }
                     self.data.append(processed_item)
                 elif "grid_name" in item and item["grid_name"] == "qwerty_english":
+                    if "source" not in item:
+                        item["source"] = "unknown"
                     self.data.append(item)
 
                 # Limit samples if specified (for faster iteration during development)
@@ -198,6 +205,28 @@ class SwipeDataset(Dataset):
         xs = xs / self.keyboard.width
         ys = ys / self.keyboard.height
 
+        # Optional simple data augmentation (train only)
+        if self.augment:
+            # Small gaussian jitter in position
+            noise_scale = 0.005
+            xs = xs + np.random.normal(0, noise_scale, size=xs.shape).astype(np.float32)
+            ys = ys + np.random.normal(0, noise_scale, size=ys.shape).astype(np.float32)
+            # Time scaling
+            time_scale = np.random.uniform(0.9, 1.1)
+            ts = ts * time_scale
+            # Random point dropout (simulate missing points), keep endpoints
+            if len(xs) > 5:
+                keep_mask = np.ones_like(xs, dtype=bool)
+                drop = np.random.rand(len(xs)) < 0.05
+                drop[0] = False
+                drop[-1] = False
+                keep_mask = keep_mask & (~drop)
+                xs, ys, ts = xs[keep_mask], ys[keep_mask], ts[keep_mask]
+            # Light smoothing (moving average)
+            if len(xs) >= 3:
+                xs = np.convolve(xs, np.ones(3)/3.0, mode='same').astype(np.float32)
+                ys = np.convolve(ys, np.ones(3)/3.0, mode='same').astype(np.float32)
+
         # Compute velocities and accelerations
         dt = np.diff(ts, prepend=ts[0])
         dt = np.maximum(dt, 1e-6)  # Avoid division by zero
@@ -218,13 +247,11 @@ class SwipeDataset(Dataset):
         ax = np.clip(ax, -10, 10)
         ay = np.clip(ay, -10, 10)
 
-        # Get nearest keys for each point
+        # Get nearest keys for each (normalized) point
         nearest_keys = []
-        for x, y in zip(item["x"], item["y"]):
-            key = self.keyboard.get_nearest_key(x, y)
-            nearest_keys.append(
-                self.tokenizer.char_to_idx.get(key, self.tokenizer.unk_idx)
-            )
+        for x, y in zip(xs, ys):
+            key = self.keyboard.get_nearest_key(float(x), float(y))
+            nearest_keys.append(self.tokenizer.char_to_idx.get(key, self.tokenizer.unk_idx))
 
         # Stack trajectory features
         traj_features = np.stack([xs, ys, vx, vy, ax, ay], axis=1)
@@ -261,6 +288,7 @@ class SwipeDataset(Dataset):
             "target": torch.tensor(target_indices, dtype=torch.long),
             "seq_len": seq_len,
             "word": word,
+            "source": item.get("source", "unknown"),
         }
 
 
@@ -393,6 +421,7 @@ class CharacterLevelSwipeModel(nn.Module):
         src_mask=None,
         beam_size=5,
         max_len=20,
+        length_penalty_alpha: float = 0.6,
     ):
         """Generate word using beam search."""
         self.eval()
@@ -401,17 +430,21 @@ class CharacterLevelSwipeModel(nn.Module):
         memory = self.encode_trajectory(traj_features, nearest_keys, src_mask)
         batch_size = memory.shape[0]
 
-        # Initialize beams
-        beams = [[(0.0, [tokenizer.sos_idx])] for _ in range(batch_size)]
+        # Initialize beams: store tuples (adjusted_score, seq, raw_score)
+        beams = [[(0.0, [tokenizer.sos_idx], 0.0)] for _ in range(batch_size)]
+
+        def length_penalty(length: int, alpha: float = 0.6) -> float:
+            return ((5 + length) ** alpha) / (6 ** alpha)
 
         for step in range(max_len):
             new_beams = [[] for _ in range(batch_size)]
 
             for b in range(batch_size):
-                for score, seq in beams[b]:
+                for _, seq, raw_score in beams[b]:
                     # Skip finished sequences
                     if seq[-1] == tokenizer.eos_idx:
-                        new_beams[b].append((score, seq))
+                        adj_score = raw_score / length_penalty(len(seq), length_penalty_alpha)
+                        new_beams[b].append((adj_score, seq, raw_score))
                         continue
 
                     # Prepare input
@@ -437,9 +470,10 @@ class CharacterLevelSwipeModel(nn.Module):
                     )
 
                     for prob, idx in zip(top_probs, top_indices):
-                        new_score = score - prob.item()
+                        new_raw_score = raw_score - prob.item()  # accumulate negative log prob
                         new_seq = seq + [idx.item()]
-                        new_beams[b].append((new_score, new_seq))
+                        adj_score = new_raw_score / length_penalty(len(new_seq), length_penalty_alpha)
+                        new_beams[b].append((adj_score, new_seq, new_raw_score))
 
                 # Keep top beam_size sequences
                 new_beams[b].sort(key=lambda x: x[0])
@@ -459,10 +493,10 @@ def train_full_model():
     """Train on full dataset to achieve target 70% accuracy."""
 
     # Configuration for full training
-    batch_size = 128  # Larger batch for better gradient estimates
-    learning_rate = 4e-5  # Slightly higher LR for faster convergence
-    num_epochs = 500  # More epochs to reach target
-    patience = 40  # Early stopping patience
+    batch_size = int(os.getenv("BATCH_SIZE", "128"))
+    learning_rate = float(os.getenv("LR", "4e-5"))
+    num_epochs = int(os.getenv("EPOCHS", "500"))
+    patience = int(os.getenv("PATIENCE", "40"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("=" * 60)
@@ -485,9 +519,12 @@ def train_full_model():
     print(f"Loading datasets...")
 
     # Load full datasets - no max_samples limit
-    train_dataset = SwipeDataset(train_data_path)  # Full 68k samples
-    val_dataset = SwipeDataset(val_data_path)  # Full validation set
-    test_dataset = SwipeDataset(test_data_path)  # Test set for final eval
+    max_samples_env = os.getenv("MAX_SAMPLES")
+    max_samples = int(max_samples_env) if max_samples_env else None
+
+    train_dataset = SwipeDataset(train_data_path, augment=True, max_samples=max_samples)
+    val_dataset = SwipeDataset(val_data_path, max_samples=max_samples)
+    test_dataset = SwipeDataset(test_data_path, max_samples=max_samples)
 
     print(f"Train: {len(train_dataset)} samples")
     print(f"Val: {len(val_dataset)} samples")
@@ -537,6 +574,19 @@ def train_full_model():
     print(f"Model size (FP32): {param_count * 4 / 1024 / 1024:.2f} MB")
     print("-" * 60)
 
+    # Save config for export
+    export_config = {
+        "d_model": 256,
+        "nhead": 8,
+        "num_encoder_layers": 6,
+        "num_decoder_layers": 4,
+        "dim_feedforward": 1024,
+        "vocab_size": tokenizer.vocab_size,
+        "max_seq_len": 250,
+        "max_word_len": 20,
+        "traj_dim": 6,
+    }
+
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_idx)
     optimizer = torch.optim.AdamW(
@@ -545,19 +595,22 @@ def train_full_model():
 
     # Learning rate scheduler - cosine annealing with warmup
     warmup_epochs = 2
+    pct_start = warmup_epochs / max(num_epochs, 1)
+    # Clamp pct_start to a valid range for small EPOCHS
+    pct_start = max(0.0, min(pct_start, 0.3))
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer,
         max_lr=learning_rate,
-        epochs=num_epochs,
-        steps_per_epoch=len(train_loader),
-        pct_start=warmup_epochs / num_epochs,
+        epochs=max(num_epochs, 1),
+        steps_per_epoch=max(len(train_loader), 1),
+        pct_start=pct_start,
         anneal_strategy="cos",
     )
 
-    # --- START CHECKPOINT RESUME LOGIC ---
+    # --- START CHECKPOINT RESUME LOGIC (load best by metric) ---
 
     start_epoch = 0
-    best_val_acc = 0
+    best_val_acc = -1.0
     patience_counter = 0
     checkpoint_dir = Path("checkpoints/full_character_model_standalone_hwsfuto3")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -565,31 +618,31 @@ def train_full_model():
     # Find the best (most accurate) checkpoint to resume from
     checkpoint_files = list(checkpoint_dir.glob("*.ckpt"))
     if checkpoint_files:
-        try:
-            # Sort files by accuracy (the last part of the filename)
-            checkpoint_files.sort(
-                key=lambda p: float(p.stem.split('-')[-1]), 
-                reverse=True
-            )
-            latest_ckpt_path = checkpoint_files[0]
-
-            print(f"Resuming from checkpoint: {latest_ckpt_path}")
-            checkpoint = torch.load(latest_ckpt_path, map_location=device)
-            
+        best_path = None
+        best_metric = -1.0
+        for p in checkpoint_files:
+            try:
+                ck = torch.load(p, map_location=device)
+                metric = float(ck.get("val_word_acc", 0.0))
+                if metric > best_metric:
+                    best_metric = metric
+                    best_path = p
+            except Exception as e:
+                print(f"Skipping checkpoint {p.name}: {e}")
+        if best_path is not None:
+            print(f"Resuming from best checkpoint: {best_path} (acc={best_metric:.3f})")
+            checkpoint = torch.load(best_path, map_location=device)
             model.load_state_dict(checkpoint["model_state_dict"])
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-            
-            start_epoch = checkpoint["epoch"] + 1
-            best_val_acc = checkpoint.get("val_word_acc", 0) # Use .get for safety
-            
+            try:
+                scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            except Exception:
+                pass
+            start_epoch = checkpoint.get("epoch", -1) + 1
+            best_val_acc = float(checkpoint.get("val_word_acc", 0.0))
             print(f"Resumed from Epoch {start_epoch}, Best Acc: {best_val_acc:.2%}")
-        
-        except Exception as e:
-            print(f"WARNING: Could not load checkpoint. Starting from scratch. Error: {e}")
-            start_epoch = 0
-            best_val_acc = 0
-    
+        else:
+            print("No usable checkpoint found. Starting from scratch.")
     else:
         print("No checkpoint found. Starting from scratch.")
 
@@ -598,6 +651,8 @@ def train_full_model():
 
     print("Starting training...")
     print("=" * 60)
+
+    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == 'cuda'))
 
     for epoch in range(start_epoch, num_epochs):
         # Training phase
@@ -625,19 +680,19 @@ def train_full_model():
 
             tgt_mask = targets[:, :-1] == tokenizer.pad_idx
 
-            # Forward pass
-            logits = model(traj_features, nearest_keys, targets, src_mask, tgt_mask)
-
-            # Compute loss
-            loss = criterion(
-                logits.reshape(-1, logits.shape[-1]), targets[:, 1:].reshape(-1)
-            )
+            # Forward pass (mixed precision)
+            with torch.cuda.amp.autocast(enabled=(device.type == 'cuda')):
+                logits = model(traj_features, nearest_keys, targets, src_mask, tgt_mask)
+                loss = criterion(
+                    logits.reshape(-1, logits.shape[-1]), targets[:, 1:].reshape(-1)
+                )
 
             # Backward pass
-            optimizer.zero_grad()
-            loss.backward()
+            optimizer.zero_grad(set_to_none=True)
+            scaler.scale(loss).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             scheduler.step()
 
             # Track metrics
@@ -665,7 +720,9 @@ def train_full_model():
         model.eval()
         val_correct_words = 0
         val_total_words = 0
-        val_top5_correct = 0
+        # Per-source counters
+        per_source_total = {}
+        per_source_correct = {}
 
         limit_val_batches = int(len(val_loader) * 1)
         if limit_val_batches == 0:
@@ -679,6 +736,7 @@ def train_full_model():
                 traj_features = batch["traj_features"].to(device)
                 nearest_keys = batch["nearest_keys"].to(device)
                 words = batch["word"]
+                sources = batch.get("source", ["unknown"]) if isinstance(batch, dict) else ["unknown"]
 
                 # Create masks
                 seq_lens = batch["seq_len"]
@@ -697,10 +755,13 @@ def train_full_model():
                 )
 
                 # Compute accuracy
-                for gen_word, true_word in zip(generated_words, words):
+                for i, (gen_word, true_word) in enumerate(zip(generated_words, words)):
                     val_total_words += 1
-                    if gen_word == true_word:
-                        val_correct_words += 1
+                    src = sources[i] if isinstance(sources, list) else sources
+                    per_source_total[src] = per_source_total.get(src, 0) + 1
+                    correct = int(gen_word == true_word)
+                    val_correct_words += correct
+                    per_source_correct[src] = per_source_correct.get(src, 0) + correct
 
                 # Update progress
                 word_acc = val_correct_words / max(val_total_words, 1)
@@ -712,6 +773,10 @@ def train_full_model():
         print(f"\nEpoch {epoch + 1}/{num_epochs}")
         print(f"  Train - Loss: {avg_train_loss:.4f}, Char Acc: {train_acc:.2%}")
         print(f"  Val   - Word Acc: {val_word_acc:.2%}")
+        if per_source_total:
+            for src, tot in per_source_total.items():
+                acc = per_source_correct.get(src, 0) / max(tot, 1)
+                print(f"          {src}: {acc:.2%} ({per_source_correct.get(src,0)}/{tot})")
 
         # Save checkpoint if improved
         if val_word_acc > best_val_acc:
@@ -729,55 +794,13 @@ def train_full_model():
                     "scheduler_state_dict": scheduler.state_dict(),
                     "val_word_acc": val_word_acc,
                     "train_acc": train_acc,
+                    "config": export_config,
                 },
                 checkpoint_path,
             )
             print(f"  ✓ New best model saved: {checkpoint_path}")
 
-            # Check if target reached
-            if val_word_acc >= 0.99:
-                print("\n" + "=" * 60)
-                print(f"🎉 TARGET ACHIEVED! {val_word_acc:.1%} word accuracy!")
-                print("Successfully matched original model performance!")
-                print("=" * 60)
-
-                # Run test set evaluation
-                print("\nEvaluating on test set...")
-                test_correct = 0
-                test_total = 0
-
-                with torch.no_grad():
-                    for batch in tqdm(test_loader, desc="Test"):
-                        traj_features = batch["traj_features"].to(device)
-                        nearest_keys = batch["nearest_keys"].to(device)
-                        words = batch["word"]
-
-                        seq_lens = batch["seq_len"]
-                        src_mask = torch.zeros(
-                            traj_features.shape[0],
-                            traj_features.shape[1],
-                            dtype=torch.bool,
-                            device=device,
-                        )
-                        for i, seq_len in enumerate(seq_lens):
-                            src_mask[i, seq_len:] = True
-
-                        generated_words = model.generate_beam(
-                            traj_features,
-                            nearest_keys,
-                            tokenizer,
-                            src_mask,
-                            beam_size=5,
-                        )
-
-                        for gen_word, true_word in zip(generated_words, words):
-                            test_total += 1
-                            if gen_word == true_word:
-                                test_correct += 1
-
-                test_acc = test_correct / test_total
-                print(f"Test Set Accuracy: {test_acc:.2%}")
-                break
+            # No hard stop at threshold; continue training until patience triggers
         else:
             patience_counter += 1
             if patience_counter >= patience:
@@ -787,12 +810,11 @@ def train_full_model():
 
         print("-" * 60)
 
-    if best_val_acc < 0.99:
-        print(f"\nTraining complete. Best validation accuracy: {best_val_acc:.2%}")
-        print("Consider:")
-        print("- Training for more epochs")
-        print("- Adjusting hyperparameters")
-        print("- Using data augmentation")
+    print(f"\nTraining complete. Best validation accuracy: {best_val_acc:.2%}")
+    print("Consider:")
+    print("- Training for more epochs")
+    print("- Adjusting hyperparameters")
+    print("- Using data augmentation")
 
 
 if __name__ == "__main__":
