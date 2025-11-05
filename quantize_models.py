@@ -19,9 +19,9 @@ def quantize_model(input_path: Path, output_path: Path):
     quantize_dynamic(
         str(input_path),
         str(output_path),
-        weight_type=QuantType.QUInt8,  # Use unsigned int8 for web compatibility
-        per_channel=False,  # Disable per-channel for web compatibility
-        reduce_range=False,  # Don't reduce range for web
+        weight_type=QuantType.QInt8,  # Signed int8 for better accuracy on Android
+        per_channel=True,   # Enable per-channel for better accuracy
+        reduce_range=True,  # Reduce range for better hardware compatibility
     )
     
     quantized_size = os.path.getsize(output_path) / (1024 * 1024)
@@ -32,7 +32,7 @@ def quantize_model(input_path: Path, output_path: Path):
 
 
 def main():
-    deployment_dir = Path("deployment_package")
+    deployment_dir = Path("deployment_package79")
     web_demo_dir = Path("web-demo/public/models")
     
     # Models to quantize

@@ -16,26 +16,25 @@ import onnx
 import onnxruntime as ort
 
 # Import the character model components
-from train_character_model import CharacterLevelSwipeModel, CharTokenizer
+from train_full_model_standalone import CharacterLevelSwipeModel, CharTokenizer
 
 
 def load_best_checkpoint() -> Tuple[CharacterLevelSwipeModel, str]:
     """Load the best performing checkpoint."""
-    checkpoint_dir = Path('checkpoints/full_character_model')
-    
-    # Find the best checkpoint (79.5% accuracy)
-    checkpoint_path = checkpoint_dir / 'full-model-49-0.795.ckpt'
-    
-    if not checkpoint_path.exists():
-        # Try to find any checkpoint with >70% accuracy
-        checkpoints = list(checkpoint_dir.glob('*.ckpt'))
-        checkpoints.sort(key=lambda x: float(x.stem.split('-')[-1]), reverse=True)
-        if checkpoints:
-            checkpoint_path = checkpoints[0]
-            print(f"Using checkpoint: {checkpoint_path}")
-        else:
-            raise FileNotFoundError("No checkpoint found! Please train the model first.")
-    
+    checkpoint_dir = Path('checkpoints/full_character_model_standalone_hwsfuto')
+
+    if not checkpoint_dir.exists():
+        # Fallback to old checkpoint directory
+        checkpoint_dir = Path('checkpoints/full_character_model')
+
+    # Find the best checkpoint by sorting by accuracy
+    checkpoints = list(checkpoint_dir.glob('*.ckpt'))
+    if not checkpoints:
+        raise FileNotFoundError(f"No checkpoint found in {checkpoint_dir}! Please train the model first.")
+
+    checkpoints.sort(key=lambda x: float(x.stem.split('-')[-1]), reverse=True)
+    checkpoint_path = checkpoints[0]
+
     print(f"Loading checkpoint: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     
