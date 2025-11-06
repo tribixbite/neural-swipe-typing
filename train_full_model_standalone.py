@@ -62,6 +62,10 @@ class KeyboardGrid:
         self.key_positions["<unk>"] = (0.5, 0.5)
         self.key_positions["<pad>"] = (0.0, 0.0)
 
+        # Precompute arrays for vectorized nearest-key lookup
+        self._labels = [k for k in self.key_positions.keys() if k not in ("<unk>", "<pad>")]
+        self._pos = np.array([self.key_positions[k] for k in self._labels], dtype=np.float32)  # (K,2)
+
     def get_nearest_key(self, x: float, y: float) -> str:
         nearest, dmin = "<unk>", float("inf")
         for label, (kx, ky) in self.key_positions.items():
@@ -71,6 +75,16 @@ class KeyboardGrid:
             if d < dmin:
                 dmin, nearest = d, label
         return nearest
+
+    def get_nearest_key_vectorized(self, xs: np.ndarray, ys: np.ndarray) -> List[str]:
+        if xs.size == 0:
+            return []
+        coords = np.stack([xs, ys], axis=1).astype(np.float32)  # (L,2)
+        # Compute squared distances: (L,K)
+        diff = coords[:, None, :] - self._pos[None, :, :]
+        d2 = np.sum(diff * diff, axis=2)
+        idx = np.argmin(d2, axis=1)
+        return [self._labels[i] for i in idx]
 
 
 class CharTokenizer:
@@ -247,11 +261,9 @@ class SwipeDataset(Dataset):
         ax = np.clip(ax, -10, 10)
         ay = np.clip(ay, -10, 10)
 
-        # Get nearest keys for each (normalized) point
-        nearest_keys = []
-        for x, y in zip(xs, ys):
-            key = self.keyboard.get_nearest_key(float(x), float(y))
-            nearest_keys.append(self.tokenizer.char_to_idx.get(key, self.tokenizer.unk_idx))
+        # Get nearest keys for each (normalized) point (vectorized)
+        near_labels = self.keyboard.get_nearest_key_vectorized(xs, ys)
+        nearest_keys = [self.tokenizer.char_to_idx.get(k, self.tokenizer.unk_idx) for k in near_labels]
 
         # Stack trajectory features
         traj_features = np.stack([xs, ys, vx, vy, ax, ay], axis=1)
@@ -490,21 +502,15 @@ class CharacterLevelSwipeModel(nn.Module):
 
 
 def train_full_model():
-    """Train on full dataset to achieve target 70% accuracy."""
 
     # Configuration for full training
-    batch_size = int(os.getenv("BATCH_SIZE", "128"))
-    learning_rate = float(os.getenv("LR", "4e-5"))
+    batch_size = int(os.getenv("BATCH_SIZE", "256"))
+    learning_rate = float(os.getenv("LR", "5e-4"))
     num_epochs = int(os.getenv("EPOCHS", "500"))
     patience = int(os.getenv("PATIENCE", "40"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    print("=" * 60)
-    print("Training Full Character-Level Swipe Model")
-    print("=" * 60)
-    print(f"Device: {device}")
-    print(f"Target: 70% word accuracy (matching original model)")
-    print("-" * 60)
+   
 
     # Use full combined dataset
     train_data_path = "data/train_hwsfuto.jsonl"
@@ -516,13 +522,22 @@ def train_full_model():
         print(f"Error: Dataset not found at {train_data_path}")
         return
 
+    print("=" * 60)
+    print("Training Full Character-Level Swipe Model")
+    print("=" * 60)
+    print(f"Batch size: {batch_size}, Learning rate: {learning_rate}, Number of epochs: {num_epochs}, Patience: {patience}")
+    print(f"Device: {device}")
+    print(f"Training on {train_data_path}, validating on {val_data_path}, testing on {test_data_path}")
+    print("-" * 60)
+
     print(f"Loading datasets...")
 
     # Load full datasets - no max_samples limit
     max_samples_env = os.getenv("MAX_SAMPLES")
     max_samples = int(max_samples_env) if max_samples_env else None
 
-    train_dataset = SwipeDataset(train_data_path, augment=True, max_samples=max_samples)
+    augment_flag = os.getenv("AUGMENT", "1")
+    train_dataset = SwipeDataset(train_data_path, augment=(augment_flag != "0"), max_samples=max_samples)
     val_dataset = SwipeDataset(val_data_path, max_samples=max_samples)
     test_dataset = SwipeDataset(test_data_path, max_samples=max_samples)
 
@@ -532,26 +547,33 @@ def train_full_model():
     print("-" * 60)
 
     # Create dataloaders with num_workers for faster loading
+    num_workers_env = os.getenv("NUM_WORKERS")
+    num_workers = int(num_workers_env) if num_workers_env else max(os.cpu_count() // 2, 1)
+    pin = device.type == "cuda"
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=0,
-        pin_memory=True,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=(num_workers > 0),
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=0,
-        pin_memory=True,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=(num_workers > 0),
     )
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=0,
-        pin_memory=True,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=(num_workers > 0),
     )
 
     # Create model with optimal architecture
@@ -563,7 +585,7 @@ def train_full_model():
         num_encoder_layers=6,  # Deeper encoder
         num_decoder_layers=4,  # Deeper decoder
         dim_feedforward=1024,  # Larger feedforward
-        dropout=0.1,
+        dropout=0.2,
         char_vocab_size=tokenizer.vocab_size,
         kb_vocab_size=tokenizer.vocab_size,
     ).to(device)
@@ -612,7 +634,7 @@ def train_full_model():
     start_epoch = 0
     best_val_acc = -1.0
     patience_counter = 0
-    checkpoint_dir = Path("checkpoints/full_character_model_standalone_hwsfuto3")
+    checkpoint_dir = Path("checkpoints/full_character_model_standalone_hwsfuto5")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     # Find the best (most accurate) checkpoint to resume from
@@ -634,10 +656,7 @@ def train_full_model():
             checkpoint = torch.load(best_path, map_location=device)
             model.load_state_dict(checkpoint["model_state_dict"])
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            try:
-                scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-            except Exception:
-                pass
+            # Intentionally do not restore scheduler state to avoid total-steps mismatch on resume
             start_epoch = checkpoint.get("epoch", -1) + 1
             best_val_acc = float(checkpoint.get("val_word_acc", 0.0))
             print(f"Resumed from Epoch {start_epoch}, Best Acc: {best_val_acc:.2%}")
@@ -724,7 +743,8 @@ def train_full_model():
         per_source_total = {}
         per_source_correct = {}
 
-        limit_val_batches = int(len(val_loader) * 1)
+        val_fraction = float(os.getenv("VAL_FRACTION", "1.0"))
+        limit_val_batches = int(len(val_loader) * max(min(val_fraction, 1.0), 0.0))
         if limit_val_batches == 0:
             limit_val_batches = 1 # Ensure at least one batch runs
 
@@ -750,8 +770,9 @@ def train_full_model():
                     src_mask[i, seq_len:] = True
 
                 # Generate with beam search
+                beam = int(os.getenv("EVAL_BEAM_SIZE", "5"))
                 generated_words = model.generate_beam(
-                    traj_features, nearest_keys, tokenizer, src_mask, beam_size=5
+                    traj_features, nearest_keys, tokenizer, src_mask, beam_size=beam
                 )
 
                 # Compute accuracy
