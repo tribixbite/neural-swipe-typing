@@ -330,7 +330,7 @@ def export_decoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opse
     return {'path': str(output_path), 'size_mb': size_mb}
 
 
-def try_simplify_onnx(input_path: Path, output_path: Path) -> float:
+def try_simplify_onnx(input_path: Path, output_path: Path, strict: bool = True) -> float:
     """Simplify ONNX graph using onnxsim. Returns size in MB of simplified model.
     If onnxsim is not available, attempts to install, otherwise copies input to output.
     """
@@ -350,9 +350,14 @@ def try_simplify_onnx(input_path: Path, output_path: Path) -> float:
             raise RuntimeError("onnxsim check failed")
         onnx.save(model_simp, str(output_path))
     except Exception as e:
-        print(f"  ⚠ Simplify failed: {e}. Using original model.")
-        import shutil
-        shutil.copyfile(str(input_path), str(output_path))
+        if strict:
+            raise SystemExit(
+                f"Simplification failed: {e}. Rerun with --no-simplify to skip graph simplification."
+            )
+        else:
+            print(f"  ⚠ Simplify failed: {e}. Using original model.")
+            import shutil
+            shutil.copyfile(str(input_path), str(output_path))
     size_mb = os.path.getsize(output_path) / (1024 * 1024)
     print(f"  Simplified: {size_mb:.2f} MB ({(1 - size_mb/original_size)*100:.1f}% vs raw)")
     return size_mb
@@ -388,15 +393,21 @@ def preprocess_onnx_model(input_path: Path, output_path: Path) -> float:
 
 
 def quantize_onnx_model(input_path: Path, output_path: Path, target: str = "android",
+                        use_static: bool = True,
                         calibration_data: Optional[str] = None) -> float:
     """Apply dynamic quantization to ONNX model."""
     print(f"Quantizing {input_path.name} for {target}")
 
     original_size = os.path.getsize(input_path) / (1024 * 1024)
 
-    # If calibration data provided and target is android, try static quant
+    # If target is android and static requested, require calibration data
     did_static = False
-    if target == "android" and calibration_data is not None:
+    if target == "android" and use_static:
+        if calibration_data is None:
+            raise SystemExit(
+                "Static quantization is enabled by default for Android but no calibration data was provided. "
+                "Provide --calibration-data path/to/train.jsonl or rerun with --dynamic-only to use dynamic quantization."
+            )
         try:
             print("  Using static quantization with calibration data")
 
@@ -464,7 +475,9 @@ def quantize_onnx_model(input_path: Path, output_path: Path, target: str = "andr
             quantize_static(str(input_path), str(output_path), dr, weight_type=QuantType.QInt8, optimize_model=False)
             did_static = True
         except Exception as e:
-            print(f"  ⚠ Static quantization failed: {e}. Falling back to dynamic.")
+            raise SystemExit(
+                f"Static quantization failed: {e}. Rerun with --dynamic-only to use dynamic quantization instead."
+            )
 
     if not did_static:
         if target == "web":
@@ -568,8 +581,10 @@ def main():
     parser.add_argument('--targets', nargs='+', default=['web', 'android'],
                        choices=['web', 'android'], help='Target platforms')
     parser.add_argument('--opset', type=int, default=17, help='ONNX opset version (default 17)')
-    parser.add_argument('--clean-base', action='store_true', help='Remove raw base ONNX files after optimization')
+    parser.add_argument('--clean-base', action='store_true', help='Remove raw and simplified ONNX files after creating optimized models')
     parser.add_argument('--calibration-data', type=str, default=None, help='Path to JSONL calibration data for static quant (Android)')
+    parser.add_argument('--dynamic-only', action='store_true', help='Use dynamic quantization instead of static (Android)')
+    parser.add_argument('--no-simplify', action='store_true', help='Skip ONNX graph simplification step')
 
     args = parser.parse_args()
 
@@ -632,13 +647,19 @@ def main():
             enc_prep_size = encoder_info['size_mb']
             dec_prep_size = decoder_info['size_mb']
 
-        # Step 2: Simplify graphs (default enabled)
-        enc_simp_size = try_simplify_onnx(prep_input_enc, enc_simp)
-        dec_simp_size = try_simplify_onnx(prep_input_dec, dec_simp)
+        # Step 2: Simplify graphs (default enabled; fail fast if issues)
+        if args.no_simplify:
+            import shutil
+            shutil.copyfile(str(prep_input_enc), str(enc_simp))
+            shutil.copyfile(str(prep_input_dec), str(dec_simp))
+        else:
+            enc_simp_size = try_simplify_onnx(prep_input_enc, enc_simp, strict=True)
+            dec_simp_size = try_simplify_onnx(prep_input_dec, dec_simp, strict=True)
 
         # Step 3: Quantization
-        enc_quant_size = quantize_onnx_model(enc_simp, enc_final, target, calibration_data=args.calibration_data)
-        dec_quant_size = quantize_onnx_model(dec_simp, dec_final, target, calibration_data=args.calibration_data)
+        use_static = (target == 'android' and not args.dynamic_only)
+        enc_quant_size = quantize_onnx_model(enc_simp, enc_final, target, use_static=use_static, calibration_data=args.calibration_data)
+        dec_quant_size = quantize_onnx_model(dec_simp, dec_final, target, use_static=use_static, calibration_data=args.calibration_data)
 
         total_final_mb = enc_quant_size + dec_quant_size
         total_reduction = (1 - total_final_mb / total_original_mb) * 100
@@ -657,9 +678,7 @@ def main():
             enc_prep.unlink(missing_ok=True)
             dec_prep.unlink(missing_ok=True)
         if args.clean_base:
-            # remove raw and simplified intermediates
-            encoder_path.unlink(missing_ok=True)
-            decoder_path.unlink(missing_ok=True)
+            # remove per-target simplified intermediates
             enc_simp.unlink(missing_ok=True)
             dec_simp.unlink(missing_ok=True)
 
@@ -667,7 +686,10 @@ def main():
     print("\n=== Configuration Files ===")
     create_config_files(output_dir, accuracy, config)
 
-    # Keep raw ONNX by default (use --clean-base to remove)
+    # Keep raw ONNX by default; if requested, remove after all targets processed
+    if args.clean_base:
+        encoder_path.unlink(missing_ok=True)
+        decoder_path.unlink(missing_ok=True)
 
     # Summary
     print("\n" + "=" * 60)
