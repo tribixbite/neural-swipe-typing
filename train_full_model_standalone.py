@@ -23,40 +23,49 @@ class KeyboardGrid:
     """Standalone QWERTY grid using normalized [0,1] coordinates."""
 
     def __init__(self):
-        # Normalized canvas like your image
+        # Normalized keyboard canvas: width=1.0, height=1.0
         self.width = 1.0
         self.height = 1.0
 
+        # Spec:
+        # - +X right, +Y down
+        # - Key width = 1/10, Key height = 1/3 for all rows
+        # - Top row spans full width (0.0 .. 1.0)
+        # - Middle row centered with 0.05 left/right margin (9 keys)
+        # - Bottom row centered with 0.15 left/right margin (7 keys)
+        #   Examples:
+        #   Q top-left corner = (0.0, 0.0), P top-right corner = (1.0, 0.0)
+        #   Z bottom-left corner = (0.15, 1.0), M bottom-right corner = (0.85, 1.0)
+
         row_h = 1.0 / 3.0
+        key_w = 1.0 / 10.0
+
         # Row layouts
         top = list("qwertyuiop")        # 10 keys
-        mid = list("asdfghjkl")         # 9 keys, offset by ~0.5 of a top key
-        bot = list("zxcvbnm")           # 7 keys, offset by ~1.5 of a top key
+        mid = list("asdfghjkl")         # 9 keys, offset by 0.05
+        bot = list("zxcvbnm")           # 7 keys, offset by 0.15
 
-        top_w = 1.0 / len(top)          # 0.1
-        mid_w = 1.0 / len(mid)          # ≈0.111...
-        bot_w = 1.0 / len(bot)          # ≈0.142857...
-
-        mid_x0 = 0.5 * top_w            # 0.05
-        bot_x0 = 1.5 * top_w            # 0.15
+        top_x0 = 0.0
+        mid_x0 = 0.05
+        bot_x0 = 0.15
 
         self.qwerty = {"width": self.width, "height": self.height, "keys": []}
         self.key_positions = {}
 
-        def add_row(keys, y0, x0, kw):
+        def add_row(keys, y0, x0):
             for i, k in enumerate(keys):
-                x = x0 + i * kw
+                x = x0 + i * key_w
                 y = y0
-                w = kw
+                w = key_w
                 h = row_h
                 cx, cy = x + w / 2.0, y + h / 2.0
                 self.key_positions[k] = (cx, cy)
                 self.qwerty["keys"].append({"label": k, "hitbox": {"x": x, "y": y, "w": w, "h": h}})
 
         # Build rows (y increases downward)
-        add_row(top, 0.0 * row_h, 0.0,     top_w)  # qwertyuiop
-        add_row(mid, 1.0 * row_h, mid_x0,  mid_w)  # asdfghjkl
-        add_row(bot, 2.0 * row_h, bot_x0,  bot_w)  # zxcvbnm
+        add_row(top, 0.0 * row_h, top_x0)  # qwertyuiop
+        add_row(mid, 1.0 * row_h, mid_x0)  # asdfghjkl
+        add_row(bot, 2.0 * row_h, bot_x0)  # zxcvbnm
 
         # Special tokens (center-ish and origin for pad)
         self.key_positions["<unk>"] = (0.5, 0.5)
@@ -315,8 +324,10 @@ class CharacterLevelSwipeModel(nn.Module):
         num_encoder_layers: int = 4,
         num_decoder_layers: int = 3,
         dim_feedforward: int = 512,
-        dropout: float = 0.1,
+        dropout: float = 0.15,
         kb_vocab_size: int = 30,
+        kb_pad_idx: Optional[int] = None,
+        char_pad_idx: Optional[int] = None,
         char_vocab_size: int = 30,
         max_seq_len: int = 250,
     ):
@@ -326,7 +337,9 @@ class CharacterLevelSwipeModel(nn.Module):
 
         # Encoder: Process trajectory
         self.traj_proj = nn.Linear(traj_dim, d_model // 2)
-        self.kb_embedding = nn.Embedding(kb_vocab_size, d_model // 2)
+        self.kb_embedding = nn.Embedding(kb_vocab_size, d_model // 2, padding_idx=kb_pad_idx)
+        
+        # self.kb_embedding = nn.Embedding(kb_vocab_size, d_model // 2)
         self.encoder_norm = nn.LayerNorm(d_model)
 
         # Positional encoding
@@ -350,7 +363,7 @@ class CharacterLevelSwipeModel(nn.Module):
         self.encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers)
 
         # Decoder: Generate characters
-        self.char_embedding = nn.Embedding(char_vocab_size, d_model)
+        self.char_embedding = nn.Embedding(char_vocab_size, d_model, padding_idx=char_pad_idx)
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=d_model,
             nhead=nhead,
@@ -434,6 +447,9 @@ class CharacterLevelSwipeModel(nn.Module):
         beam_size=5,
         max_len=20,
         length_penalty_alpha: float = 0.6,
+        lm=None,               # optional callable: lm(word)->logprob
+        lm_weight: float = 0.0,# how much to weight the LM (logprob * lm_weight)
+        lexicon_prefixes=None  # optional set/dict to prune beams by prefix
     ):
         """Generate word using beam search."""
         self.eval()
@@ -460,7 +476,7 @@ class CharacterLevelSwipeModel(nn.Module):
                         continue
 
                     # Prepare input
-                    tgt_input = torch.tensor([seq], device=memory.device)
+                    tgt_input = torch.tensor([seq], device=memory.device, dtype=torch.long)
                     tgt_emb = self.char_embedding(tgt_input) * math.sqrt(self.d_model)
                     tgt_emb = tgt_emb + self.pe[:, : len(seq), :]
 
@@ -468,8 +484,10 @@ class CharacterLevelSwipeModel(nn.Module):
                     causal_mask = nn.Transformer.generate_square_subsequent_mask(
                         len(seq)
                     ).to(memory.device)
+                    # *** IMPORTANT: pass memory_key_padding_mask so the decoder doesn't attend to encoder padding ***
+                    memory_key_padding_mask = src_mask[b : b + 1] if src_mask is not None else None
                     output = self.decoder(
-                        tgt_emb, memory[b : b + 1], tgt_mask=causal_mask
+                        tgt_emb, memory[b : b + 1], tgt_mask=causal_mask, memory_key_padding_mask=memory_key_padding_mask
                     )
 
                     # Get next token probabilities
@@ -484,8 +502,24 @@ class CharacterLevelSwipeModel(nn.Module):
                     for prob, idx in zip(top_probs, top_indices):
                         new_raw_score = raw_score - prob.item()  # accumulate negative log prob
                         new_seq = seq + [idx.item()]
-                        adj_score = new_raw_score / length_penalty(len(new_seq), length_penalty_alpha)
-                        new_beams[b].append((adj_score, new_seq, new_raw_score))
+                        # adj_score = new_raw_score / length_penalty(len(new_seq), length_penalty_alpha)
+                        # new_beams[b].append((adj_score, new_seq, new_raw_score))
+                        # Optionally prune by lexicon prefix to only keep sequences that match
+                        if lexicon_prefixes is not None:
+                            prefix = tokenizer.decode(new_seq).lower()
+                            if prefix not in lexicon_prefixes:
+                                continue
+
+                        # Optionally combine LM score for full word (only if eos or last step)
+                        adj_raw = new_raw_score
+                        if lm is not None and (idx.item() == tokenizer.eos_idx or step == max_len - 1):
+                            cand_word = tokenizer.decode(new_seq)
+                            lm_logprob = lm(cand_word) if cand_word else 0.0
+                            # lower objective = better, so subtract lm contribution
+                            adj_raw = new_raw_score - lm_weight * lm_logprob
+
+                        adj_score = adj_raw / length_penalty(len(new_seq), length_penalty_alpha)
+                        new_beams[b].append((adj_score, new_seq, adj_raw))
 
                 # Keep top beam_size sequences
                 new_beams[b].sort(key=lambda x: x[0])
@@ -504,8 +538,8 @@ class CharacterLevelSwipeModel(nn.Module):
 def train_full_model():
 
     # Configuration for full training
-    batch_size = int(os.getenv("BATCH_SIZE", "256"))
-    learning_rate = float(os.getenv("LR", "5e-4"))
+    batch_size = int(os.getenv("BATCH_SIZE", "64"))
+    learning_rate = float(os.getenv("LR", "3e-4"))
     num_epochs = int(os.getenv("EPOCHS", "500"))
     patience = int(os.getenv("PATIENCE", "40"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -585,9 +619,11 @@ def train_full_model():
         num_encoder_layers=6,  # Deeper encoder
         num_decoder_layers=4,  # Deeper decoder
         dim_feedforward=1024,  # Larger feedforward
-        dropout=0.2,
+        dropout=0.15,
         char_vocab_size=tokenizer.vocab_size,
         kb_vocab_size=tokenizer.vocab_size,
+        kb_pad_idx=tokenizer.pad_idx,
+        char_pad_idx=tokenizer.pad_idx
     ).to(device)
 
     # Count parameters
@@ -610,31 +646,23 @@ def train_full_model():
     }
 
     # Loss and optimizer
-    criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_idx)
+    criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_idx, label_smoothing=0.1)
+    # fallback if not supported: implement smoothed targets or use KLDivLoss with log-softmax
+
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=0.01
     )
 
     # Learning rate scheduler - cosine annealing with warmup
-    warmup_epochs = 2
-    pct_start = warmup_epochs / max(num_epochs, 1)
-    # Clamp pct_start to a valid range for small EPOCHS
-    pct_start = max(0.0, min(pct_start, 0.3))
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        optimizer,
-        max_lr=learning_rate,
-        epochs=max(num_epochs, 1),
-        steps_per_epoch=max(len(train_loader), 1),
-        pct_start=pct_start,
-        anneal_strategy="cos",
-    )
+    warmup_epochs = 5
+    
 
     # --- START CHECKPOINT RESUME LOGIC (load best by metric) ---
 
     start_epoch = 0
     best_val_acc = -1.0
     patience_counter = 0
-    checkpoint_dir = Path("checkpoints/full_character_model_standalone_hwsfuto5")
+    checkpoint_dir = Path("checkpoints/full_character_model_standalone_hwsfuto8")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     # Find the best (most accurate) checkpoint to resume from
@@ -667,7 +695,26 @@ def train_full_model():
 
     # --- END CHECKPOINT RESUME LOGIC ---
 
+    # Soft LR scale to stabilize training when introducing scheduled sampling now
+    # Put this after your checkpoint-resume logic and before the epoch loop.
+    lr_scale_on_ss = float(os.getenv("LR_SCALE_ON_SS", "1.0"))
+    if lr_scale_on_ss != 1.0:
+        for g in optimizer.param_groups:
+            g['lr'] = g.get('lr', learning_rate) * lr_scale_on_ss
 
+    pct_start = warmup_epochs / max(num_epochs, 1)
+    pct_start = max(0.0, min(pct_start, 0.3))
+    max_lr_for_scheduler = max(g.get('lr', learning_rate) for g in optimizer.param_groups)
+
+    # 4) now create scheduler using current optimizer param_groups
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=max(g['lr'] for g in optimizer.param_groups),
+        epochs=max(num_epochs, 1),
+        steps_per_epoch=max(len(train_loader), 1),
+        pct_start=pct_start,
+        anneal_strategy="cos",
+    )
     print("Starting training...")
     print("=" * 60)
 
@@ -700,11 +747,85 @@ def train_full_model():
             tgt_mask = targets[:, :-1] == tokenizer.pad_idx
 
             # Forward pass (mixed precision)
+            # with torch.cuda.amp.autocast(enabled=(device.type == 'cuda')):
+            #     logits = model(traj_features, nearest_keys, targets, src_mask, tgt_mask)
+            #     loss = criterion(
+            #         logits.reshape(-1, logits.shape[-1]), targets[:, 1:].reshape(-1)
+            #     )
+            # --- START: scheduled sampling forward (mixed precision) ---
+            # Encode trajectory (shared)
+            memory = model.encode_trajectory(traj_features, nearest_keys, src_mask)
+
+            # Scheduled sampling hyperparams (tune via env)
+            ss_start = float(os.getenv("SS_START", "1.0"))    # prob keep GT at epoch 0
+            ss_end = float(os.getenv("SS_END", "0.35"))        # final prob keep GT
+            ss_decay_epochs = int(os.getenv("SS_EPOCHS", "100"))
+            ss_warmup = int(os.getenv("SS_WARMUP", "10"))    # keep full teacher forcing for this many epochs
+            if epoch < ss_warmup:
+                p_teacher = 1.0
+            else:
+                progress = (epoch - ss_warmup) / max(1, ss_decay_epochs - ss_warmup)
+                p_teacher = ss_start + (ss_end - ss_start) * min(1.0, progress)
+            # Prepare ground-truth decoder input (B, T-1)
+            tgt_gt = targets[:, :-1].clone().to(device)  # keep on device for convenience
+
+            # Tgt pad mask (for loss/decoder)
+            tgt_key_padding_mask = tgt_gt == tokenizer.pad_idx  # shape (B, T-1)
+
+            # By default use full teacher forcing
+            if p_teacher >= 0.999:
+                tgt_input = tgt_gt
+            else:
+                # Autoregressively roll model (greedy) to get out_tokens (no grad)
+                with torch.no_grad():
+                    B = tgt_gt.size(0)
+                    Tm1 = tgt_gt.size(1)
+                    # start with <sos> from ground-truth to ensure canonical start
+                    out_tokens = tgt_gt[:, :1].clone()  # shape (B,1)
+                    for t in range(1, Tm1):
+                        emb = model.char_embedding(out_tokens) * math.sqrt(model.d_model)
+                        emb = emb + model.pe[:, : out_tokens.size(1), :].to(emb.device)
+                        causal = nn.Transformer.generate_square_subsequent_mask(out_tokens.size(1)).to(emb.device)
+                        # dec_out = model.decoder(emb, memory, tgt_mask=causal)
+                        # inside the with torch.no_grad() out_tokens loop, replace the call with:
+                        dec_out = model.decoder(
+                            emb,
+                            memory,
+                            tgt_mask=causal,
+                            memory_key_padding_mask=src_mask,   # <-- IMPORTANT
+                            tgt_key_padding_mask=None
+                        )
+                        next_logits = model.output_proj(dec_out[:, -1, :])  # (B, V)
+                        next_tok = next_logits.argmax(dim=-1, keepdim=True)
+                        out_tokens = torch.cat([out_tokens, next_tok], dim=1)
+                    # ensure out_tokens is same dtype/device as tgt_gt
+                    out_tokens = out_tokens.to(tgt_gt.device, dtype=tgt_gt.dtype)
+
+                # Create mask: True -> keep ground-truth, False -> use model token
+                replace_mask = (torch.rand(tgt_gt.shape, device=tgt_gt.device) < p_teacher)
+                # But always preserve pad positions (don't replace pads)
+                replace_mask = replace_mask & (tgt_gt != tokenizer.pad_idx)
+                tgt_input = torch.where(replace_mask, tgt_gt, out_tokens)
+
+            # Now run the decoder on tgt_input (mixed-precision)
             with torch.cuda.amp.autocast(enabled=(device.type == 'cuda')):
-                logits = model(traj_features, nearest_keys, targets, src_mask, tgt_mask)
-                loss = criterion(
-                    logits.reshape(-1, logits.shape[-1]), targets[:, 1:].reshape(-1)
+                tgt_emb = model.char_embedding(tgt_input) * math.sqrt(model.d_model)
+                tgt_emb = tgt_emb + model.pe[:, : tgt_input.size(1), :].to(tgt_emb.device)
+                causal_mask = nn.Transformer.generate_square_subsequent_mask(tgt_input.size(1)).to(tgt_emb.device)
+
+                # decode (note we pass padding masks)
+                output = model.decoder(
+                    tgt_emb,
+                    memory,
+                    tgt_mask=causal_mask,
+                    memory_key_padding_mask=src_mask,
+                    tgt_key_padding_mask=tgt_key_padding_mask,
                 )
+
+                logits = model.output_proj(output)
+                loss = criterion(logits.reshape(-1, logits.shape[-1]), targets[:, 1:].reshape(-1))
+            # --- END scheduled sampling forward ---
+
 
             # Backward pass
             optimizer.zero_grad(set_to_none=True)
@@ -743,7 +864,7 @@ def train_full_model():
         per_source_total = {}
         per_source_correct = {}
 
-        val_fraction = float(os.getenv("VAL_FRACTION", "1.0"))
+        val_fraction = float(os.getenv("VAL_FRACTION", "0.3"))
         limit_val_batches = int(len(val_loader) * max(min(val_fraction, 1.0), 0.0))
         if limit_val_batches == 0:
             limit_val_batches = 1 # Ensure at least one batch runs
