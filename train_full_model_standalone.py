@@ -539,7 +539,8 @@ def train_full_model():
 
     # Configuration for full training
     batch_size = int(os.getenv("BATCH_SIZE", "64"))
-    learning_rate = float(os.getenv("LR", "3e-4"))
+    learning_rate = float(os.getenv("LR", "1e-4"))
+    # learning_rate = float(os.getenv("LR", "3e-4"))
     num_epochs = int(os.getenv("EPOCHS", "500"))
     patience = int(os.getenv("PATIENCE", "40"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -658,13 +659,13 @@ def train_full_model():
     
 
     # --- START CHECKPOINT RESUME LOGIC (load best by metric) ---
-
     start_epoch = 0
     best_val_acc = -1.0
     patience_counter = 0
     checkpoint_dir = Path("checkpoints/full_character_model_standalone_hwsfuto8")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
+    checkpoint = None
     # Find the best (most accurate) checkpoint to resume from
     checkpoint_files = list(checkpoint_dir.glob("*.ckpt"))
     if checkpoint_files:
@@ -684,7 +685,6 @@ def train_full_model():
             checkpoint = torch.load(best_path, map_location=device)
             model.load_state_dict(checkpoint["model_state_dict"])
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            # Intentionally do not restore scheduler state to avoid total-steps mismatch on resume
             start_epoch = checkpoint.get("epoch", -1) + 1
             best_val_acc = float(checkpoint.get("val_word_acc", 0.0))
             print(f"Resumed from Epoch {start_epoch}, Best Acc: {best_val_acc:.2%}")
@@ -692,40 +692,83 @@ def train_full_model():
             print("No usable checkpoint found. Starting from scratch.")
     else:
         print("No checkpoint found. Starting from scratch.")
-
     # --- END CHECKPOINT RESUME LOGIC ---
 
-    # Soft LR scale to stabilize training when introducing scheduled sampling now
-    # Put this after your checkpoint-resume logic and before the epoch loop.
-    lr_scale_on_ss = float(os.getenv("LR_SCALE_ON_SS", "1.0"))
+
+    # Soft LR scale to stabilize training when introducing scheduled sampling now.
+    # Apply *after* loading optimizer state (if resuming) so we scale the actual optimizer lr.
+    lr_scale_on_ss = float(os.getenv("LR_SCALE_ON_SS", "0.5"))
     if lr_scale_on_ss != 1.0:
+        print(f"Applying LR scale {lr_scale_on_ss} to optimizer param groups to stabilize scheduled sampling.")
         for g in optimizer.param_groups:
             g['lr'] = g.get('lr', learning_rate) * lr_scale_on_ss
 
+    # Learning rate scheduler - create AFTER optimizer (and AFTER any LR scaling)
     pct_start = warmup_epochs / max(num_epochs, 1)
     pct_start = max(0.0, min(pct_start, 0.3))
-    max_lr_for_scheduler = max(g.get('lr', learning_rate) for g in optimizer.param_groups)
-
-    # 4) now create scheduler using current optimizer param_groups
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer,
-        max_lr=max(g['lr'] for g in optimizer.param_groups),
+        max_lr=max(g.get('lr', learning_rate) for g in optimizer.param_groups),
         epochs=max(num_epochs, 1),
         steps_per_epoch=max(len(train_loader), 1),
         pct_start=pct_start,
         anneal_strategy="cos",
     )
+
+    # If we have a checkpoint with saved scheduler state, try to restore it.
+    # Otherwise fast-forward scheduler by the number of steps already taken.
+    if checkpoint is not None:
+        if "scheduler_state_dict" in checkpoint:
+            try:
+                scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+                print("Restored scheduler state from checkpoint.")
+            except Exception as e:
+                print(f"Warning: could not restore scheduler state: {e}. Fast-forwarding scheduler instead.")
+                steps_done = start_epoch * max(len(train_loader), 1)
+                print(f"Fast-forwarding scheduler by {steps_done} steps (start_epoch={start_epoch})")
+                for _ in range(steps_done):
+                    try:
+                        scheduler.step()
+                    except Exception:
+                        pass
+        else:
+            # Fast-forward to emulate previous calls to scheduler.step()
+            if start_epoch > 0:
+                steps_done = start_epoch * max(len(train_loader), 1)
+                print(f"Fast-forwarding scheduler by {steps_done} steps (start_epoch={start_epoch})")
+                for _ in range(steps_done):
+                    try:
+                        scheduler.step()
+                    except Exception:
+                        pass
+
     print("Starting training...")
     print("=" * 60)
 
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == 'cuda'))
 
     for epoch in range(start_epoch, num_epochs):
+        # compute scheduled sampling probability once per epoch (not every batch)
+        ss_start = float(os.getenv("SS_START", "1.0"))    # prob keep GT at epoch 0
+        ss_end = float(os.getenv("SS_END", "0.35"))       # final prob keep GT (tune this)
+        ss_decay_epochs = int(os.getenv("SS_EPOCHS", "150"))
+        ss_warmup = int(os.getenv("SS_WARMUP", "5"))      # keep full teacher forcing for this many epochs
+        if epoch < ss_warmup:
+            p_teacher = 1.0
+        else:
+            progress = (epoch - ss_warmup) / max(1, ss_decay_epochs - ss_warmup)
+            p_teacher = ss_start + (ss_end - ss_start) * min(1.0, progress)
+        print(f"Epoch {epoch}: scheduled sampling p_teacher={p_teacher:.4f}")
+
         # Training phase
         model.train()
-        train_loss = 0
+        train_loss = 0.0
         train_correct = 0
         train_total = 0
+
+        # for progress metrics tracked in the progress bar:
+        val_char_correct = 0
+        val_char_total = 0
 
         pbar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs} [Train]")
         for batch_idx, batch in enumerate(pbar):
@@ -756,16 +799,8 @@ def train_full_model():
             # Encode trajectory (shared)
             memory = model.encode_trajectory(traj_features, nearest_keys, src_mask)
 
-            # Scheduled sampling hyperparams (tune via env)
-            ss_start = float(os.getenv("SS_START", "1.0"))    # prob keep GT at epoch 0
-            ss_end = float(os.getenv("SS_END", "0.35"))        # final prob keep GT
-            ss_decay_epochs = int(os.getenv("SS_EPOCHS", "100"))
-            ss_warmup = int(os.getenv("SS_WARMUP", "10"))    # keep full teacher forcing for this many epochs
-            if epoch < ss_warmup:
-                p_teacher = 1.0
-            else:
-                progress = (epoch - ss_warmup) / max(1, ss_decay_epochs - ss_warmup)
-                p_teacher = ss_start + (ss_end - ss_start) * min(1.0, progress)
+           
+            # print(f"epoch {epoch}: p_teacher={p_teacher:.4f}")
             # Prepare ground-truth decoder input (B, T-1)
             tgt_gt = targets[:, :-1].clone().to(device)  # keep on device for convenience
 
@@ -796,7 +831,12 @@ def train_full_model():
                             tgt_key_padding_mask=None
                         )
                         next_logits = model.output_proj(dec_out[:, -1, :])  # (B, V)
-                        next_tok = next_logits.argmax(dim=-1, keepdim=True)
+                        # inside with torch.no_grad() SS rollout loop, replace
+                        # next_tok = next_logits.argmax(dim=-1, keepdim=True)
+                        # with (temperature controlled)
+                        temp = float(os.getenv("SS_TEMP", "0.8"))
+                        probs = F.softmax(next_logits / temp, dim=-1)
+                        next_tok = torch.multinomial(probs, num_samples=1)  # shape (B,1)
                         out_tokens = torch.cat([out_tokens, next_tok], dim=1)
                     # ensure out_tokens is same dtype/device as tgt_gt
                     out_tokens = out_tokens.to(tgt_gt.device, dtype=tgt_gt.dtype)
@@ -805,6 +845,11 @@ def train_full_model():
                 replace_mask = (torch.rand(tgt_gt.shape, device=tgt_gt.device) < p_teacher)
                 # But always preserve pad positions (don't replace pads)
                 replace_mask = replace_mask & (tgt_gt != tokenizer.pad_idx)
+                if batch_idx == 0 and p_teacher < 0.999:
+                    # fraction of positions kept as ground truth
+                    frac_gt = replace_mask.float().mean().item()
+                    print(f"  (SS) epoch {epoch} batch {batch_idx}: p_teacher={p_teacher:.4f}, frac_gt={frac_gt:.3f}")
+
                 tgt_input = torch.where(replace_mask, tgt_gt, out_tokens)
 
             # Now run the decoder on tgt_input (mixed-precision)
@@ -844,12 +889,15 @@ def train_full_model():
 
             # Update progress
             if batch_idx % 10 == 0:
+                val_char_correct += ((predictions == targets[:,1:]) & mask).sum().item()
+                val_char_total += mask.sum().item()
                 acc = train_correct / max(train_total, 1)
                 pbar.set_postfix(
                     {
                         "loss": f"{loss.item():.4f}",
                         "acc": f"{acc:.2%}",
                         "lr": f"{scheduler.get_last_lr()[0]:.2e}",
+                        "val_char_acc": f"{val_char_correct / val_char_total:.2%}",
                     }
                 )
 
@@ -868,6 +916,13 @@ def train_full_model():
         limit_val_batches = int(len(val_loader) * max(min(val_fraction, 1.0), 0.0))
         if limit_val_batches == 0:
             limit_val_batches = 1 # Ensure at least one batch runs
+
+        # BEFORE validation loop
+        wrong_examples = []  # keep a sample of mistakes
+        max_examples_to_keep = 200
+        from collections import defaultdict
+        len_bins_total = defaultdict(int)
+        len_bins_correct = defaultdict(int)
 
         with torch.no_grad():
             pbar = tqdm(val_loader, desc=f"Epoch {epoch + 1}/{num_epochs} [Val]", total=limit_val_batches)
@@ -897,19 +952,65 @@ def train_full_model():
                 )
 
                 # Compute accuracy
+                # inside the for-loop over generated_words,words (replace your existing per-example block)
                 for i, (gen_word, true_word) in enumerate(zip(generated_words, words)):
                     val_total_words += 1
                     src = sources[i] if isinstance(sources, list) else sources
                     per_source_total[src] = per_source_total.get(src, 0) + 1
+
                     correct = int(gen_word == true_word)
                     val_correct_words += correct
                     per_source_correct[src] = per_source_correct.get(src, 0) + correct
+
+                    # length bins (word length in characters)
+                    L = len(true_word or "")
+                    len_bins_total[L] += 1
+                    if correct:
+                        len_bins_correct[L] += 1
+
+                    # keep a reservoir/sample of wrong examples for inspection
+                    if not correct:
+                        if len(wrong_examples) < max_examples_to_keep:
+                            wrong_examples.append({
+                                "true": true_word,
+                                "pred": gen_word,
+                                "source": src,
+                                "length": L,
+                            })
+                        else:
+                            # optional simple replacement strategy (randomly replace)
+                            if random.random() < 0.02:
+                                idx = random.randrange(len(wrong_examples))
+                                wrong_examples[idx] = {
+                                    "true": true_word,
+                                    "pred": gen_word,
+                                    "source": src,
+                                    "length": L,
+                                }
 
                 # Update progress
                 word_acc = val_correct_words / max(val_total_words, 1)
                 pbar.set_postfix({"word_acc": f"{word_acc:.2%}"})
 
         val_word_acc = val_correct_words / val_total_words
+
+        # after val loop finishes, compute per-length accuracy and print samples
+        print("\nValidation length-binned accuracy (length: total / correct -> %):")
+        for L in sorted(len_bins_total.keys()):
+            tot = len_bins_total[L]
+            corr = len_bins_correct.get(L, 0)
+            print(f"  {L:2d}: {tot:5d} / {corr:5d} -> {100.0*corr/max(1,tot):.2f}%")
+
+        # print a small random sample of mistakes (or the first N)
+        print("\nSample wrong predictions (up to 30):")
+        for ex in wrong_examples[:30]:
+            print(f"  src={ex['source']:<8} len={ex['length']:2d} GT='{ex['true']}'  PRED='{ex['pred']}'")
+        # optionally save to disk for inspection
+        err_path = checkpoint_dir / f"epoch{epoch+1:02d}_wrong_examples.jsonl"
+        with open(err_path, "w") as ef:
+            for ex in wrong_examples:
+                ef.write(json.dumps(ex) + "\n")
+        print(f"Saved {len(wrong_examples)} wrong examples to {err_path}")
 
         # Print epoch summary
         print(f"\nEpoch {epoch + 1}/{num_epochs}")
