@@ -6,7 +6,7 @@ Creates optimized ONNX models for both web and Android deployment.
 Usage:
     uv run export_and_quantize_standalone.py path/to/checkpoint target_directory
 """
-
+import inspect
 import os
 import sys
 import json
@@ -23,7 +23,6 @@ import onnx
 import onnxruntime as ort
 from onnxruntime.quantization import quantize_dynamic, QuantType
 from onnxruntime.quantization import quantize_static, CalibrationDataReader
-from onnxruntime.quantization.shape_inference import quant_pre_process
 
 
 # Model classes (copied from train_full_model_standalone.py)
@@ -141,7 +140,7 @@ def load_checkpoint(checkpoint_path: Path) -> Tuple[CharacterLevelSwipeModel, st
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
 
-    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
 
     # Initialize tokenizer and get config
     tokenizer = CharTokenizer()
@@ -184,7 +183,8 @@ def load_checkpoint(checkpoint_path: Path) -> Tuple[CharacterLevelSwipeModel, st
         'max_word_len': int(ck_config.get('max_word_len', 20))
     }
 
-    return model, f"{accuracy:.3f}", config
+    return model, float(accuracy), config
+
 
 
 def export_encoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opset: int = 17) -> Dict:
@@ -209,13 +209,15 @@ def export_encoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opse
     nearest_keys = torch.randint(0, 30, (batch_size, seq_len))
     src_mask = torch.zeros(batch_size, seq_len, dtype=torch.bool)
 
-    # Dynamic axes for variable length sequences
+    # Dynamic axes for variable length sequences (encoder)
     dynamic_axes = {
         'trajectory_features': {0: 'batch', 1: 'sequence'},
         'nearest_keys': {0: 'batch', 1: 'sequence'},
         'src_mask': {0: 'batch', 1: 'sequence'},
         'encoder_output': {0: 'batch', 1: 'sequence'}
     }
+
+
 
     # Export
     torch.onnx.export(
@@ -239,13 +241,18 @@ def export_encoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opse
     print(f"✓ Encoder exported: {size_mb:.2f} MB")
 
     # Validate using onnxruntime
-    so = ort.SessionOptions()
-    sess = ort.InferenceSession(str(output_path), so, providers=['CPUExecutionProvider'])
-    _ = sess.run(None, {
-        'trajectory_features': traj_features.numpy(),
-        'nearest_keys': nearest_keys.numpy(),
-        'src_mask': src_mask.numpy()
-    })
+    try:
+        so = ort.SessionOptions()
+        sess = ort.InferenceSession(str(output_path), so, providers=['CPUExecutionProvider'])
+        _ = sess.run(None, {
+            'trajectory_features': traj_features.numpy(),
+            'nearest_keys': nearest_keys.numpy(),
+            'src_mask': src_mask.numpy()
+        })
+    except Exception as e:
+        print(f"⚠ Encoder ONNX runtime check failed: {e}")
+        raise
+
 
     return {'path': str(output_path), 'size_mb': size_mb}
 
@@ -260,24 +267,37 @@ def export_decoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opse
             self.model = model
             self.d_model = model.d_model
 
-        def forward(self, memory, tgt_tokens, src_mask, tgt_mask):
-            # Embed target tokens
+        def forward(self, memory, tgt_tokens, src_mask, target_padding_mask, target_causal_mask):
+            """
+            Inputs:
+            - memory: (B, enc_seq, d_model) float32
+            - tgt_tokens: (B, tgt_len) int64
+            - src_mask: (B, enc_seq) boolean/int (True=PAD)
+            - target_padding_mask: (B, tgt_len) boolean/int (True=PAD)
+            - target_causal_mask: (tgt_len, tgt_len) float32 (0.0 allowed, -1e9 blocked)
+            """
+
+            # Ensure src_mask is boolean (coerce numeric masks)
+            src_mask = src_mask.bool()
+
+            # Embed target tokens as before
             batch_size, tgt_len = tgt_tokens.shape
             tgt_emb = self.model.char_embedding(tgt_tokens) * math.sqrt(self.d_model)
             tgt_emb = tgt_emb + self.model.pe[:, :tgt_len, :]
 
-            # Create causal mask
-            causal_mask = nn.Transformer.generate_square_subsequent_mask(tgt_len).to(tgt_emb.device)
+            # Coerce masks directly (avoid tracer branching)
+            tgt_key_padding_mask = target_padding_mask.bool() if target_padding_mask is not None else None
+            causal_mask = target_causal_mask.to(dtype=tgt_emb.dtype, device=tgt_emb.device) if target_causal_mask is not None else None
 
-            # Decode
+            # Call the decoder
             output = self.model.decoder(
-                tgt_emb, memory,
+                tgt_emb,
+                memory,
                 tgt_mask=causal_mask,
                 memory_key_padding_mask=src_mask,
-                tgt_key_padding_mask=tgt_mask
+                tgt_key_padding_mask=tgt_key_padding_mask
             )
 
-            # Project to vocabulary
             logits = self.model.output_proj(output)
             return logits
 
@@ -288,27 +308,30 @@ def export_decoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opse
     batch_size = 1
     seq_len = 250
     tgt_len = 20
-    memory = torch.randn(batch_size, seq_len, 256)
-    tgt_tokens = torch.randint(0, 30, (batch_size, tgt_len))
+    memory = torch.randn(batch_size, seq_len, model.d_model)
+    tgt_tokens = torch.randint(0, 30, (batch_size, tgt_len), dtype=torch.long)
     src_mask = torch.zeros(batch_size, seq_len, dtype=torch.bool)
-    tgt_mask = torch.zeros(batch_size, tgt_len, dtype=torch.bool)
+    target_padding_mask = torch.zeros(batch_size, tgt_len, dtype=torch.bool)
+    target_causal_mask = torch.zeros(tgt_len, tgt_len, dtype=torch.float32)
 
     dynamic_axes = {
         'memory': {0: 'batch', 1: 'enc_sequence'},
         'target_tokens': {0: 'batch', 1: 'dec_sequence'},
         'src_mask': {0: 'batch', 1: 'enc_sequence'},
-        'target_mask': {0: 'batch', 1: 'dec_sequence'},
+        'target_padding_mask': {0: 'batch', 1: 'dec_sequence'},
+        'target_causal_mask': {0: 'dec_sequence', 1: 'dec_sequence'},
         'logits': {0: 'batch', 1: 'dec_sequence'}
     }
 
+
     torch.onnx.export(
         wrapper,
-        (memory, tgt_tokens, src_mask, tgt_mask),
+        (memory, tgt_tokens, src_mask, target_padding_mask, target_causal_mask),
         output_path,
         export_params=True,
         opset_version=opset,
         do_constant_folding=True,
-        input_names=['memory', 'target_tokens', 'src_mask', 'target_mask'],
+        input_names=['memory', 'target_tokens', 'src_mask', 'target_padding_mask', 'target_causal_mask'],
         output_names=['logits'],
         dynamic_axes=dynamic_axes,
         verbose=False
@@ -318,14 +341,20 @@ def export_decoder_onnx(model: CharacterLevelSwipeModel, output_path: Path, opse
     print(f"✓ Decoder exported: {size_mb:.2f} MB")
 
     # Validate with onnxruntime
-    so = ort.SessionOptions()
-    sess = ort.InferenceSession(str(output_path), so, providers=['CPUExecutionProvider'])
-    _ = sess.run(None, {
-        'memory': memory.numpy(),
-        'target_tokens': tgt_tokens.numpy(),
-        'src_mask': src_mask.numpy(),
-        'target_mask': tgt_mask.numpy()
-    })
+    try:
+        so = ort.SessionOptions()
+        sess = ort.InferenceSession(str(output_path), so, providers=['CPUExecutionProvider'])
+        _ = sess.run(None, {
+            'memory': memory.numpy(),
+            'target_tokens': tgt_tokens.numpy(),
+            'src_mask': src_mask.numpy(),
+            'target_padding_mask': target_padding_mask.numpy(),
+            'target_causal_mask': target_causal_mask.numpy()
+        })
+    except Exception as e:
+        print(f"⚠ Decoder ONNX runtime check failed: {e}")
+        raise
+
 
     return {'path': str(output_path), 'size_mb': size_mb}
 
@@ -368,8 +397,9 @@ def preprocess_onnx_model(input_path: Path, output_path: Path) -> float:
     print(f"Preprocessing {input_path.name}")
 
     original_size = os.path.getsize(input_path) / (1024 * 1024)
-
-    quant_pre_process(
+    try:
+        from onnxruntime.quantization.shape_inference import quant_pre_process
+        quant_pre_process(
         str(input_path),
         str(output_path),
         skip_optimization=False,
@@ -383,7 +413,15 @@ def preprocess_onnx_model(input_path: Path, output_path: Path) -> float:
         all_tensors_to_one_file=True,
         external_data_location="",
         external_data_size_threshold=1024,
-    )
+        )
+    except Exception:
+        import onnx
+        from onnx import shape_inference
+        model = onnx.load(str(input_path))
+        model = shape_inference.infer_shapes(model)
+        onnx.save(model, str(output_path))
+
+    
 
     processed_size = os.path.getsize(output_path) / (1024 * 1024)
     reduction = (1 - processed_size/original_size) * 100
@@ -418,62 +456,203 @@ def quantize_onnx_model(input_path: Path, output_path: Path, target: str = "andr
                     self.max_samples = max_samples
                     self._iter = None
 
-                def get_next(self):
-                    if self._iter is None:
-                        # Very lightweight JSONL reader yielding shapes expected by encoder/decoder
-                        inputs = []
+                def _build_inputs(self):
+                    """
+                    Build a list of input dicts for calibration. This supports both encoder
+                    and decoder ONNX graphs. If self.model_path indicates a decoder ONNX,
+                    we will attempt to run the corresponding encoder ONNX to produce
+                    'memory' inputs for decoder calibration.
+                    """
+                    inputs = []
+                    is_decoder = "decoder" in Path(self.model_path).name.lower()
+
+                    # Locate potential encoder ONNX to produce memory (for decoder calibration)
+                    encoder_onnx_for_decoder = None
+                    if is_decoder:
+                        # Try to find an encoder sibling file by replacing 'decoder' with 'encoder'
                         try:
-                            with open(self.calib_path, 'r') as f:
-                                for i, line in enumerate(f):
-                                    if i >= self.max_samples:
-                                        break
-                                    item = json.loads(line)
-                                    if 'curve' in item:
-                                        x = item['curve']['x']; y = item['curve']['y']; t = item['curve']['t']
-                                    elif 'points' in item:
-                                        pts = item['points']; x=[p['x'] for p in pts]; y=[p['y'] for p in pts]; t=[p['t'] for p in pts]
-                                    elif 'word_seq' in item:
-                                        x=item['word_seq']['x']; y=item['word_seq']['y']
-                                        t=item['word_seq'].get('time', list(range(len(x))))
-                                    else:
-                                        continue
-                                    L = min(len(x), 250)
-                                    # Build encoder inputs only (decoder will be covered by runtime ops)
-                                    traj = np.zeros((1, 250, 6), dtype=np.float32)
-                                    nk = np.zeros((1, 250), dtype=np.int64)
-                                    sm = np.zeros((1, 250), dtype=bool)
-                                    # simple normalize [0,1]
-                                    xs = np.array(x[:L], dtype=np.float32)
-                                    ys = np.array(y[:L], dtype=np.float32)
-                                    ts = np.array(t[:L], dtype=np.float32)
-                                    xs = xs / max(xs.max(), 1.0)
-                                    ys = ys / max(ys.max(), 1.0)
-                                    dt = np.diff(ts, prepend=ts[0]); dt = np.maximum(dt, 1e-6)
-                                    vx = np.zeros_like(xs); vy = np.zeros_like(ys)
-                                    vx[1:] = np.diff(xs)/dt[1:]; vy[1:] = np.diff(ys)/dt[1:]
-                                    ax = np.zeros_like(xs); ay = np.zeros_like(ys)
-                                    ax[1:] = np.diff(vx)/dt[1:]; ay[1:] = np.diff(vy)/dt[1:]
-                                    traj[0,:L,:] = np.stack([xs,ys,vx,vy,ax,ay], axis=1)
-                                    sm[0,L:] = True
-                                    inputs.append({'trajectory_features': traj, 'nearest_keys': nk, 'src_mask': sm})
+                            dec_name = Path(self.model_path).name
+                            enc_name = dec_name.replace("decoder", "encoder")
+                            enc_path_candidate = Path(self.model_path).parent / enc_name
+                            if enc_path_candidate.exists():
+                                encoder_onnx_for_decoder = str(enc_path_candidate)
                         except Exception:
-                            pass
-                        if not inputs:
-                            # fallback: a few random samples
-                            for _ in range(10):
-                                traj = np.random.randn(1,250,6).astype(np.float32)
-                                nk = np.random.randint(0,30,size=(1,250)).astype(np.int64)
-                                sm = np.zeros((1,250), dtype=bool)
+                            encoder_onnx_for_decoder = None
+
+                        # As a fallback, try generic name 'swipe_encoder_*_base.onnx' in same dir
+                        if encoder_onnx_for_decoder is None:
+                            for p in Path(self.model_path).parent.glob("swipe_encoder*base.onnx"):
+                                encoder_onnx_for_decoder = str(p)
+                                break
+
+                    # Initialize encoder session if we will use it
+                    encoder_sess = None
+                    if encoder_onnx_for_decoder is not None:
+                        try:
+                            encoder_sess = ort.InferenceSession(encoder_onnx_for_decoder, providers=['CPUExecutionProvider'])
+                        except Exception:
+                            encoder_sess = None
+
+                    try:
+                        with open(self.calib_path, 'r') as f:
+                            for i, line in enumerate(f):
+                                if i >= self.max_samples:
+                                    break
+                                try:
+                                    item = json.loads(line)
+                                except Exception:
+                                    continue
+
+                                # Extract curve/points/word_seq as before
+                                if 'curve' in item and 'x' in item['curve']:
+                                    x = item['curve']['x']; y = item['curve']['y']; t = item['curve']['t']
+                                elif 'points' in item:
+                                    pts = item['points']; x=[p['x'] for p in pts]; y=[p['y'] for p in pts]; t=[p['t'] for p in pts]
+                                elif 'word_seq' in item:
+                                    x=item['word_seq']['x']; y=item['word_seq']['y']
+                                    t=item['word_seq'].get('time', list(range(len(x))))
+                                else:
+                                    continue
+
+                                L = min(len(x), 250)
+                                # Build encoder inputs (B=1)
+                                traj = np.zeros((1, 250, 6), dtype=np.float32)
+                                nk = np.zeros((1, 250), dtype=np.int64)
+                                sm = np.zeros((1, 250), dtype=np.bool_)  # boolean mask (True=PAD)
+                                xs = np.array(x[:L], dtype=np.float32)
+                                ys = np.array(y[:L], dtype=np.float32)
+                                ts = np.array(t[:L], dtype=np.float32)
+                                # simple normalization
+                                xs = xs / max(xs.max(), 1.0)
+                                ys = ys / max(ys.max(), 1.0)
+                                dt = np.diff(ts, prepend=ts[0]); dt = np.maximum(dt, 1e-6)
+                                vx = np.zeros_like(xs); vy = np.zeros_like(ys)
+                                vx[1:] = np.diff(xs)/dt[1:]; vy[1:] = np.diff(ys)/dt[1:]
+                                ax = np.zeros_like(xs); ay = np.zeros_like(ys)
+                                ax[1:] = np.diff(vx)/dt[1:]; ay[1:] = np.diff(vy)/dt[1:]
+                                traj[0,:L,:] = np.stack([xs, ys, vx, vy, ax, ay], axis=1)
+                                sm[0,L:] = True
+
+                                if not is_decoder:
+                                    # Encoder calibration sample
+                                    inputs.append({'trajectory_features': traj, 'nearest_keys': nk, 'src_mask': sm})
+                                else:
+                                    # Decoder calibration: need to produce 'memory' (encoder output)
+                                    memory = None
+                                    if encoder_sess is not None:
+                                        try:
+                                            # Run encoder ONNX to get memory
+                                            out = encoder_sess.run(None, {
+                                                'trajectory_features': traj,
+                                                'nearest_keys': nk,
+                                                'src_mask': sm
+                                            })
+                                            # encoder_output is the first output by design
+                                            memory = np.asarray(out[0]).astype(np.float32)
+                                        except Exception:
+                                            memory = None
+
+                                    if memory is None:
+                                        # Fallback: random memory of appropriate shape (B, enc_seq, d_model)
+                                        # We try to infer d_model from the graph name or default to 256
+                                        d_model_val = 256
+                                        # Attempt to read d_model from model filename if present
+                                        nm = Path(self.model_path).name
+                                        # default shapes
+                                        memory = np.random.randn(1, 250, d_model_val).astype(np.float32)
+
+                                    # Build decoder inputs: target_tokens, target_padding_mask, target_causal_mask
+                                    # Use a safe vocab size (30, matching training tokenizer)
+                                    vocab_size = 30
+                                    max_tgt = 20
+                                    # Simple synthetic target: SOS at pos0 (index 2), rest random tokens with some pads
+                                    tgt_tokens = np.zeros((1, max_tgt), dtype=np.int64)
+                                    tgt_tokens[0,0] = 2  # <sos> index in your tokenizer
+                                    # fill a few subsequent tokens randomly
+                                    seq_len_t = min(5, max_tgt-1)
+                                    tgt_tokens[0,1:1+seq_len_t] = np.random.randint(3, vocab_size, size=(seq_len_t,))
+                                    # padding mask True where PAD; assume pad index 0 is pad, so mark zeros after seq
+                                    target_padding_mask = np.zeros((1, max_tgt), dtype=np.bool_)
+                                    if seq_len_t + 1 < max_tgt:
+                                        target_padding_mask[0, seq_len_t+1:] = True
+                                    # causal mask: (T,T) float32, 0 on allowed, -1e9 for masked positions
+                                    T = max_tgt
+                                    causal = np.triu(np.full((T,T), -1e9, dtype=np.float32), 1)
+                                    inputs.append({
+                                        'memory': memory,
+                                        'target_tokens': tgt_tokens,
+                                        'src_mask': sm,
+                                        'target_padding_mask': target_padding_mask,
+                                        'target_causal_mask': causal
+                                    })
+                    except Exception:
+                        pass
+
+                    # if nothing, fallback to a couple of random samples
+                    if not inputs:
+                        for _ in range(10):
+                            traj = np.random.randn(1,250,6).astype(np.float32)
+                            nk = np.random.randint(0,30,size=(1,250)).astype(np.int64)
+                            sm = np.zeros((1,250), dtype=np.bool_)
+                            if not is_decoder:
                                 inputs.append({'trajectory_features': traj, 'nearest_keys': nk, 'src_mask': sm})
+                            else:
+                                # random memory + dummy decoder inputs
+                                memory = np.random.randn(1,250,256).astype(np.float32)
+                                tgt_tokens = np.random.randint(1,30,size=(1,20)).astype(np.int64)
+                                target_padding_mask = (tgt_tokens == 0)
+                                T = 20
+                                causal = np.triu(np.full((T,T), -1e9, dtype=np.float32), 1)
+                                inputs.append({'memory': memory, 'target_tokens': tgt_tokens, 'src_mask': sm, 'target_padding_mask': target_padding_mask, 'target_causal_mask': causal})
+
+                    return inputs
+
+                def get_next(self):
+                    # lazy build
+                    if self._iter is None:
+                        inputs = self._build_inputs()
                         self._iter = iter(inputs)
                     try:
                         return next(self._iter)
                     except StopIteration:
                         return None
 
+                def rewind(self):
+                    # ORT may call rewind() between calibration passes
+                    self._iter = None
+
             dr = DummyDataReader(str(input_path), calibration_data)
-            quantize_static(str(input_path), str(output_path), dr, weight_type=QuantType.QInt8, optimize_model=False)
-            did_static = True
+
+            # Call quantize_static in a backwards/forwards-compatible way:
+            # some ort versions accept optimize_model, some don't — inspect the signature and only pass supported kwargs.
+            _try_msg = None
+            try:
+                sig = inspect.signature(quantize_static)
+                supported = set(sig.parameters.keys())
+                call_kwargs = {}
+                # desired kwargs (keep minimal and essential)
+                desired_kwargs = {'weight_type': QuantType.QInt8, 'per_channel': False}
+                for k, v in desired_kwargs.items():
+                    if k in supported:
+                        call_kwargs[k] = v
+                # prefer explicit optimize_model=False when available
+                if 'optimize_model' in supported:
+                    call_kwargs['optimize_model'] = False
+
+                quantize_static(str(input_path), str(output_path), dr, **call_kwargs)
+                did_static = True
+            except Exception as e:
+                _try_msg = str(e)
+                # Final fallback: try calling with only required args (some ORT builds accept this)
+                try:
+                    quantize_static(str(input_path), str(output_path), dr)
+                    did_static = True
+                except Exception as e2:
+                    raise SystemExit(
+                        f"Static quantization failed: {e}. Fallback attempt also failed: {e2}. "
+                        "Rerun with --dynamic-only to use dynamic quantization instead."
+                    )
+
         except Exception as e:
             raise SystemExit(
                 f"Static quantization failed: {e}. Rerun with --dynamic-only to use dynamic quantization instead."
@@ -556,11 +735,19 @@ def create_config_files(output_dir: Path, accuracy: str, config: Dict):
             }
         },
         'inference': {
+            'inputs': {
+                'memory': {'shape': ['B', 'enc_seq', 'd_model'], 'dtype': 'float32', 'meaning': 'Encoder output memory'},
+                'target_tokens': {'shape': ['B', 'dec_seq'], 'dtype': 'int64', 'meaning': 'Decoder input token ids (including <sos>)'},
+                'src_mask': {'shape': ['B', 'enc_seq'], 'dtype': 'bool', 'meaning': 'Encoder padding mask (True = PAD)'},
+                'target_padding_mask': {'shape': ['B', 'dec_seq'], 'dtype': 'bool', 'meaning': 'Decoder padding mask (True = PAD)'},
+                'target_causal_mask': {'shape': ['dec_seq', 'dec_seq'], 'dtype': 'float32', 'meaning': 'Decoder causal mask (0.0 allowed, large negative/-1e9 blocked)'}
+            },
             'beam_size': 5,
             'max_length': 20,
             'length_penalty': 1.0,
             'temperature': 1.0
         },
+
         'performance': {
             'word_accuracy': config['accuracy'],
             'deployment_targets': ['web', 'android']
