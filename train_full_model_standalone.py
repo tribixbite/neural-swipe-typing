@@ -586,14 +586,73 @@ def train_full_model():
     num_workers = int(num_workers_env) if num_workers_env else max(os.cpu_count() // 2, 1)
     pin = device.type == "cuda"
 
+    # Insert imports near top of file if not present:
+    from collections import Counter
+
+    # ---------- Option B: combined length+freq+double-letter weighting ----------
+    # Put this after `train_dataset = SwipeDataset(...)` and before creating train_loader.
+
+    # Hyperparams (tweak via env vars if desired)
+    LENGTH_BETA = float(os.getenv("LENGTH_BETA", "1.2"))    # >1 favors long words more
+    FREQ_POWER = float(os.getenv("FREQ_POWER", "0.5"))      # 0.5 => inverse sqrt(freq)
+    DOUBLE_MUL = float(os.getenv("DOUBLE_MUL", "1.4"))      # boost for double-letter words
+    MAX_SAMPLE_WEIGHT = float(os.getenv("MAX_SAMPLE_WEIGHT", "5.0"))
+    MIN_SAMPLE_WEIGHT = float(os.getenv("MIN_SAMPLE_WEIGHT", "0.05"))
+
+    # Build word frequency and length stats
+    words = [item["word"].lower() for item in train_dataset.data]
+    word_freq = Counter(words)
+    lengths = [len(w) for w in words]
+    mean_len = float(sum(lengths)) / max(1, len(lengths))
+
+    # Compute raw weight per sample
+    raw_weights = []
+    for item in train_dataset.data:
+        wstr = (item.get("word") or "").lower()
+        L = len(wstr)
+        # length term (longer -> larger)
+        length_term = (L / max(1.0, mean_len)) ** LENGTH_BETA
+        # frequency term (rarer -> larger)
+        freq = word_freq[wstr] if wstr in word_freq else 1
+        freq_term = 1.0 / ((freq ** FREQ_POWER) + 1e-12)
+        # double-letter term
+        double_term = DOUBLE_MUL if any(ch * 2 in wstr for ch in "abcdefghijklmnopqrstuvwxyz") else 1.0
+
+        raw = length_term * freq_term * double_term
+        raw_weights.append(raw)
+
+    arr = np.array(raw_weights, dtype=np.float32)
+
+    # Normalize to mean 1.0 so scale is stable, then clip extremes
+    arr = arr / (arr.mean() + 1e-12)
+    arr = np.clip(arr, MIN_SAMPLE_WEIGHT, MAX_SAMPLE_WEIGHT)
+
+    # Optional quick diagnostics (print a few extremes)
+    print("Sample weight stats (min, median, mean, max):", arr.min(), np.median(arr), arr.mean(), arr.max())
+    top_idx = np.argsort(-arr)[:20]
+    print("Top-weighted examples:")
+    for i in top_idx:
+        print(f"  idx={i:5d} weight={arr[i]:.3f} len={len(train_dataset.data[i]['word'])} freq={word_freq[train_dataset.data[i]['word'].lower()]} word='{train_dataset.data[i]['word']}'")
+
+    # Build WeightedRandomSampler
+    sample_weights = arr.tolist()
+    sampler = torch.utils.data.WeightedRandomSampler(
+        weights=sample_weights,
+        num_samples=len(sample_weights),   # epoch length = dataset size (with replacement)
+        replacement=True
+    )
+
+    # Then create train_loader using the sampler (replace shuffle=True with sampler)
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        sampler=sampler,       # <-- use sampler instead of shuffle
         num_workers=num_workers,
         pin_memory=pin,
         persistent_workers=(num_workers > 0),
     )
+    # ---------------------------------------------------------------------------
+
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
@@ -620,7 +679,7 @@ def train_full_model():
         num_encoder_layers=6,  # Deeper encoder
         num_decoder_layers=4,  # Deeper decoder
         dim_feedforward=1024,  # Larger feedforward
-        dropout=0.15,
+        dropout=0.25,
         char_vocab_size=tokenizer.vocab_size,
         kb_vocab_size=tokenizer.vocab_size,
         kb_pad_idx=tokenizer.pad_idx,
@@ -697,7 +756,7 @@ def train_full_model():
 
     # Soft LR scale to stabilize training when introducing scheduled sampling now.
     # Apply *after* loading optimizer state (if resuming) so we scale the actual optimizer lr.
-    lr_scale_on_ss = float(os.getenv("LR_SCALE_ON_SS", "0.5"))
+    lr_scale_on_ss = float(os.getenv("LR_SCALE_ON_SS", "0.6"))
     if lr_scale_on_ss != 1.0:
         print(f"Applying LR scale {lr_scale_on_ss} to optimizer param groups to stabilize scheduled sampling.")
         for g in optimizer.param_groups:
@@ -750,8 +809,8 @@ def train_full_model():
     for epoch in range(start_epoch, num_epochs):
         # compute scheduled sampling probability once per epoch (not every batch)
         ss_start = float(os.getenv("SS_START", "1.0"))    # prob keep GT at epoch 0
-        ss_end = float(os.getenv("SS_END", "0.35"))       # final prob keep GT (tune this)
-        ss_decay_epochs = int(os.getenv("SS_EPOCHS", "150"))
+        ss_end = float(os.getenv("SS_END", "0.6"))       # final prob keep GT (tune this)
+        ss_decay_epochs = int(os.getenv("SS_EPOCHS", "300"))
         ss_warmup = int(os.getenv("SS_WARMUP", "5"))      # keep full teacher forcing for this many epochs
         if epoch < ss_warmup:
             p_teacher = 1.0
@@ -847,7 +906,13 @@ def train_full_model():
                 replace_mask = replace_mask & (tgt_gt != tokenizer.pad_idx)
                 if batch_idx == 0 and p_teacher < 0.999:
                     # fraction of positions kept as ground truth
-                    frac_gt = replace_mask.float().mean().item()
+                    nonpad = (tgt_gt != tokenizer.pad_idx)
+                    if nonpad.sum().item() > 0:
+                        frac_gt = replace_mask.sum().float().item() / nonpad.sum().float().item()
+                    else:
+                        frac_gt = 0.0
+                    print(f"  (SS) epoch {epoch} batch {batch_idx}: p_teacher={p_teacher:.4f}, frac_gt_nonpad={frac_gt:.3f}")
+
                     print(f"  (SS) epoch {epoch} batch {batch_idx}: p_teacher={p_teacher:.4f}, frac_gt={frac_gt:.3f}")
 
                 tgt_input = torch.where(replace_mask, tgt_gt, out_tokens)
