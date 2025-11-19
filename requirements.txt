@@ -5,3 +5,4 @@ tqdm==4.66.3
 numpy==1.26.4
 pandas==2.1.3  # for evaluate.py only
 lightning==2.2.4  # for training only
+onnxruntime==1.18.1
